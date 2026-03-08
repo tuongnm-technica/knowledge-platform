@@ -39,10 +39,10 @@ class Settings(BaseSettings):
     # ─── Connectors ────────────────────────────────────────────────────────────
     SLACK_BOT_TOKEN: Optional[str] = None
     CONFLUENCE_URL: Optional[str] = None
-    CONFLUENCE_USERNAME: Optional[str] = None
+    # CONFLUENCE_USERNAME: Optional[str] = None
     CONFLUENCE_API_TOKEN: Optional[str] = None
     JIRA_URL: Optional[str] = None
-    JIRA_USERNAME: Optional[str] = None
+    # JIRA_USERNAME: Optional[str] = None
     JIRA_API_TOKEN: Optional[str] = None
 
     class Config:

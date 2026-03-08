@@ -4,21 +4,32 @@ import structlog
 
 log = structlog.get_logger()
 
+# Chỉ sync những projects này
+ALLOWED_PROJECT_KEYS = [
+    "ECOS2025",  
+    # Thêm project keys muốn sync
+    # "KP",
+]
+
 
 class JiraClient:
     def __init__(self):
-        if not all([settings.JIRA_URL, settings.JIRA_USERNAME, settings.JIRA_API_TOKEN]):
-            raise ValueError("JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN chưa đủ")
+        if not all([settings.JIRA_URL, settings.JIRA_API_TOKEN]):
+            raise ValueError("JIRA_URL và JIRA_API_TOKEN chưa được cấu hình")
+
         self._client = Jira(
             url=settings.JIRA_URL,
-            username=settings.JIRA_USERNAME,
-            password=settings.JIRA_API_TOKEN,
-            cloud=True,
+            token=settings.JIRA_API_TOKEN,  # Personal Access Token
+            cloud=False,                     # Server/Data Center
+            timeout = 180,
         )
 
     def get_projects(self) -> list[dict]:
         try:
-            return self._client.projects()
+            projects = self._client.projects()
+            if ALLOWED_PROJECT_KEYS:
+                projects = [p for p in projects if p["key"] in ALLOWED_PROJECT_KEYS]
+            return projects
         except Exception as e:
             log.error("jira.get_projects.failed", error=str(e))
             return []
@@ -31,3 +42,11 @@ class JiraClient:
         except Exception as e:
             log.error("jira.get_issues.failed", project=project_key, error=str(e))
             return []
+
+    def test_connection(self) -> bool:
+        try:
+            self._client.projects()
+            return True
+        except Exception as e:
+            log.error("jira.test_connection.failed", error=str(e))
+            return False
