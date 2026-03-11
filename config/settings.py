@@ -23,9 +23,13 @@ class Settings(BaseSettings):
     VECTOR_DIM: int = 384
 
     # ─── LLM: Ollama (on-premise) ─────────────────────────────────────────────
+
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_LLM_MODEL: str = "llama3"
-    LLM_TIMEOUT: int = 120
+    # OLLAMA_LLM_MODEL: str = "deepseek-r1:14b"
+    OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
+    OLLAMA_EMBED_MODEL: str = "bge-m3"        # ← thêm dòng này
+    LLM_TIMEOUT: int = 800
+    VECTOR_DIM: int = 1024
 
     # ─── Search weights ────────────────────────────────────────────────────────
     HYBRID_ALPHA: float = 0.5
@@ -44,7 +48,13 @@ class Settings(BaseSettings):
     JIRA_URL: Optional[str] = None
     # JIRA_USERNAME: Optional[str] = None
     JIRA_API_TOKEN: Optional[str] = None
-
+    # SMB File Server
+    SMB_HOST: Optional[str] = None
+    SMB_USERNAME: Optional[str] = None
+    SMB_PASSWORD: Optional[str] = None
+    SMB_SHARE: Optional[str] = None
+    SMB_BASE_PATH: str = ""
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -40,6 +40,9 @@ def _get_connector(name: str):
         if name == "jira":
             from connectors.jira.jira_connector import JiraConnector
             return JiraConnector()
+        if name == "file_server":                                    
+            from connectors.fileserver.smb_connector import SMBConnector
+            return SMBConnector()
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     raise HTTPException(status_code=400, detail=f"Unknown connector: {name}")

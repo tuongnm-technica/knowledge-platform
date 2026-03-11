@@ -9,6 +9,7 @@ class SourceType(str, Enum):
     CONFLUENCE = "confluence"
     JIRA = "jira"
     GOOGLE_DRIVE = "google_drive"
+    FILE_SERVER  = "file_server"
 
 
 @dataclass

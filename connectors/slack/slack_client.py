@@ -1,9 +1,17 @@
 from slack_sdk.web.async_client import AsyncWebClient
 from slack_sdk.errors import SlackApiError
 from config.settings import settings
+from datetime import datetime, timedelta
 import structlog
 
 log = structlog.get_logger()
+
+# Để trống = sync TẤT CẢ channels bot được add vào
+# Điền vào để chỉ sync những channels cụ thể
+ALLOWED_CHANNEL_NAMES: list[str] = []
+
+# Lần full sync đầu tiên: lấy 3 tháng gần nhất
+FULL_SYNC_DAYS = 90
 
 
 class SlackClient:
@@ -13,22 +21,27 @@ class SlackClient:
         self._client = AsyncWebClient(token=settings.SLACK_BOT_TOKEN)
 
     async def get_channels(self) -> list[dict]:
-        """Lấy tất cả public + private channels bot có quyền truy cập."""
+        """Lấy public + private channels bot được add vào."""
         channels = []
-        cursor = None
+        cursor   = None
         try:
             while True:
                 kwargs = dict(
-                    types="public_channel,private_channel,mpim,im",
+                    types="public_channel,private_channel",
                     limit=200,
                     exclude_archived=True,
                 )
                 if cursor:
                     kwargs["cursor"] = cursor
 
-                result = await self._client.conversations_list(**kwargs)
-                channels.extend(result["channels"])
+                result  = await self._client.conversations_list(**kwargs)
+                all_ch  = result["channels"]
 
+                # Lọc whitelist nếu có cấu hình
+                if ALLOWED_CHANNEL_NAMES:
+                    all_ch = [c for c in all_ch if c.get("name") in ALLOWED_CHANNEL_NAMES]
+
+                channels.extend(all_ch)
                 cursor = result.get("response_metadata", {}).get("next_cursor")
                 if not cursor:
                     break
@@ -37,61 +50,74 @@ class SlackClient:
             log.error("slack.get_channels.failed", error=str(e))
         return channels
 
-    async def get_messages(self, channel_id: str, limit: int = 200) -> list[dict]:
-        """Lấy messages kèm thread replies."""
+    async def get_messages(
+        self,
+        channel_id: str,
+        last_sync: datetime | None = None,
+        limit: int = 1000,
+    ) -> list[dict]:
+        """
+        Lấy messages:
+        - last_sync=None → 3 tháng gần nhất (FULL_SYNC_DAYS=90)
+        - last_sync=<dt> → chỉ lấy messages SAU last_sync (incremental)
+        """
         messages = []
-        try:
-            result = await self._client.conversations_history(
-                channel=channel_id,
-                limit=limit,
-            )
-            raw_messages = result.get("messages", [])
 
-            for msg in raw_messages:
-                messages.append(msg)
+        if last_sync:
+            oldest_ts = str(last_sync.timestamp())
+            log.info("slack.messages.incremental", channel=channel_id,
+                     since=last_sync.isoformat())
+        else:
+            since_dt  = datetime.utcnow() - timedelta(days=FULL_SYNC_DAYS)
+            oldest_ts = str(since_dt.timestamp())
+            log.info("slack.messages.full_sync", channel=channel_id,
+                     since=since_dt.strftime("%Y-%m-%d"), days=FULL_SYNC_DAYS)
+
+        try:
+            cursor = None
+            while True:
+                kwargs = dict(
+                    channel=channel_id,
+                    limit=200,           # Slack max 200/request
+                    oldest=oldest_ts,
+                )
+                if cursor:
+                    kwargs["cursor"] = cursor
+
+                result = await self._client.conversations_history(**kwargs)
+                batch  = result.get("messages", [])
+
                 # Lấy thread replies nếu có
-                if msg.get("reply_count", 0) > 0:
-                    replies = await self.get_thread_replies(channel_id, msg["ts"])
-                    messages.extend(replies[1:])  # bỏ message gốc (đã có rồi)
+                for msg in batch:
+                    if msg.get("reply_count", 0) > 0:
+                        replies = await self._get_thread_replies(channel_id, msg["ts"])
+                        messages.extend(replies[1:])  # bỏ message gốc (đã có trong batch)
+
+                messages.extend(batch)
+
+                has_more = result.get("has_more", False)
+                cursor   = result.get("response_metadata", {}).get("next_cursor")
+                if not has_more or not cursor or len(messages) >= limit:
+                    break
 
         except SlackApiError as e:
             log.error("slack.get_messages.failed", channel=channel_id, error=str(e))
+
+        log.info("slack.messages.fetched", channel=channel_id, count=len(messages))
         return messages
 
-    async def get_thread_replies(self, channel_id: str, thread_ts: str) -> list[dict]:
-        """Lấy toàn bộ replies trong một thread."""
+    async def _get_thread_replies(self, channel_id: str, thread_ts: str) -> list[dict]:
         try:
             result = await self._client.conversations_replies(
-                channel=channel_id,
-                ts=thread_ts,
+                channel=channel_id, ts=thread_ts
             )
             return result.get("messages", [])
-        except SlackApiError as e:
-            log.error("slack.get_replies.failed", channel=channel_id, error=str(e))
+        except SlackApiError:
             return []
 
     async def get_channel_members(self, channel_id: str) -> list[str]:
         try:
             result = await self._client.conversations_members(channel=channel_id)
             return result.get("members", [])
-        except SlackApiError as e:
-            log.error("slack.get_members.failed", channel=channel_id, error=str(e))
+        except SlackApiError:
             return []
-
-    async def get_user_info(self, user_id: str) -> dict:
-        try:
-            result = await self._client.users_info(user=user_id)
-            return result.get("user", {})
-        except SlackApiError as e:
-            log.error("slack.get_user.failed", user=user_id, error=str(e))
-            return {}
-
-    def test_connection_sync(self) -> bool:
-        import asyncio
-        try:
-            loop = asyncio.new_event_loop()
-            result = loop.run_until_complete(self._client.auth_test())
-            return result["ok"]
-        except Exception as e:
-            log.error("slack.test_connection.failed", error=str(e))
-            return False
