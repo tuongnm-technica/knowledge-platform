@@ -26,6 +26,7 @@ class Document:
     metadata: dict = field(default_factory=dict)
     permissions: list[str] = field(default_factory=list)
     entities: list[str] = field(default_factory=list)
+    workspace_id: Optional[str] = None 
 
     def to_dict(self) -> dict:
         return {
@@ -41,6 +42,7 @@ class Document:
             "metadata": self.metadata,
             "permissions": self.permissions,
             "entities": self.entities,
+            "workspace_id": self.workspace_id,
         }
 
 

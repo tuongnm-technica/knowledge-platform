@@ -98,7 +98,7 @@ class Agent:
     def _build_context(self, results: list[SearchResult]) -> str:
         parts = []
         for i, r in enumerate(results, 1):
-            parts.append(f"[{i}] Title: {r.title}\nSource: {r.url}\nContent: {truncate(r.content, 600)}")
+            parts.append(f"[{i}] Title: {r.title}\nSource: {r.url}\nContent: {truncate(r.content, 1500)}")
         return "\n\n---\n\n".join(parts)
 
     def _to_results(self, scored: list[dict], doc_meta: dict[str, dict]) -> list[SearchResult]:

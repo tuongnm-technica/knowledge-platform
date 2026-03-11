@@ -5,14 +5,14 @@ from connectors.base.base_connector import BaseConnector
 from connectors.confluence.confluence_client import ConfluenceClient
 from connectors.confluence.confluence_parser import ConfluenceParser
 from connectors.confluence.confluence_permissions import ConfluencePermissions
+from permissions.workspace_config import get_confluence_workspace  # ← thêm
 from config.settings import settings
 import structlog
 
 log = structlog.get_logger()
 
-# ─── Whitelist spaces muốn sync ───────────────────────────────────────────────
 ALLOWED_SPACE_KEYS = [
-    "EEP2",   # ECOS
+    "EEP2",
 ]
 
 
@@ -62,14 +62,18 @@ class ConfluenceConnector(BaseConnector):
         content   = self._parser.parse(body_html)
 
         if not content or len(content.strip()) < 20:
-            log.debug("confluence.page.skip.empty", page_id=page_id)
             return None
 
-        permissions = self._permissions.get_permitted_groups(page_id, space_key)
-        created_at  = self._parse_dt(page.get("history", {}).get("createdDate", ""))
-        updated_at  = self._parse_dt(page.get("version", {}).get("when", ""))
-        author      = page.get("history", {}).get("createdBy", {}).get("displayName", "unknown")
-        web_ui      = page.get("_links", {}).get("webui", "")
+        # Layer 1: workspace
+        workspace_id = get_confluence_workspace(space_key)  # ← thêm
+
+        # Layer 2: ACL từ source
+        permissions = [f"confluence_space_{space_key}"]
+
+        created_at = self._parse_dt(page.get("history", {}).get("createdDate", ""))
+        updated_at = self._parse_dt(page.get("version", {}).get("when", ""))
+        author     = page.get("history", {}).get("createdBy", {}).get("displayName", "unknown")
+        web_ui     = page.get("_links", {}).get("webui", "")
 
         doc = Document(
             id=str(uuid.uuid4()),
@@ -82,12 +86,14 @@ class ConfluenceConnector(BaseConnector):
             created_at=created_at,
             updated_at=updated_at,
             metadata={
-                "space_key":  space_key,
-                "space_name": space_name,
-                "page_id":    page_id,
-                "raw_html":   body_html,    # ← lưu raw HTML cho semantic chunking
+                "space_key":     space_key,
+                "space_name":    space_name,
+                "page_id":       page_id,
+                "raw_html":      body_html,
+                "permission_id": f"confluence_space_{space_key}",
             },
             permissions=permissions,
+            workspace_id=workspace_id,  # ← thêm
         )
 
         log.info("confluence.page.ok", page_id=page_id, title=doc.title[:60])

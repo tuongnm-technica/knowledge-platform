@@ -3,6 +3,7 @@ from datetime import datetime
 from models.document import Document, SourceType
 from connectors.base.base_connector import BaseConnector
 from connectors.jira.jira_client import JiraClient
+from permissions.workspace_config import get_jira_workspace  # ← thêm
 from config.settings import settings
 import structlog
 
@@ -49,7 +50,6 @@ class JiraConnector(BaseConnector):
         fields  = issue.get("fields", {})
         summary = fields.get("summary", "No title")
 
-        # Parse description (ADF hoặc plain text)
         description = fields.get("description") or ""
         if isinstance(description, dict):
             description = self._extract_adf_text(description)
@@ -58,7 +58,8 @@ class JiraConnector(BaseConnector):
         if len(content) < 10:
             return None
 
-        permissions = [f"jira_project_{project_key}"]
+        permissions  = [f"jira_project_{project_key}"]
+        workspace_id = get_jira_workspace(project_key)  # ← thêm
 
         doc = Document(
             id=str(uuid.uuid4()),
@@ -71,14 +72,16 @@ class JiraConnector(BaseConnector):
             created_at=self._parse_dt(fields.get("created")),
             updated_at=self._parse_dt(fields.get("updated")),
             metadata={
-                "project_key":  project_key,
-                "project_name": project_name,
-                "issue_key":    issue["key"],
-                "status":       fields.get("status", {}).get("name", ""),
-                "issue_type":   fields.get("issuetype", {}).get("name", ""),
-                "priority":     fields.get("priority", {}).get("name", ""),
+                "project_key":   project_key,
+                "project_name":  project_name,
+                "issue_key":     issue["key"],
+                "status":        fields.get("status", {}).get("name", ""),
+                "issue_type":    fields.get("issuetype", {}).get("name", ""),
+                "priority":      fields.get("priority", {}).get("name", ""),
+                "permission_id": f"jira_project_{project_key}",
             },
             permissions=permissions,
+            workspace_id=workspace_id,  # ← thêm
         )
 
         log.info("jira.issue.ok", key=issue["key"], title=summary[:60])

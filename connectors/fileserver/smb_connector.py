@@ -4,12 +4,12 @@ from models.document import Document, SourceType
 from connectors.base.base_connector import BaseConnector
 from connectors.fileserver.smb_client import SMBClient
 from connectors.fileserver.file_parser import FileParser
+from permissions.workspace_config import get_smb_workspace  # ← thêm
 from config.settings import settings
 import structlog
 
 log = structlog.get_logger()
 
-# ─── Giới hạn dung lượng file tối đa (bytes) ─────────────────────────────────
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
@@ -32,7 +32,6 @@ class SMBConnector(BaseConnector):
 
         for file_info in files:
             try:
-                # Bỏ qua file quá lớn
                 if file_info["size"] > MAX_FILE_SIZE:
                     log.warning("smb.skip.too_large", path=file_info["path"], size=file_info["size"])
                     continue
@@ -43,6 +42,13 @@ class SMBConnector(BaseConnector):
                 if not content or len(content.strip()) < 30:
                     log.debug("smb.skip.empty", path=file_info["path"])
                     continue
+
+                # Top-level folder làm permission key
+                path_parts = file_info["path"].replace("/", "\\").split("\\")
+                top_folder = path_parts[0] if path_parts else "General"
+
+                permissions  = [f"folder_{top_folder}"]
+                workspace_id = get_smb_workspace(top_folder)  # ← thêm
 
                 doc = Document(
                     id=str(uuid.uuid4()),
@@ -55,15 +61,18 @@ class SMBConnector(BaseConnector):
                     created_at=datetime.utcnow(),
                     updated_at=datetime.fromtimestamp(file_info["modified"]),
                     metadata={
-                        "path":      file_info["path"],
-                        "extension": file_info["ext"],
-                        "size":      file_info["size"],
-                        "share":     settings.SMB_SHARE,
+                        "path":          file_info["path"],
+                        "extension":     file_info["ext"],
+                        "size":          file_info["size"],
+                        "share":         settings.SMB_SHARE,
+                        "top_folder":    top_folder,
+                        "permission_id": f"folder_{top_folder}",
                     },
-                    permissions=["group_all_employees"],
+                    permissions=permissions,
+                    workspace_id=workspace_id,  # ← thêm
                 )
                 documents.append(doc)
-                log.info("smb.file.ok", name=file_info["name"], ext=file_info["ext"])
+                log.info("smb.file.ok", name=file_info["name"], folder=top_folder)
 
             except Exception as e:
                 log.error("smb.file.error", path=file_info.get("path"), error=str(e))
@@ -73,4 +82,6 @@ class SMBConnector(BaseConnector):
         return documents
 
     async def get_permissions(self, source_id: str) -> list[str]:
-        return ["group_all_employees"]
+        parts      = source_id.replace("/", "\\").split("\\")
+        top_folder = parts[0] if parts else "General"
+        return [f"folder_{top_folder}"]
