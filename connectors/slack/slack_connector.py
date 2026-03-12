@@ -18,7 +18,15 @@ class SlackConnector(BaseConnector):
     def __init__(self):
         self._client = SlackClient()
         self._parser = SlackParser()
+    def validate_config(self) -> bool:
+        if not settings.SLACK_BOT_TOKEN:
+            raise ValueError("SLACK_BOT_TOKEN chưa được cấu hình")
+        return True
 
+    async def get_permissions(self, source_id: str) -> list[str]:
+        channel_id = source_id.split("_")[0] if "_" in source_id else source_id
+        return [f"slack_channel_{channel_id}"]
+    
     async def fetch_documents(self) -> list[Document]:
 
         documents = []

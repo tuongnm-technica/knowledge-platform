@@ -27,15 +27,9 @@ class IngestionPipeline:
         self._sync_repo     = SyncRepository(session)
 
     async def run(self, connector: BaseConnector, incremental: bool = True) -> dict:
-        """
-        Chạy ingestion pipeline.
-        - incremental=True  → chỉ fetch documents mới/thay đổi từ last_sync
-        - incremental=False → full sync toàn bộ
-        """
         stats          = {"fetched": 0, "indexed": 0, "skipped": 0, "errors": 0}
         connector_name = connector.__class__.__name__.replace("Connector", "").lower()
 
-        # Lấy last_sync từ DB
         last_sync = None
         if incremental:
             last_sync = await self._sync_repo.get_last_sync(connector_name)
@@ -45,12 +39,10 @@ class IngestionPipeline:
             else:
                 log.info("ingestion.first_run_full_sync", connector=connector_name)
 
-        # Ghi log bắt đầu
         log_id = await self._sync_repo.start_sync(connector_name)
         log.info("ingestion.start", connector=connector_name,
                  incremental=incremental, last_sync=str(last_sync))
 
-        # Fetch documents — truyền last_sync nếu connector hỗ trợ
         try:
             sig = inspect.signature(connector.fetch_documents)
             if "last_sync" in sig.parameters:
@@ -72,7 +64,6 @@ class IngestionPipeline:
                 log.error("ingestion.doc.error", doc_id=doc.id, error=str(e))
                 stats["errors"] += 1
 
-        # Ghi log kết thúc
         status = "success" if stats["errors"] == 0 else "partial"
         await self._sync_repo.finish_sync(
             log_id,
@@ -86,7 +77,7 @@ class IngestionPipeline:
         return stats
 
     async def _process(self, doc: Document) -> None:
-        # Confluence: extract sections TRƯỚC khi clean để giữ structure HTML
+        # Confluence: extract sections TRƯỚC khi clean
         sections = None
         if doc.source == SourceType.CONFLUENCE:
             raw_html = doc.metadata.get("raw_html", "")
@@ -107,13 +98,8 @@ class IngestionPipeline:
         # Upsert document vào PostgreSQL
         await self._repo.upsert(doc)
 
-        # Chunking — semantic cho Confluence, word-count cho phần còn lại
-        if sections:
-            chunks = self._chunker.chunk_by_sections(doc.id, sections)
-            log.info("ingestion.chunk.semantic", doc_id=doc.id, chunks=len(chunks))
-        else:
-            chunks = self._chunker.chunk(doc.id, doc.content)
-            log.info("ingestion.chunk.word", doc_id=doc.id, chunks=len(chunks))
+        # ── Smart chunking theo source ────────────────────────────────────────
+        chunks = self._smart_chunk(doc, sections)
 
         if not chunks:
             log.warning("ingestion.skip.no_chunks", doc_id=doc.id)
@@ -123,4 +109,37 @@ class IngestionPipeline:
         await self._vector_index.index_chunks(chunks)
         await self._keyword_index.index_chunks(chunks)
 
-        log.info("ingestion.doc.done", doc_id=doc.id, chunks=len(chunks))
+        log.info("ingestion.doc.done", doc_id=doc.id,
+                 source=doc.source.value, chunks=len(chunks))
+
+    def _smart_chunk(self, doc: Document, sections=None) -> list:
+        """Chọn chunking strategy phù hợp theo source"""
+
+        # Confluence: semantic theo heading
+        if sections:
+            chunks = self._chunker.chunk_by_sections(doc.id, sections)
+            log.info("ingestion.chunk.semantic", doc_id=doc.id, chunks=len(chunks))
+            return chunks
+
+        # Slack: theo conversation window
+        if doc.source == SourceType.SLACK:
+            chunks = self._chunker.chunk_slack(doc.id, doc.content)
+            log.info("ingestion.chunk.slack", doc_id=doc.id, chunks=len(chunks))
+            return chunks
+
+        # Jira: theo section (summary + description)
+        if doc.source == SourceType.JIRA:
+            chunks = self._chunker.chunk_jira(doc.id, doc.content)
+            log.info("ingestion.chunk.jira", doc_id=doc.id, chunks=len(chunks))
+            return chunks
+
+        # File Server: paragraph-aware
+        if doc.source == SourceType.FILE_SERVER:
+            chunks = self._chunker.chunk_file(doc.id, doc.content)
+            log.info("ingestion.chunk.file", doc_id=doc.id, chunks=len(chunks))
+            return chunks
+
+        # Default: word-count
+        chunks = self._chunker.chunk(doc.id, doc.content)
+        log.info("ingestion.chunk.word", doc_id=doc.id, chunks=len(chunks))
+        return chunks

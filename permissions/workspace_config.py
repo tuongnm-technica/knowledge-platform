@@ -28,6 +28,7 @@ SLACK_WORKSPACE_MAP: dict[str, str] = {
     "tech":          "ws_engineering",
     "sales":         "ws_sales",
     "management":    "ws_management",
+    'C0936S9HN5A':   "ws_general",  # test-team-ăn-chơi
 }
 
 # ─── SMB top-level folders ────────────────────────────────────

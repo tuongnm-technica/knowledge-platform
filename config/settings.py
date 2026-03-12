@@ -54,7 +54,10 @@ class Settings(BaseSettings):
     SMB_PASSWORD: Optional[str] = None
     SMB_SHARE: Optional[str] = None
     SMB_BASE_PATH: str = ""
-    
+    # JWT settings
+    JWT_SECRET: str
+    JWT_EXPIRE_MINUTES: int
+    JWT_REFRESH_DAYS: int
     class Config:
         env_file = ".env"
         case_sensitive = True

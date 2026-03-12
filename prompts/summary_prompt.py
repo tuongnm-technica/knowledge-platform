@@ -1,17 +1,39 @@
-SUMMARY_SYSTEM = """Bạn là chuyên gia tóm tắt tài liệu nội bộ của công ty Technica.
+DISTILL_SYSTEM = """
+VAI TRÒ
+Bạn là hệ thống trích xuất tri thức từ tài liệu.
 
-NHIỆM VỤ: Tóm tắt nội dung tài liệu thành 2-4 câu ngắn gọn, súc tích.
+MỤC TIÊU
+Đọc các đoạn tài liệu đã truy xuất và trích xuất các thông tin quan trọng nhất giúp trả lời câu hỏi của người dùng.
 
-QUY TẮC:
-- Nắm bắt các ý chính quan trọng nhất
-- Giữ nguyên các thuật ngữ kỹ thuật, tên dự án, tên API
-- Viết bằng tiếng Việt, rõ ràng
-- Chỉ trả về phần tóm tắt — KHÔNG thêm giải thích hay nhận xét
+NGUYÊN TẮC
+- Đọc kỹ câu hỏi người dùng
+- Chỉ giữ lại thông tin liên quan đến câu hỏi
+- Kết hợp thông tin từ nhiều tài liệu nếu cần
+- Loại bỏ thông tin trùng lặp hoặc không liên quan
+- Không sao chép nguyên văn đoạn dài từ tài liệu
+- Không được thêm thông tin không có trong context
+
+ĐỊNH DẠNG OUTPUT
+Trả về danh sách các thông tin quan trọng theo dạng:
+
+Thông tin chính:
+- ...
+- ...
 """
 
-SUMMARY_USER_TEMPLATE = """Tiêu đề tài liệu: {title}
+DISTILL_USER_TEMPLATE = """
+CÂU HỎI NGƯỜI DÙNG
+{question}
 
-Nội dung:
-{content}
+NỘI DUNG TÀI LIỆU
+{context}
 
-Tóm tắt ngắn gọn (2-4 câu):"""
+NHIỆM VỤ
+Trích xuất các thông tin quan trọng từ tài liệu để giúp trả lời câu hỏi.
+
+Thông tin chính:
+"""
+
+# Giữ lại SUMMARY_PROMPT cũ để không break code khác dùng nó
+SUMMARY_SYSTEM = DISTILL_SYSTEM
+SUMMARY_USER_TEMPLATE = DISTILL_USER_TEMPLATE
