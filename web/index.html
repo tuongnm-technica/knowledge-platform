@@ -1650,6 +1650,57 @@ function parseThinking(content) {
   return { thinking, answer };
 }
 
+function buildAgentStepsHTML(steps, usedTools, plan) {
+  if (!steps || steps.length === 0) return '';
+  const toolIcons = {
+    search_confluence: '\u{1F4D8}', search_jira: '\u{1F7E3}', search_slack: '\u{1F4AC}',
+    search_files: '\u{1F4C1}', search_all: '\u{1F50D}',
+    get_jira_issue: '\u{1F7E3}', list_jira_issues: '\u{1F7E3}',
+    get_slack_messages: '\u{1F4AC}', summarize_document: '\u{1F4C4}',
+  };
+  let planHTML = '';
+  if (plan && plan.length > 0) {
+    const planItems = plan.map(p =>
+      `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:10px;color:var(--text-muted);font-weight:600">${p.step}</span>
+        <span style="font-size:11px;color:var(--accent)">${toolIcons[p.tool]||'\u{1F527}'} ${p.tool}</span>
+        <span style="font-size:11px;color:var(--text-dim)">\u2014 ${p.reason}</span>
+      </div>`
+    ).join('');
+    planHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(99,179,237,.03)">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase">&#128506;&#65039; K&#7871; ho&#7841;ch</div>
+      ${planItems}
+    </div>`;
+  }
+  const stepsHTML = steps.map((s) => {
+    const obs = s.observation
+      ? `<div style="margin-top:6px;padding:6px 10px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--text-muted);border-left:2px solid var(--accent3)">${s.observation.substring(0,300)}${s.observation.length>300?'...':''}</div>`
+      : '';
+    const action = s.action
+      ? `<div style="color:var(--accent);font-size:11px;margin-top:4px">${toolIcons[s.action]||'\u{1F527}'} <b>${s.action}</b>(${JSON.stringify(s.action_input||{}).substring(0,80)})</div>`
+      : '';
+    const badge = s.is_final
+      ? `<span style="background:rgba(104,211,145,.15);color:var(--accent3);border-radius:4px;padding:1px 6px;font-size:10px;margin-left:6px">&#10003; Final</span>`
+      : `<span style="background:var(--bg3);color:var(--text-dim);border-radius:4px;padding:1px 6px;font-size:10px;margin-left:6px">Step ${s.iteration}</span>`;
+    return `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${badge}</div>
+      <div style="font-size:12px;color:var(--text)">&#128161; ${s.thought.substring(0,200)}</div>
+      ${action}${obs}
+    </div>`;
+  }).join('');
+  const toolBadges = [...new Set(usedTools||[])].map(t =>
+    `<span style="background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:2px 8px;font-size:10px;color:var(--text-muted)">${toolIcons[t]||'\u{1F527}'} ${t}</span>`
+  ).join(' ');
+  return `<div class="thinking-block">
+    <div class="thinking-toggle" onclick="toggleThinking(this)">
+      <span class="thinking-icon">&#129504;</span>
+      <span>Agent reasoning (${steps.length} b\u01b0\u1edbc \u00b7 ${toolBadges||'no tools'})</span>
+      <span class="thinking-chevron">&#9662;</span>
+    </div>
+    <div class="thinking-content" style="display:none;padding:0">${planHTML}${stepsHTML}</div>
+  </div>`;
+}
+
 function renderAnswer(text) {
   // Xóa [Source: ...] text do LLM tự sinh ra
   text = text.replace(/\[Source[s]?:?[^\]]*\]/gi, '').trim();
@@ -1661,7 +1712,7 @@ function renderAnswer(text) {
     .replace(/\n/g, '<br>');
 }
 
-function appendMessage(role, content, sources = []) {
+function appendMessage(role, content, sources = [], agentSteps = [], usedTools = [], agentPlan = []) {
   const empty = document.getElementById('emptyState');
   if (empty) empty.remove();
 
@@ -1681,7 +1732,9 @@ function appendMessage(role, content, sources = []) {
     const { thinking, answer } = parseThinking(content);
     displayContent = answer;
 
-    if (thinking) {
+    if (agentSteps && agentSteps.length > 0) {
+      thinkingHTML = buildAgentStepsHTML(agentSteps, usedTools, agentPlan);
+    } else if (thinking) {
       thinkingHTML = `
         <div class="thinking-block">
           <div class="thinking-toggle" onclick="toggleThinking(this)">
@@ -1827,7 +1880,7 @@ async function sendMessage() {
 
     const data = await r.json();
     typing.remove();
-    appendMessage('assistant', data.answer || 'Không có câu trả lời.', data.sources || []);
+    appendMessage('assistant', data.answer || 'Không có câu trả lời.', data.sources || [], data.agent_steps || [], data.used_tools || [], data.agent_plan || []);
 
     // Lưu lịch sử
     chatHistory.unshift({ question, answer: data.answer, time: new Date(), sources: data.sources });
