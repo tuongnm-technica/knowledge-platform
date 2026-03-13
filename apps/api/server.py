@@ -10,6 +10,8 @@ from apps.api.routes.auth import router as auth_router
 from config.settings import settings
 from utils.logging import configure_logging
 from scheduler.sync_scheduler import start_scheduler, stop_scheduler
+from tasks.routes import router as tasks_router
+
 import structlog
 
 log     = structlog.get_logger()
@@ -36,6 +38,7 @@ app.include_router(search.router)
 app.include_router(ingest.router)
 app.include_router(health.router)
 app.include_router(connectors.router)
+app.include_router(tasks_router)
 
 @app.get("/", include_in_schema=False)
 async def serve_ui():

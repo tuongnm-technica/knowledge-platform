@@ -12,6 +12,7 @@ Lịch chạy (múi giờ Asia/Ho_Chi_Minh):
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from tasks.scanner import scan_and_create_drafts
 from sqlalchemy.orm import sessionmaker
 from config.settings import settings
 import structlog
@@ -19,6 +20,31 @@ import structlog
 log = structlog.get_logger()
 
 scheduler = AsyncIOScheduler(timezone="Asia/Ho_Chi_Minh")
+
+
+async def _run_task_scan() -> None:
+    """Scheduler job: quét Slack + Confluence, tạo draft tasks."""
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from tasks.scanner import scan_and_create_drafts
+ 
+    log.info("scheduler.task_scan.start")
+    engine       = create_async_engine(settings.DATABASE_URL)
+    SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+ 
+    try:
+        async with SessionLocal() as session:
+            stats = await scan_and_create_drafts(
+                session=session,
+                triggered_by="scheduler",
+                slack_days=1,
+                confluence_days=1,
+            )
+            log.info("scheduler.task_scan.done", **stats)
+    except Exception as e:
+        log.error("scheduler.task_scan.error", error=str(e))
+    finally:
+        await engine.dispose()
 
 
 async def _run_sync(connector_name: str) -> None:
@@ -86,11 +112,18 @@ def start_scheduler() -> None:
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    scheduler.add_job(
+        _run_task_scan,
+        trigger=CronTrigger(hour=23, minute=0, timezone="Asia/Ho_Chi_Minh"),
+        id="task_scan_nightly",
+        name="Nightly task scan (Slack + Confluence)",
+    )
     scheduler.start()
     log.info("scheduler.started", jobs=[
         "confluence @ 02:00 AM",
         "jira       @ 02:30 AM",
         "slack      @ 03:00 AM",
+        "task_scan   @ 11:00 PM",
     ])
 
 
