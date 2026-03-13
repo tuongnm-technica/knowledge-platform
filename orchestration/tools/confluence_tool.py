@@ -217,7 +217,7 @@ class GetConfluencePageTool(BaseTool):
                 "url": f"{settings.CONFLUENCE_URL}/pages/viewpage.action?pageId={page_id}"
             }
 
-            summary = f"{title}\n\n{body[:300]}..."
+            summary = f"{title}\n\n{body[:3000]}..."
 
             log.info(
                 "tool.get_confluence_page.success",

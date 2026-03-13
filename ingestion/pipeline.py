@@ -98,15 +98,19 @@ class IngestionPipeline:
         # Upsert document vào PostgreSQL
         await self._repo.upsert(doc)
 
-        # ── Smart chunking theo source ────────────────────────────────────────
+        # Smart chunking theo source
         chunks = self._smart_chunk(doc, sections)
 
         if not chunks:
             log.warning("ingestion.skip.no_chunks", doc_id=doc.id)
             return
 
-        # Index vào Qdrant + PostgreSQL FTS
-        await self._vector_index.index_chunks(chunks)
+        # Index vào Qdrant + PostgreSQL FTS — pass source + title để filter được
+        await self._vector_index.index_chunks(
+            chunks,
+            source=doc.source.value if hasattr(doc.source, "value") else str(doc.source),
+            title=doc.title,
+        )
         await self._keyword_index.index_chunks(chunks)
 
         log.info("ingestion.doc.done", doc_id=doc.id,

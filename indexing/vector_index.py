@@ -22,13 +22,13 @@ class VectorIndex:
         self._session = session
         self._store = _get_store()
 
-    async def index_chunks(self, chunks: list[Chunk]) -> None:
+    async def index_chunks(self, chunks: list[Chunk], source="", title="") -> None:
         if not chunks:
             return
 
         texts = [c.content for c in chunks]
         log.info("vector_index.embedding", count=len(texts))
-        vectors = get_embeddings_batch(texts)
+        vectors = await get_embeddings_batch(texts)
 
         for chunk in chunks:
             try:
@@ -58,6 +58,8 @@ class VectorIndex:
                     document_id=chunk.document_id,
                     vector=vector,
                     content=chunk.content,
+                    source=source, 
+                    title=title,
                 )
             except Exception as e:
                 log.error("vector_index.qdrant.error", chunk_id=chunk.id, error=str(e))

@@ -39,7 +39,9 @@ class Settings(BaseSettings):
     TOP_K: int = 10
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
-
+    # ─── Search Optimization (Phase 4) ───────────────────────────────────────────
+    QUERY_EXPANSION_ENABLED: bool = True    # Sinh query variants để tăng recall
+    RERANKING_ENABLED:       bool = True    # LLM rerank top candidates
     # ─── Connectors ────────────────────────────────────────────────────────────
     SLACK_BOT_TOKEN: Optional[str] = None
     CONFLUENCE_URL: Optional[str] = None

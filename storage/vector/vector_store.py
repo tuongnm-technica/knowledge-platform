@@ -43,14 +43,25 @@ class VectorStore:
         self._client = get_qdrant_client()
         _ensure_collection(self._client)
 
-    def upsert(self, chunk_id: str, document_id: str, vector: list[float], content: str) -> None:
+    def upsert(
+        self,
+        chunk_id: str,
+        document_id: str,
+        vector: list[float],
+        content: str,
+        source: str = "",
+        title: str = "",
+    ) -> None:
+        """Lưu vector + payload vào Qdrant. source và title dùng để filter sau."""
         point = PointStruct(
             id=str(uuid.UUID(chunk_id)) if self._is_uuid(chunk_id) else abs(hash(chunk_id)) % (2**63),
             vector=vector,
             payload={
-                "chunk_id": chunk_id,
+                "chunk_id":    chunk_id,
                 "document_id": document_id,
-                "content": content,
+                "content":     content,
+                "source":      source,   # ← thêm mới
+                "title":       title,    # ← thêm mới
             },
         )
         self._client.upsert(collection_name=settings.QDRANT_COLLECTION, points=[point])
@@ -79,11 +90,13 @@ class VectorStore:
         for hit in hits:
             payload = hit.payload or {}
             results.append({
-                "chunk_id": payload.get("chunk_id", str(hit.id)),
-                "document_id": payload.get("document_id", ""),
-                "content": payload.get("content", ""),
-                "score": hit.score,
-                "vector_score": hit.score,
+                "chunk_id":      payload.get("chunk_id", str(hit.id)),
+                "document_id":   payload.get("document_id", ""),
+                "content":       payload.get("content", ""),
+                "source":        payload.get("source", ""),   # ← đọc ra
+                "title":         payload.get("title", ""),    # ← đọc ra
+                "score":         hit.score,
+                "vector_score":  hit.score,
                 "keyword_score": 0.0,
             })
         return results

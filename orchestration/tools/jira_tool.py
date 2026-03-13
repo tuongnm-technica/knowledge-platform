@@ -116,7 +116,7 @@ class GetJiraIssueTool(BaseTool):
                 f"Issue {result['key']}: {result['summary']}\n"
                 f"Status: {result['status']} | Priority: {result['priority']}\n"
                 f"Assignee: {result['assignee']} | Reporter: {result['reporter']}\n"
-                f"Description: {result['description'][:200]}\n"
+                f"Description: {result['description'][:5000]}\n"
                 f"URL: {result['url']}"
             )
 

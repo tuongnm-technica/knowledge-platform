@@ -72,7 +72,7 @@ class GetSlackMessagesTool(BaseTool):
                         formatted.append({
                             "time":    ts.strftime("%H:%M"),
                             "user":    name,
-                            "text":    text[:300],
+                            "text":    text[:3000],
                         })
 
                 if not formatted:
@@ -80,7 +80,7 @@ class GetSlackMessagesTool(BaseTool):
                                       summary=f"Không có tin nhắn nào trong #{channel_name} {days_back} ngày qua")
 
                 lines = [f"#{channel_name} — {days_back} ngày qua ({len(formatted)} tin nhắn):"]
-                for m in formatted[-20:]:  # last 20
+                for m in formatted[-100:]:  # last 20
                     lines.append(f"  [{m['time']}] {m['user']}: {m['text']}")
 
                 log.info("tool.get_slack_messages", channel=channel_name, count=len(formatted))

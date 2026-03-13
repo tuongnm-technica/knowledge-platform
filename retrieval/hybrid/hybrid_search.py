@@ -11,15 +11,15 @@ class HybridSearch:
     Combine vector search + keyword search dùng Reciprocal Rank Fusion (RRF).
 
     Điều chỉnh weight:
-    - VECTOR_WEIGHT  = 0.7 → semantic (BGE-M3 tiếng Việt tốt)
-    - KEYWORD_WEIGHT = 0.3 → exact keyword match (backup cho tên riêng, số, ngày)
+    - VECTOR_WEIGHT  = 0.5 → semantic (BGE-M3 tiếng Việt tốt)
+    - KEYWORD_WEIGHT = 0.5 → exact keyword match (backup cho tên riêng, số, ngày)
 
     RRF score = vector_w * 1/(k+rank) + keyword_w * 1/(k+rank)
     """
 
     RRF_K          = 60
-    VECTOR_WEIGHT  = 0.7
-    KEYWORD_WEIGHT = 0.3
+    VECTOR_WEIGHT  = 0.5
+    KEYWORD_WEIGHT = 0.5
 
     def __init__(self, session: AsyncSession):
         self._vector  = VectorSearch()
@@ -34,10 +34,10 @@ class HybridSearch:
 
         # Chạy song song cả 2
         vector_results  = await self._vector.search(
-            query, top_k=top_k * 3, allowed_document_ids=allowed_document_ids
+            query, top_k=top_k * 5, allowed_document_ids=allowed_document_ids
         )
         keyword_results = await self._keyword.search(
-            query, top_k=top_k * 3, allowed_document_ids=allowed_document_ids
+            query, top_k=top_k * 5, allowed_document_ids=allowed_document_ids
         )
 
         log.debug("hybrid_search.raw",

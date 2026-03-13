@@ -25,8 +25,10 @@ class _BaseSearchTool(BaseTool):
                           limit: int, user_id: str) -> ToolResult:
         try:
             allowed_ids = await self._permissions.allowed_docs(user_id) if user_id else None
+            # Khi filter theo source, lấy nhiều hơn để tránh bị lọc hết
+            fetch_k = limit * 3 if source_filter == "all" else limit * 10
             raw = await self._search.search(
-                query, top_k=limit * 3, allowed_document_ids=allowed_ids,
+                query, top_k=fetch_k, allowed_document_ids=allowed_ids,
             )
             if source_filter != "all":
                 raw = [r for r in raw if r.get("source", "") == source_filter]
@@ -94,7 +96,9 @@ class SearchSlackTool(_BaseSearchTool):
     def spec(self) -> ToolSpec:
         return ToolSpec(
             name="search_slack",
-            description="Tìm thảo luận, quyết định, discussions trong Slack đã được index.",
+            description=("Tìm kiếm nội dung Slack đã được sync vào knowledge base (Confluence, Jira, Slack, Files). "
+                "Dùng cho: meeting notes, thảo luận cũ, quyết định, nội dung từ ngày hôm qua trở về trước. "
+                "Tốt hơn get_slack_messages khi tìm theo chủ đề/từ khóa thay vì channel cụ thể."),
             parameters={"query": "Nội dung cần tìm trong Slack", "limit": "Số kết quả (mặc định: 5)"},
         )
     async def run(self, query: str, limit: int = 5, user_id: str = "", **_) -> ToolResult:
