@@ -77,8 +77,13 @@
     font-weight: 800;
     font-size: 18px;
     background: linear-gradient(135deg, var(--accent), var(--accent2));
+
+    background-clip: text;
     -webkit-background-clip: text;
+
+    color: transparent;
     -webkit-text-fill-color: transparent;
+
     letter-spacing: -0.5px;
   }
 
@@ -471,6 +476,7 @@
   .msg-bubble code { font-family: monospace; }
 
   /* Sources */
+  .sources-list {
     margin-top: 12px;
     display: flex;
     flex-direction: column;
@@ -680,7 +686,7 @@
 
   .result-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
   .result-score { font-size: 12px; font-family: 'Syne', sans-serif; font-weight: 700; color: var(--accent3); }
-  .result-content { font-size: 13px; color: var(--text-muted); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .result-content { font-size: 13px; color: var(--text-muted); line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; text-overflow: ellipsis;} 
   .result-url { font-size: 11px; color: var(--text-dim); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ── CONNECTORS PAGE ── */
@@ -1436,8 +1442,7 @@
 
 <!-- TOAST -->
 <div class="toast-container" id="toastContainer"></div>
-
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 
 // ═══════════════════════════════════════════════════════
 // AUTH MODULE — JWT + auto-refresh
