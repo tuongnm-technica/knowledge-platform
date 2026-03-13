@@ -32,7 +32,12 @@ async def submit_to_jira(
         log.error("jira_creator.no_config")
         return None
 
-    auth = (settings.JIRA_USERNAME, settings.JIRA_API_TOKEN) if settings.JIRA_USERNAME else None
+    # Jira on-premise dùng Personal Access Token qua Bearer header
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Bearer {settings.JIRA_API_TOKEN}",
+    }
 
     # Build issue body
     fields: dict = {
@@ -60,9 +65,8 @@ async def submit_to_jira(
         async with httpx.AsyncClient(timeout=15, verify=False) as client:
             resp = await client.post(
                 f"{settings.JIRA_URL}/rest/api/2/issue",
-                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                headers=headers,
                 json={"fields": fields},
-                auth=auth,
             )
             if resp.status_code in (200, 201):
                 data = resp.json()
@@ -81,13 +85,13 @@ async def _resolve_assignee(display_name: str) -> str | None:
     """Tìm Jira accountId từ display name."""
     if not settings.JIRA_URL:
         return None
-    auth = (settings.JIRA_USERNAME, settings.JIRA_API_TOKEN) if settings.JIRA_USERNAME else None
+    headers = {"Authorization": f"Bearer {settings.JIRA_API_TOKEN}"}
     try:
         async with httpx.AsyncClient(timeout=10, verify=False) as client:
             resp = await client.get(
                 f"{settings.JIRA_URL}/rest/api/2/user/search",
                 params={"query": display_name, "maxResults": 3},
-                auth=auth,
+                headers=headers,
             )
             if resp.status_code == 200:
                 users = resp.json()

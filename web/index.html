@@ -1207,7 +1207,7 @@
   </div>
 
   <!-- ── CONNECTORS PAGE ── -->
-  <div cla  <div class="page" id="page-tasks">
+  <div class="page" id="page-tasks">
     <div style="padding:0;height:100%;display:flex;flex-direction:column">
       <div style="padding:20px 28px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
         <h2 style="font-size:16px;font-weight:600;margin:0;color:var(--text)">🤖 AI Task Drafts</h2>
@@ -1586,7 +1586,7 @@ function doLogout() {
 })();
 
 
-const API = 'http://localhost:8000';
+const API = 'http://10.1.10.33:8000';
 let chatHistory = [];
 let currentUserId = 'user_001';
 
@@ -2136,34 +2136,62 @@ async function loadTasksCount() {
 }
 
 async function loadTasks() {
-  const list = document.getElementById('tasksList');
-  if (!list) return;
-  list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim)">Đang tải...</div>';
   try {
-    console.log('[Tasks] calling /tasks, token:', AUTH.token ? AUTH.token.substring(0,20)+'...' : 'NONE');
-    const data = await authFetch('/tasks');
-    const drafts = data.drafts || [];
-    console.log('[Tasks] loaded:', drafts.length, 'drafts', data);
-    if (drafts.length === 0) {
-      list.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:60px 0;font-size:14px">Chưa có draft tasks. Bấm "Quét ngay" để bắt đầu.</div>';
+    console.log("[Tasks] calling /tasks, token:", AUTH.token?.slice(0,20));
+
+    const res = await authFetch(API + "/tasks");
+
+    if (!res.ok) {
+      console.error("[Tasks] API error:", res.status);
+      document.getElementById("tasksList").innerHTML =
+        `<div style="text-align:center;color:var(--danger);padding:60px 0;font-size:14px">
+          ❌ Không tải được tasks
+        </div>`;
       return;
     }
-    try {
-      list.innerHTML = drafts.map(d => renderTaskCard(d)).join('');
-    } catch(renderErr) {
-      console.error('[Tasks] renderTaskCard error:', renderErr);
-      list.innerHTML = `<pre style="color:red;padding:20px;font-size:11px">${renderErr.stack}</pre>`;
+
+    const data = await res.json();
+    console.log("[Tasks] API response:", data);
+
+    const drafts = data.drafts || [];
+    const list = document.getElementById("tasksList");
+
+    if (!drafts.length) {
+      list.innerHTML =
+        `<div style="text-align:center;color:var(--text-dim);padding:60px 0;font-size:14px">
+          Chưa có draft tasks. Bấm "Quét ngay" để bắt đầu.
+        </div>`;
+      updateTasksCount(0);
+      return;
     }
-    loadTasksCount();
-  } catch(e) {
-    console.error('[Tasks] loadTasks error:', e);
-    list.innerHTML = `<div style="color:#e53e3e;padding:20px;font-size:13px">
-      ❌ Lỗi tải tasks: ${e.message}<br>
-      <small style="opacity:.7">Xem Console (F12) để biết chi tiết</small>
-    </div>`;
+
+    const html = drafts.map(renderTaskCard).join("");
+    list.innerHTML = html;
+
+    updateTasksCount(drafts.length);
+
+  } catch (e) {
+    console.error("[Tasks] loadTasks error:", e);
+
+    document.getElementById("tasksList").innerHTML =
+      `<div style="text-align:center;color:var(--danger);padding:60px 0;font-size:14px">
+        ❌ Lỗi tải tasks
+      </div>`;
   }
 }
+function updateTasksCount(n) {
+  const badge = document.getElementById("tasksBadge");
+  const panel = document.getElementById("tasksPanelCount");
 
+  if (badge) {
+    badge.textContent = n;
+    badge.style.display = n ? "inline-block" : "none";
+  }
+
+  if (panel) {
+    panel.textContent = n + " pending";
+  }
+}
 function renderTaskCard(d) {
   const srcIcon   = d.source_type === 'slack' ? '💬' : '📘';
   const srcLabel  = d.source_type === 'slack' ? `Slack #${d.source_ref||''}` : `Confluence`;
