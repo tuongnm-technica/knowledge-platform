@@ -116,8 +116,9 @@ class ReActResult:
 # ─── Main loop ────────────────────────────────────────────────────────────────
 
 class ReActLoop:
-    def __init__(self, tools: dict[str, BaseTool]):
-        self._tools = tools
+    def __init__(self, tools: dict[str, BaseTool], max_iterations: int = MAX_ITERATIONS):
+        self._tools         = tools
+        self._max_iterations = max_iterations
         self._base  = settings.OLLAMA_BASE_URL.rstrip("/")
         self._model = settings.OLLAMA_LLM_MODEL
 
@@ -141,7 +142,7 @@ class ReActLoop:
         used_tools: list[str]       = []
         history = ""
 
-        for i in range(1, MAX_ITERATIONS + 1):
+        for i in range(1, self._max_iterations + 1):
             log.info("react.iteration", i=i, plan_steps=len(plan))
 
             user_prompt = REACT_CONTINUE.format(question=question, history=history or "(Chưa có)")

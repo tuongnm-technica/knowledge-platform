@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_EXPIRE_MINUTES: int
     JWT_REFRESH_DAYS: int
+
+    # ─── Agent / ReAct ─────────────────────────────────────────────────────────
+    AGENT_MAX_STEPS: int = 5             # max iterations trong ReAct loop
+
     class Config:
         env_file = ".env"
         case_sensitive = True
