@@ -4,18 +4,15 @@ retrieval/reranker.py
 LLM-based reranker cho kết quả search.
 
 Flow:
-    Hybrid search → top 20 candidates
+    Hybrid search → top candidates
     → Reranker (LLM đánh giá relevance)
-    → top 5 kết quả chất lượng cao
-
-Tại sao cần:
-    - Vector search có recall tốt nhưng precision thấp
-    - LLM reranker hiểu ngữ nghĩa sâu hơn cosine similarity
+    → top_k kết quả tốt nhất
 
 Optimization:
-    - Chỉ rerank top 15
+    - Skip rerank nếu confidence cao
+    - Chỉ rerank top 10
     - Batch scoring (1 LLM call)
-    - Cache theo (query, chunk_ids)
+    - Cache theo (model + query + chunk_ids)
 """
 
 from __future__ import annotations
@@ -31,6 +28,7 @@ from config.settings import settings
 
 log = structlog.get_logger()
 
+
 # ─────────────────────────────────────────────
 # Cache
 # ─────────────────────────────────────────────
@@ -40,7 +38,20 @@ _rerank_cache: dict[str, tuple[list[dict], float]] = {}
 _CACHE_TTL = 120
 
 SHORT_ID_LEN = 12
-MAX_CHARS = 500
+MAX_CHARS = 1500
+MAX_RERANK = 3
+
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+
+    global _http_client
+
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=120)
+
+    return _http_client
 
 
 # ─────────────────────────────────────────────
@@ -48,25 +59,18 @@ MAX_CHARS = 500
 # ─────────────────────────────────────────────
 
 RERANK_SYSTEM = """
-Bạn là chuyên gia đánh giá mức độ liên quan của tài liệu kỹ thuật.
+Bạn là chuyên gia phân tích dữ liệu dự án.
+Nhiệm vụ: Chấm điểm (0-3) mức độ liên quan giữa câu hỏi và đoạn văn.
 
-Nhiệm vụ:
-Cho điểm mức độ liên quan giữa câu hỏi và từng đoạn văn bản.
+QUY TẮC BẮT BUỘC:
+1. Nếu câu hỏi có mốc thời gian (vd: 9/2), nội dung PHẢI nhắc đến sự kiện hoặc yêu cầu của ngày đó mới được điểm 3, kể cả khi ngày tạo văn bản là ngày khác.
+2. Ưu tiên cao các từ khóa chuyên môn như "Auction", "đấu giá", "kế hoạch 2026".
 
 Thang điểm:
-3 = Trả lời trực tiếp câu hỏi
-2 = Có thông tin liên quan
-1 = Chỉ liên quan gián tiếp
-0 = Không liên quan
-
-Quy tắc:
-- Chỉ đánh giá dựa trên nội dung đoạn văn
-- Không suy diễn ngoài nội dung
-- Không giải thích
-
-Chỉ trả JSON:
-
-{"scores":[{"id":"chunk_id","score":3}]}
+3: Trả lời trực tiếp nội dung sự kiện/yêu cầu của ngày được hỏi.
+2: Có liên quan mật thiết nhưng không nhắc trực tiếp ngày.
+1: Chỉ liên quan gián tiếp hoặc chung chung.
+0: Không liên quan.
 """
 
 
@@ -79,15 +83,6 @@ async def rerank(
     candidates: list[dict],
     top_k: int = 5,
 ) -> list[dict]:
-    """
-    Rerank candidates theo relevance với query.
-
-    candidates: list[dict] có keys:
-        chunk_id
-        content
-        title
-        rrf_score / final_score
-    """
 
     if not candidates:
         return []
@@ -95,37 +90,42 @@ async def rerank(
     if len(candidates) <= top_k:
         return candidates
 
-    # ─────────────────────────
-    # Cache check
-    # ─────────────────────────
+    # ─────────────────────────────
+    # Skip rerank nếu score cao
+    # ─────────────────────────────
 
-    cache_key = _make_cache_key(query, candidates[:15])
+    best_score = candidates[0].get("rrf_score", 0)
+
+    if best_score > 0.9:
+        log.debug("reranker.skip_high_confidence")
+        return candidates[:top_k]
+
+    # ─────────────────────────────
+    # Cache key
+    # ─────────────────────────────
+
+    cache_key = _make_cache_key(query, candidates[:MAX_RERANK])
 
     if cache_key in _rerank_cache:
+
         results, ts = _rerank_cache[cache_key]
 
         if time.time() - ts < _CACHE_TTL:
             log.debug("reranker.cache_hit", query=query[:60])
             return results
 
-    # ─────────────────────────
-    # Chỉ rerank top 15
-    # ─────────────────────────
-
-    to_rerank = candidates[:15]
-    rest = candidates[15:]
+    to_rerank = candidates[:MAX_RERANK]
+    rest = candidates[MAX_RERANK:]
 
     try:
 
         scores = await _llm_score(query, to_rerank)
 
-        # build score map
         score_map = {
             s["id"][:SHORT_ID_LEN]: s["score"]
             for s in scores
         }
 
-        # normalize original score
         orig_scores = [
             c.get("final_score", c.get("rrf_score", 0))
             for c in to_rerank
@@ -139,16 +139,17 @@ async def rerank(
 
             llm_score = score_map.get(cid, 1)
 
+            # clamp score
+            llm_score = max(0, min(llm_score, 3))
+
             original = c.get("final_score", c.get("rrf_score", 0))
+
             norm_orig = original / max_orig
 
             c["llm_relevance"] = llm_score
 
-            c["rerank_score"] = round(
-                0.6 * (llm_score / 3.0)
-                + 0.4 * norm_orig,
-                4
-            )
+            # c["rerank_score"] = round( 0.6 * (llm_score / 3.0)  + 0.4 * norm_orig,  4 )
+            c["rerank_score"] = llm_score  +(0.1 * norm_orig)
 
         reranked = sorted(
             to_rerank,
@@ -216,27 +217,27 @@ async def _llm_score(
         for c in candidates
     }
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    client = _get_http_client()
 
-        resp = await client.post(
-            f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
-            json={
-                "model": settings.OLLAMA_LLM_MODEL,
-                "messages": [
-                    {"role": "system", "content": RERANK_SYSTEM},
-                    {"role": "user", "content": prompt},
-                ],
-                "stream": False,
-                "options": {
-                    "num_predict": 300,
-                    "temperature": 0.0,
-                },
+    resp = await client.post(
+        f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
+        json={
+            "model": settings.OLLAMA_LLM_MODEL,
+            "messages": [
+                {"role": "system", "content": RERANK_SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
+            "stream": False,
+            "options": {
+                "num_predict": 300,
+                "temperature": 0.0,
             },
-        )
+        },
+    )
 
-        resp.raise_for_status()
+    resp.raise_for_status()
 
-        raw = resp.json()["message"]["content"].strip()
+    raw = resp.json()["message"]["content"].strip()
 
     raw = re.sub(r"```(?:json)?|```", "", raw).strip()
 
@@ -245,7 +246,10 @@ async def _llm_score(
     if not m:
         return []
 
-    data = json.loads(m.group(0))
+    try:
+        data = json.loads(m.group(0))
+    except Exception:
+        return []
 
     results = []
 
@@ -257,7 +261,7 @@ async def _llm_score(
 
         try:
             score = int(item.get("score", 1))
-        except:
+        except Exception:
             score = 1
 
         results.append(
@@ -275,7 +279,6 @@ async def _llm_score(
 # ─────────────────────────────────────────────
 
 def _clean_text(text: str) -> str:
-    """Normalize whitespace."""
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -289,6 +292,10 @@ def _make_cache_key(
         for c in candidates
     )
 
-    raw = f"{query.lower().strip()}|{chunk_ids}"
+    raw = (
+        f"{settings.OLLAMA_LLM_MODEL}|"
+        f"{query.lower().strip()}|"
+        f"{chunk_ids}"
+    )
 
     return hashlib.md5(raw.encode()).hexdigest()

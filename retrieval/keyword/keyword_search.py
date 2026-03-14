@@ -121,4 +121,4 @@ class KeywordSearch:
     def _build_tsquery(self, query: str) -> str:
         """Normalize query — bỏ ký tự đặc biệt gây lỗi tsquery"""
         import re
-        return re.sub(r"[^\w\s]", " ", query).strip()
+        return re.sub(r"[^\w\s/]", " ", query).strip()

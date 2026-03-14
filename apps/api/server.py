@@ -11,6 +11,8 @@ from config.settings import settings
 from utils.logging import configure_logging
 from scheduler.sync_scheduler import start_scheduler, stop_scheduler
 from tasks.routes import router as tasks_router
+from storage.vector.vector_store import get_qdrant
+from qdrant_client.models import Distance, VectorParams
 
 import structlog
 
@@ -19,13 +21,34 @@ WEB_DIR = Path(__file__).parent.parent.parent / "web"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     configure_logging(debug=settings.DEBUG)
     log.info("startup.begin", app=settings.APP_NAME)
-    await create_tables()
-    start_scheduler()
-    yield
-    stop_scheduler()
 
+    await create_tables()
+
+    # INIT VECTOR DB
+    qdrant = get_qdrant()
+
+    collections = [c.name for c in qdrant.get_collections().collections]
+
+    if "semantic_cache" not in collections:
+
+        qdrant.create_collection(
+            collection_name="semantic_cache",
+            vectors_config=VectorParams(
+                size=1024,  # embedding dimension
+                distance=Distance.COSINE,
+            ),
+        )
+
+        log.info("semantic_cache.collection_created")
+
+    start_scheduler()
+
+    yield
+
+    stop_scheduler()
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION,
               lifespan=lifespan, docs_url="/api/docs", redoc_url="/api/redoc")
 

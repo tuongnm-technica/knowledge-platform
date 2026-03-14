@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     # OLLAMA_LLM_MODEL: str = "deepseek-r1:14b"
     OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
-    OLLAMA_EMBED_MODEL: str = "bge-m3"        # ← thêm dòng này
+    OLLAMA_EMBED_MODEL: str = "bge-m3"   
     LLM_TIMEOUT: int = 800
     VECTOR_DIM: int = 1024
 

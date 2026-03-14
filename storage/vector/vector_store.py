@@ -117,3 +117,21 @@ class VectorStore:
             return True
         except ValueError:
             return False
+from qdrant_client import QdrantClient
+from config.settings import settings
+
+_qdrant = None
+
+
+def get_qdrant():
+
+    global _qdrant
+
+    if _qdrant is None:
+
+        _qdrant = QdrantClient(
+            host=settings.QDRANT_HOST,
+            port=settings.QDRANT_PORT,
+        )
+
+    return _qdrant

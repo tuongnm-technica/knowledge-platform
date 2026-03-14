@@ -79,3 +79,46 @@ class DocumentRepository:
             {"groups": user_groups},
         )
         return [r[0] for r in result.fetchall()]
+
+    async def get_neighbor_chunks(self, chunk_id: str):
+
+        result = await self._session.execute(
+            text("""
+                SELECT chunk_index, document_id
+                FROM chunks
+                WHERE id = :chunk_id
+            """),
+            {"chunk_id": chunk_id}
+        )
+
+        row = result.mappings().first()
+
+        if not row:
+            return []
+
+        idx = row["chunk_index"]
+        doc_id = row["document_id"]
+
+        if idx <= 2:
+            window = 2
+        elif idx >= 10:
+            window = 2
+        else:
+            window = 1
+
+        result = await self._session.execute(
+            text("""
+                SELECT content
+                FROM chunks
+                WHERE document_id = :doc_id
+                AND chunk_index BETWEEN :start AND :end
+                ORDER BY chunk_index
+            """),
+            {
+                "doc_id": doc_id,
+                "start": idx - window,
+                "end": idx + window,
+            }
+        )
+
+        return result.mappings().all()

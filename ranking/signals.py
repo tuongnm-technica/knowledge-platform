@@ -7,7 +7,9 @@ def semantic_signal(score: float) -> float:
 
 
 def keyword_signal(score: float) -> float:
-    return max(0.0, min(1.0, score))
+    if score <= 0:
+        return 0
+    return min(score / 5, 1.0)
 
 
 def recency_signal(updated_at: datetime | None) -> float:
