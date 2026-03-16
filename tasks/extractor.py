@@ -5,6 +5,7 @@ Output: danh sách ExtractedTask (JSON).
 """
 from __future__ import annotations
 import json
+import asyncio
 import re
 import httpx
 import structlog
@@ -56,30 +57,36 @@ async def extract_tasks_from_content(
         "Hãy extract tất cả action items từ nội dung trên:"
     )
 
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
-                json={
-                    "model":   settings.OLLAMA_LLM_MODEL,
-                    "messages": [
-                        {"role": "system", "content": EXTRACT_SYSTEM},
-                        {"role": "user",   "content": prompt},
-                    ],
-                    "stream":  False,
-                    "options": {"num_predict": 800, "temperature": 0.1},
-                },
-            )
-            resp.raise_for_status()
-            raw = resp.json()["message"]["content"].strip()
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(
+                    f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
+                    json={
+                        "model":   settings.OLLAMA_LLM_MODEL,
+                        "messages": [
+                            {"role": "system", "content": EXTRACT_SYSTEM},
+                            {"role": "user",   "content": prompt},
+                        ],
+                        "stream":  False,
+                        "options": {"num_predict": 800, "temperature": 0.1},
+                    },
+                )
+                resp.raise_for_status()
+                raw = resp.json()["message"]["content"].strip()
 
-        tasks = _parse_tasks(raw)
-        log.info("extractor.done", source=source_type, ref=source_ref, found=len(tasks))
-        return tasks
+            tasks = _parse_tasks(raw)
+            log.info("extractor.done", source=source_type, ref=source_ref, found=len(tasks))
+            return tasks
 
-    except Exception as e:
-        log.error("extractor.error", source=source_type, error=str(e))
-        return []
+        except Exception as e:
+            log.warning("extractor.attempt_failed", source=source_type, attempt=attempt, error=str(e))
+            if attempt < max_retries:
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s...
+            else:
+                log.error("extractor.error_final", source=source_type, error=str(e))
+                return []
 
 
 def _parse_tasks(raw: str) -> list[ExtractedTask]:
@@ -90,6 +97,7 @@ def _parse_tasks(raw: str) -> list[ExtractedTask]:
     # Tìm JSON object
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if not m:
+        log.debug("extractor.parse_failed.no_json_found", raw=raw[:200])
         return []
 
     try:
@@ -108,8 +116,10 @@ def _parse_tasks(raw: str) -> list[ExtractedTask]:
                     evidence_ts=str(item.get("evidence_ts") or "").strip() or None,
                     evidence=str(item.get("evidence") or "").strip() or None,
                 ))
-            except Exception:
+            except Exception as e:
+                log.debug("extractor.parse_item_failed", error=str(e), item=item)
                 continue
         return tasks
-    except (json.JSONDecodeError, KeyError):
+    except (json.JSONDecodeError, KeyError) as e:
+        log.error("extractor.parse_failed.invalid_json", error=str(e))
         return []
