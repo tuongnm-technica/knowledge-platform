@@ -9,11 +9,9 @@ import structlog
 
 from utils.embeddings import get_embedding
 from storage.vector.vector_store import get_qdrant
+from config.settings import settings
 
 log = structlog.get_logger()
-
-COLLECTION = "knowledge_chunks"
-
 
 class VectorSearch:
 
@@ -64,10 +62,12 @@ class VectorSearch:
             # ─────────────────────────
 
             results = self.qdrant.search(
-                collection_name=COLLECTION,
+                collection_name=settings.QDRANT_COLLECTION,
                 query_vector=query_vector,
                 limit=top_k,
                 query_filter=qfilter,
+                with_payload=True,
+                with_vectors=False,
             )
 
             output = []

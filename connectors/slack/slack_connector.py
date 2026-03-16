@@ -1,36 +1,39 @@
 import uuid
-from datetime import datetime
 from collections import defaultdict
-from models.document import Document, SourceType
+from datetime import datetime
+
+import structlog
+
+from config.settings import settings
 from connectors.base.base_connector import BaseConnector
 from connectors.slack.slack_client import SlackClient
 from connectors.slack.slack_parser import SlackParser
+from models.document import Document, SourceType
 from permissions.workspace_config import get_slack_workspace
-from config.settings import settings
-import structlog
+
 
 log = structlog.get_logger()
 
+
 class SlackConnector(BaseConnector):
-    def __init__(self):
-        self._client = SlackClient()
+    def __init__(self, *, channel_ids: set[str] | None = None, bot_token: str | None = None):
+        self._client = SlackClient(bot_token=bot_token)
         self._parser = SlackParser()
+        self._channel_ids = {cid.strip() for cid in (channel_ids or set()) if cid and str(cid).strip()}
 
     def validate_config(self) -> bool:
-        if not settings.SLACK_BOT_TOKEN:
-            raise ValueError("SLACK_BOT_TOKEN chưa được cấu hình")
+        # SlackClient constructor already validates presence of token.
         return True
 
     async def get_permissions(self, source_id: str) -> list[str]:
         channel_id = source_id.split("_")[0] if "_" in source_id else source_id
-        return [f"slack_channel_{channel_id}"]
-    
+        return [f"group_slack_channel_{str(channel_id or '').strip().lower()}"]
+
     async def fetch_documents(self) -> list[Document]:
-        """
-        Gom nhóm tin nhắn Slack theo từng ngày để lưu thành các Document riêng biệt.
-        """
         documents = []
         channels = await self._client.get_channels()
+        if self._channel_ids:
+            channels = [c for c in channels if c.get("id") in self._channel_ids]
 
         log.info("slack.fetch.start", total_channels=len(channels))
 
@@ -39,58 +42,60 @@ class SlackConnector(BaseConnector):
             channel_name = channel.get("name", channel_id)
 
             try:
-                # Lấy tin nhắn trong 90 ngày (hoặc cấu hình SYNC_DAYS)
                 messages = await self._client.get_messages(channel_id, days=90)
                 if not messages:
                     continue
 
-                # 1. Gom nhóm tin nhắn theo ngày (YYYY-MM-DD)
-                daily_messages = defaultdict(list)
+                daily_messages: dict[str, list[dict]] = defaultdict(list)
                 for msg in messages:
                     ts = float(msg.get("ts", 0))
-                    date_key = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+                    date_key = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
                     daily_messages[date_key].append(msg)
 
                 user_cache = self._client.get_user_cache()
                 members = await self._client.get_channel_members(channel_id)
 
-                # 2. Với mỗi ngày, tạo một Document riêng
                 for date_str, msgs in daily_messages.items():
-                    # Đảo ngược danh sách tin nhắn để có thứ tự thời gian tăng dần (cũ đến mới)
                     msgs.reverse()
-                    
+                    participants = self._extract_participants(msgs, user_cache)
+
+                    first_ts = self._first_indexable_ts(msgs)
+                    deep_link = self._slack_deep_link(channel_id, first_ts) if first_ts else f"https://slack.com/archives/{channel_id}"
+
                     content = self._parser.extract_thread_content(
                         msgs,
                         user_cache=user_cache,
                         channel_name=channel_name,
-                        date_str=date_str
+                        date_str=date_str,
                     )
-
                     if not content or len(content.strip()) < 10:
                         continue
 
-                    doc = Document(
-                        id=str(uuid.uuid4()),
-                        source=SourceType.SLACK,
-                        # source_id chứa cả ID channel và ngày để không bị trùng lặp
-                        source_id=f"{channel_id}_{date_str}", 
-                        title=f"[Slack] #{channel_name} | Ngày {date_str}",
-                        content=content,
-                        url=f"https://app.slack.com/client/{channel_id}",
-                        author="slack",
-                        created_at=datetime.strptime(date_str, '%Y-%m-%d'),
-                        updated_at=datetime.utcnow(),
-                        metadata={
-                            "channel_id": channel_id,
-                            "channel_name": channel_name,
-                            "date": date_str,
-                            "message_count": len(msgs),
-                            "members": members,
-                        },
-                        permissions=[f"slack_channel_{channel_id}"],
-                        workspace_id=get_slack_workspace(channel_name),
+                    documents.append(
+                        Document(
+                            id=str(uuid.uuid4()),
+                            source=SourceType.SLACK,
+                            source_id=f"{channel_id}_{date_str}",
+                            title=f"[Slack] #{channel_name} | Ngay {date_str}",
+                            content=content,
+                            url=deep_link,
+                            author="slack",
+                            created_at=datetime.strptime(date_str, "%Y-%m-%d"),
+                            updated_at=datetime.utcnow(),
+                            metadata={
+                                "channel_id": channel_id,
+                                "channel_name": channel_name,
+                                "date": date_str,
+                                "message_count": len(msgs),
+                                "first_ts": first_ts or "",
+                                "deep_link": deep_link,
+                                "members": members,
+                                "participants": participants,
+                            },
+                            permissions=[f"group_slack_channel_{str(channel_id or '').strip().lower()}"],
+                            workspace_id=get_slack_workspace(channel_name),
+                        )
                     )
-                    documents.append(doc)
 
                 log.info("slack.channel.done", channel=channel_name, total_days=len(daily_messages))
 
@@ -100,3 +105,62 @@ class SlackConnector(BaseConnector):
 
         log.info("slack.fetch.done", total_documents=len(documents))
         return documents
+
+    @staticmethod
+    def _first_indexable_ts(messages: list[dict]) -> str | None:
+        for msg in messages:
+            if msg.get("subtype") in (
+                "bot_message",
+                "channel_join",
+                "channel_leave",
+                "channel_archive",
+                "channel_unarchive",
+            ):
+                continue
+            ts = str(msg.get("ts") or "").strip()
+            text = str(msg.get("text") or "").strip()
+            attachments = msg.get("attachments") or []
+            if ts and (text or attachments):
+                return ts
+        return None
+
+    @staticmethod
+    def _slack_deep_link(channel_id: str, ts: str) -> str:
+        """
+        Slack message deep link.
+        Format: https://slack.com/archives/{channel}/p{tsDigits} where tsDigits = ts without dot.
+        """
+        ts = str(ts or "").strip()
+        if not ts:
+            return f"https://slack.com/archives/{channel_id}"
+        if "." in ts:
+            sec, frac = ts.split(".", 1)
+            frac = (frac + "000000")[:6]  # Slack ts is seconds.microseconds
+            ts_digits = f"{sec}{frac}"
+        else:
+            ts_digits = "".join([c for c in ts if c.isdigit()])
+        return f"https://slack.com/archives/{channel_id}/p{ts_digits}"
+
+    @staticmethod
+    def _extract_participants(messages: list[dict], user_cache: dict[str, dict]) -> list[dict]:
+        participants: list[dict] = []
+        seen: set[str] = set()
+
+        for msg in messages:
+            user_id = msg.get("user")
+            if not user_id or user_id in seen:
+                continue
+
+            seen.add(user_id)
+            info = user_cache.get(user_id, {})
+            participant = {
+                "user_id": user_id,
+                "display_name": info.get("display_name", ""),
+                "real_name": info.get("real_name", ""),
+                "name": info.get("name", ""),
+                "email": info.get("email", ""),
+            }
+            if any(participant.values()):
+                participants.append(participant)
+
+        return participants

@@ -11,8 +11,23 @@ class ACLFilter:
             text("""
                 SELECT DISTINCT dp.document_id::text
                 FROM document_permissions dp
-                JOIN user_groups ug ON ug.group_id = dp.group_id
-                WHERE ug.user_id = :user_id
+                JOIN user_groups ug
+                  ON ug.group_id = dp.group_id
+                 AND ug.user_id = :user_id
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM user_group_overrides ugo
+                    WHERE ugo.user_id = ug.user_id
+                      AND ugo.group_id = ug.group_id
+                      AND COALESCE(ugo.effect, 'deny') = 'deny'
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM user_document_overrides udo
+                    WHERE udo.user_id = :user_id
+                      AND udo.document_id = dp.document_id
+                      AND COALESCE(udo.effect, 'deny') = 'deny'
+                )
             """),
             {"user_id": user_id},
         )

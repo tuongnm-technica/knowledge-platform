@@ -1,68 +1,148 @@
-from atlassian import Jira
-from config.settings import settings
 from datetime import datetime
+
 import structlog
+from atlassian import Jira
+
+from config.settings import settings
+
 
 log = structlog.get_logger()
 
-ALLOWED_PROJECT_KEYS = ["ECOS2025"]
+
+def _allowed_project_keys() -> set[str]:
+    raw = (settings.JIRA_PROJECT_KEYS or "").strip()
+    if not raw:
+        return set()
+    return {key.strip() for key in raw.split(",") if key.strip()}
 
 
 class JiraClient:
-    def __init__(self):
-        if not all([settings.JIRA_URL, settings.JIRA_API_TOKEN]):
-            raise ValueError("JIRA_URL và JIRA_API_TOKEN chưa được cấu hình")
+    def __init__(
+        self,
+        *,
+        base_url: str | None = None,
+        api_token: str | None = None,
+        username: str | None = None,
+        auth_type: str | None = None,  # token|basic
+        cloud: bool | None = None,
+    ):
+        url = (base_url or settings.JIRA_URL or "").strip()
+        token = (api_token or settings.JIRA_API_TOKEN or "").strip()
+        auth_type = (auth_type or "token").strip().lower()
+        cloud_flag = bool(getattr(settings, "JIRA_CLOUD", False))
+        if cloud is not None:
+            cloud_flag = bool(cloud)
 
-        self._client = Jira(
-            url=settings.JIRA_URL,
-            token=settings.JIRA_API_TOKEN,
-            cloud=False,
-        )
+        if not url or not token:
+            raise ValueError("JIRA_URL va JIRA_API_TOKEN chua duoc cau hinh")
+
+        if auth_type == "basic":
+            user = (username or "").strip()
+            if not user:
+                raise ValueError("JIRA username/email is required for basic auth")
+            self._client = Jira(
+                url=url,
+                username=user,
+                password=token,
+                cloud=cloud_flag,
+            )
+        else:
+            self._client = Jira(
+                url=url,
+                token=token,
+                cloud=cloud_flag,
+            )
+
+    @staticmethod
+    def _fields() -> list[str]:
+        # Keep payload lean but RAG-friendly.
+        return [
+            "summary",
+            "description",
+            "status",
+            "issuetype",
+            "priority",
+            "creator",
+            "reporter",
+            "assignee",
+            "labels",
+            "components",
+            "project",
+            "created",
+            "updated",
+            "comment",
+        ]
 
     def get_projects(self) -> list[dict]:
         try:
             projects = self._client.projects()
-            if ALLOWED_PROJECT_KEYS:
-                projects = [p for p in projects if p["key"] in ALLOWED_PROJECT_KEYS]
+            allowed_project_keys = _allowed_project_keys()
+            if allowed_project_keys:
+                projects = [project for project in projects if project["key"] in allowed_project_keys]
             return projects
-        except Exception as e:
-            log.error("jira.get_projects.failed", error=str(e))
+        except Exception as exc:
+            log.error("jira.get_projects.failed", error=str(exc))
             return []
 
     def get_issues(self, project_key: str, max_results: int = 500) -> list[dict]:
-        """Full sync — lấy tất cả issues."""
         try:
-            jql    = f"project = {project_key} ORDER BY updated DESC"
-            result = self._client.jql(jql, limit=max_results)
-            return result.get("issues", [])
-        except Exception as e:
-            log.error("jira.get_issues.failed", project=project_key, error=str(e))
+            return self._jql_issues(
+                f"project = {project_key} ORDER BY updated DESC",
+                max_results=max_results,
+            )
+        except Exception as exc:
+            log.error("jira.get_issues.failed", project=project_key, error=str(exc))
             return []
 
     def get_issues_since(self, project_key: str, since: datetime, max_results: int = 500) -> list[dict]:
-        """
-        Incremental sync — chỉ lấy issues updated SAU thời điểm since.
-        Jira JQL format: updated > "yyyy/MM/dd HH:mm"
-        """
         try:
             since_str = since.strftime("%Y/%m/%d %H:%M")
-            jql = f'project = {project_key} AND updated > "{since_str}" ORDER BY updated ASC'
-            log.info("jira.get_issues_since", project=project_key, since=since_str)
-
-            result = self._client.jql(jql, limit=max_results)
-            issues = result.get("issues", [])
-            log.info("jira.incremental.found", project=project_key, count=len(issues))
+            issues = self._jql_issues(
+                f'project = {project_key} AND updated >= "{since_str}" ORDER BY updated ASC',
+                max_results=max_results,
+            )
+            log.info("jira.incremental.found", project=project_key, since=since_str, count=len(issues))
             return issues
-
-        except Exception as e:
-            log.error("jira.get_issues_since.failed", project=project_key, error=str(e))
+        except Exception as exc:
+            log.error("jira.get_issues_since.failed", project=project_key, error=str(exc))
             log.warning("jira.fallback_to_full_sync", project=project_key)
             return self.get_issues(project_key, max_results=max_results)
+
+    def _jql_issues(self, jql: str, *, max_results: int) -> list[dict]:
+        # Atlassian python API supports start/limit paging via Jira.jql().
+        start = 0
+        issues: list[dict] = []
+        limit = min(max_results, 200) if max_results else 200
+
+        while True:
+            result = self._client.jql(
+                jql,
+                fields=self._fields(),
+                start=start,
+                limit=limit,
+            )
+            batch = result.get("issues", []) if isinstance(result, dict) else []
+            if not batch:
+                break
+
+            issues.extend(batch)
+            if max_results and len(issues) >= max_results:
+                issues = issues[:max_results]
+                break
+
+            total = int(result.get("total") or 0)
+            start += len(batch)
+            if total and start >= total:
+                break
+            if len(batch) < limit:
+                break
+
+        return issues
 
     def test_connection(self) -> bool:
         try:
             self._client.projects()
             return True
-        except Exception as e:
-            log.error("jira.test_connection.failed", error=str(e))
+        except Exception as exc:
+            log.error("jira.test_connection.failed", error=str(exc))
             return False

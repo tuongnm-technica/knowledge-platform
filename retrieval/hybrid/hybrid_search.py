@@ -52,13 +52,14 @@ class HybridSearch:
                 vector_task,
                 keyword_task,
             )
-            import re 
-            if re.search(r'\d+/\d+/\d+', query):
-                self.KEYWORD_WEIGHT = 0.7
-                self.VECTOR_WEIGHT = 0.3
+            # Use per-request weights (don't mutate instance/class state).
+            import re
+            if re.search(r"\d+/\d+/\d+", query):
+                keyword_weight = 0.7
+                vector_weight = 0.3
             else:
-                self.KEYWORD_WEIGHT = 0.4
-                self.VECTOR_WEIGHT = 0.6
+                keyword_weight = 0.4
+                vector_weight = 0.6
                 
             log.debug(
                 "hybrid_search.raw",
@@ -66,7 +67,7 @@ class HybridSearch:
                 keyword=len(keyword_results),
             )
 
-            merged = self._rrf_merge(vector_results, keyword_results)
+            merged = self._rrf_merge(vector_results, keyword_results, vector_weight, keyword_weight)
 
             return merged[:top_k]
 
@@ -76,7 +77,7 @@ class HybridSearch:
 
             return []
 
-    def _rrf_merge(self, vector_results, keyword_results):
+    def _rrf_merge(self, vector_results, keyword_results, vector_weight: float, keyword_weight: float):
 
         scores = {}
         meta = {}
@@ -85,7 +86,7 @@ class HybridSearch:
 
             cid = str(item["chunk_id"])
 
-            score = self.VECTOR_WEIGHT * (1 / (self.RRF_K + rank + 1))
+            score = vector_weight * (1 / (self.RRF_K + rank + 1))
 
             scores[cid] = scores.get(cid, 0) + score
 
@@ -98,7 +99,7 @@ class HybridSearch:
 
             cid = str(item["chunk_id"])
 
-            score = self.KEYWORD_WEIGHT * (1 / (self.RRF_K + rank + 1))
+            score = keyword_weight * (1 / (self.RRF_K + rank + 1))
 
             scores[cid] = scores.get(cid, 0) + score
 

@@ -32,7 +32,7 @@ class AITaskDraftORM:
     created_by         = Column(String(255))
     confirmed_by       = Column(String(255))
     jira_key           = Column(String(50))
-    jira_project       = Column(String(50), default="ECOS2025")
+    jira_project       = Column(String(50))
     created_at         = Column(DateTime, nullable=False, server_default=func.now())
     confirmed_at       = Column(DateTime)
     submitted_at       = Column(DateTime)
@@ -53,7 +53,7 @@ class TaskDraftOut(BaseModel):
     status:             str
     triggered_by:       str
     jira_key:           Optional[str] = None
-    jira_project:       str = "ECOS2025"
+    jira_project:       Optional[str] = None
     created_at:         datetime
 
     class Config:
@@ -76,3 +76,6 @@ class ExtractedTask(BaseModel):
     suggested_assignee: Optional[str] = None
     priority:           str = "Medium"              # High | Medium | Low
     labels:             list[str] = []
+    # Optional evidence fields (best-effort). For Slack, evidence_ts should be the message ts (e.g. 1710561234.567890).
+    evidence_ts:        Optional[str] = None
+    evidence:           Optional[str] = None

@@ -33,9 +33,11 @@ class SlackParser:
 
             sender    = self._get_sender(msg, user_cache)
             timestamp = self._format_time(msg.get("ts"))
+            ts_raw = str(msg.get("ts") or "").strip()
 
-            # Format: [09:30] Tu Nguyen (tuongnm): nội dung
-            line = f"[{timestamp}] {sender}: {text}"
+            # Include ts so we can build stable Slack deep links (p+timestamp) per chunk.
+            # Format: [09:30|1710561234.567890] Tu Nguyen (tuongnm): nội dung
+            line = f"[{timestamp}|{ts_raw}] {sender}: {text}" if ts_raw else f"[{timestamp}] {sender}: {text}"
             parts.append(line)
 
             # Attachments / file shares

@@ -28,7 +28,27 @@ class VectorIndex:
 
         texts = [c.content for c in chunks]
         log.info("vector_index.embedding", count=len(texts))
-        vectors = await get_embeddings_batch(texts)
+        try:
+            vectors = await get_embeddings_batch(texts)
+        except Exception as e:
+            log.error("vector_index.embedding_failed", error=str(e))
+            return
+
+        # Replace strategy: remove existing chunks for this document only after embeddings are ready.
+        document_id = chunks[0].document_id
+        try:
+            await self._session.execute(
+                text("DELETE FROM chunks WHERE document_id = :document_id"),
+                {"document_id": document_id},
+            )
+            await self._session.commit()
+        except Exception as e:
+            log.error("vector_index.pg.delete_failed", document_id=document_id, error=str(e))
+
+        try:
+            self._store.delete_by_document(document_id)
+        except Exception as e:
+            log.error("vector_index.qdrant.delete_failed", document_id=document_id, error=str(e))
 
         for chunk in chunks:
             try:

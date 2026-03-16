@@ -6,1079 +6,7 @@
 <title>Knowledge Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #f5f6fa;
-    --bg2: #ffffff;
-    --bg3: #eef0f6;
-    --border: rgba(0,0,0,0.08);
-    --border-active: rgba(59,130,246,0.4);
-    --text: #1a1a2e;
-    --text-muted: #64748b;
-    --text-dim: #b0bac8;
-    --accent: #3b82f6;
-    --accent2: #8b5cf6;
-    --accent3: #10b981;
-    --warn: #f59e0b;
-    --danger: #ef4444;
-    --glow: rgba(59,130,246,0.08);
-    --radius: 12px;
-    --sidebar: 240px;
-    --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
-  }
-
-  [data-theme="dark"] {
-    --bg: #0a0a0f;
-    --bg2: #111118;
-    --bg3: #1a1a24;
-    --border: rgba(255,255,255,0.07);
-    --border-active: rgba(99,179,237,0.4);
-    --text: #e8e8f0;
-    --text-muted: #6b6b8a;
-    --text-dim: #3a3a55;
-    --accent: #63b3ed;
-    --accent2: #9f7aea;
-    --accent3: #68d391;
-    --warn: #f6ad55;
-    --danger: #fc8181;
-    --glow: rgba(99,179,237,0.15);
-    --shadow: none;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
-  }
-
-  /* ── SIDEBAR ── */
-  .sidebar {
-    width: var(--sidebar);
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-  }
-
-  .logo {
-    padding: 24px 20px 20px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .logo-text {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 18px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-
-    background-clip: text;
-    -webkit-background-clip: text;
-
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-
-    letter-spacing: -0.5px;
-  }
-
-  .logo-sub {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 3px;
-    font-weight: 300;
-    letter-spacing: 0.5px;
-  }
-
-  .nav {
-    padding: 12px 10px;
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .nav-section {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    color: var(--text-dim);
-    padding: 14px 10px 6px;
-    text-transform: uppercase;
-  }
-
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 10px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 13.5px;
-    font-weight: 400;
-    color: var(--text-muted);
-    transition: all 0.15s;
-    position: relative;
-  }
-
-  .nav-item:hover { background: var(--bg3); color: var(--text); }
-
-  .nav-item.active {
-    background: var(--glow);
-    color: var(--accent);
-    font-weight: 500;
-  }
-
-  .nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 25%; bottom: 25%;
-    width: 2px;
-    background: var(--accent);
-    border-radius: 2px;
-  }
-
-  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
-
-  .nav-badge {
-    margin-left: auto;
-    background: var(--bg3);
-    color: var(--text-muted);
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 20px;
-    font-weight: 500;
-  }
-
-  .sidebar-bottom {
-    padding: 12px;
-    border-top: 1px solid var(--border);
-  }
-
-  .user-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  .user-card:hover { background: var(--bg3); }
-
-  .avatar {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700; color: white;
-    flex-shrink: 0;
-    font-family: 'Syne', sans-serif;
-  }
-
-  .user-info { flex: 1; min-width: 0; }
-  .user-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .user-role { font-size: 11px; color: var(--text-muted); }
-
-  /* ── MAIN ── */
-  .main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .theme-toggle {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    cursor: pointer;
-    font-size: 15px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s;
-    margin-left: 4px;
-  }
-  .theme-toggle:hover { background: var(--glow); border-color: var(--border-active); }
-
-  /* ── TOPBAR ── */
-  .topbar {
-    height: 56px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    padding: 0 24px;
-    gap: 12px;
-    background: var(--bg);
-    flex-shrink: 0;
-  }
-
-  .page-title {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: 16px;
-    flex: 1;
-  }
-
-  .status-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--accent3);
-    box-shadow: 0 0 8px var(--accent3);
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  .status-text { font-size: 12px; color: var(--text-muted); }
-
-  /* ── PAGES ── */
-  .page { display: none; flex: 1; overflow: hidden; }
-  .page.active { display: flex; flex-direction: column; }
-
-  /* ── CHAT PAGE ── */
-  .chat-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    scroll-behavior: smooth;
-  }
-
-  .chat-messages::-webkit-scrollbar { width: 4px; }
-  .chat-messages::-webkit-scrollbar-track { background: transparent; }
-  .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-  .empty-state {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    color: var(--text-muted);
-    text-align: center;
-    padding: 40px;
-  }
-
-  .empty-icon {
-    font-size: 48px;
-    opacity: 0.3;
-  }
-
-  .empty-title {
-    font-family: 'Syne', sans-serif;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text);
-    opacity: 0.5;
-  }
-
-  .empty-sub { font-size: 14px; max-width: 360px; line-height: 1.6; }
-
-  .suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-    margin-top: 8px;
-  }
-
-  .suggestion-chip {
-    padding: 8px 14px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 12.5px;
-    cursor: pointer;
-    transition: all 0.15s;
-    color: var(--text-muted);
-  }
-
-  .suggestion-chip:hover {
-    border-color: var(--border-active);
-    color: var(--accent);
-    background: var(--glow);
-  }
-
-  /* Messages */
-  .message { display: flex; gap: 12px; animation: fadeUp 0.3s ease; max-width: 800px; }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .message.user { flex-direction: row-reverse; align-self: flex-end; }
-  .message.assistant { align-self: flex-start; width: 100%; }
-
-  .msg-avatar {
-    width: 30px; height: 30px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  .msg-avatar.user-av {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    font-size: 12px; font-weight: 700; color: white;
-    font-family: 'Syne', sans-serif;
-  }
-
-  .msg-avatar.ai-av {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-  }
-
-  .msg-body { flex: 1; min-width: 0; }
-
-  .msg-bubble {
-    padding: 12px 16px;
-    border-radius: var(--radius);
-    font-size: 14px;
-    line-height: 1.7;
-  }
-
-  .message.user .msg-bubble {
-    background: linear-gradient(135deg, rgba(99,179,237,0.15), rgba(159,122,234,0.1));
-    border: 1px solid rgba(99,179,237,0.2);
-    border-radius: var(--radius) var(--radius) 4px var(--radius);
-  }
-
-  .message.assistant .msg-bubble {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    border-radius: 4px var(--radius) var(--radius) var(--radius);
-  }
-
-  .msg-time { font-size: 11px; color: var(--text-dim); margin-top: 5px; padding: 0 4px; }
-  .message.user .msg-time { text-align: right; }
-
-  /* Message footer */
-  .msg-footer {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 5px;
-    padding: 0 4px;
-  }
-
-  .msg-time-inline {
-    font-size: 11px;
-    color: var(--text-dim);
-  }
-
-  .sources-toggle-btn {
-    padding: 3px 10px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 11px;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 500;
-  }
-
-  .sources-toggle-btn:hover,
-  .sources-toggle-btn.active {
-    background: var(--glow);
-    border-color: var(--border-active);
-    color: var(--accent);
-  }
-
-  /* Sources panel */
-  .sources-panel {
-    margin-top: 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    background: var(--bg3);
-    animation: fadeUp 0.2s ease;
-  }
-
-  .sources-panel-header {
-    padding: 8px 14px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-    border-bottom: 1px solid var(--border);
-    background: var(--bg2);
-    text-transform: uppercase;
-  }
-
-  .sources-panel .source-item {
-    border-radius: 0;
-    border: none;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg2);
-  }
-
-  .sources-panel .source-item:last-child { border-bottom: none; }
-
-  /* Thinking block */
-  .thinking-block {
-    margin-bottom: 8px;
-    border: 1px solid rgba(159,122,234,0.2);
-    border-radius: 8px;
-    overflow: hidden;
-    background: rgba(159,122,234,0.05);
-  }
-
-  .thinking-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--accent2);
-    font-weight: 500;
-    user-select: none;
-    transition: background 0.15s;
-  }
-
-  .thinking-toggle:hover { background: rgba(159,122,234,0.08); }
-  .thinking-icon { font-size: 14px; }
-  .thinking-chevron { margin-left: auto; font-size: 11px; }
-
-  .thinking-content {
-    padding: 10px 14px;
-    font-size: 12px;
-    color: var(--text-muted);
-    line-height: 1.7;
-    border-top: 1px solid rgba(159,122,234,0.15);
-    font-style: italic;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-
-  .msg-bubble code { font-family: monospace; }
-
-  /* Sources */
-  .sources-list {
-    margin-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .source-label { font-size: 11px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.5px; margin-bottom: 4px; }
-
-  .source-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    text-decoration: none;
-    transition: all 0.15s;
-    cursor: pointer;
-  }
-
-  .source-item:hover { border-color: var(--border-active); background: var(--glow); }
-
-  .source-icon { font-size: 14px; flex-shrink: 0; }
-
-  .source-info { flex: 1; min-width: 0; }
-  .source-title { font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .source-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
-
-  .source-score {
-    font-size: 11px;
-    font-family: 'Syne', sans-serif;
-    font-weight: 600;
-    color: var(--accent3);
-    flex-shrink: 0;
-  }
-
-  /* Typing indicator */
-  .typing-indicator {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    padding: 4px 0;
-  }
-
-  .typing-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: typing 1.2s infinite;
-  }
-
-  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-  @keyframes typing {
-    0%, 100% { opacity: 0.3; transform: scale(0.8); }
-    50% { opacity: 1; transform: scale(1); }
-  }
-
-  /* Chat input */
-  .chat-input-area {
-    padding: 16px 24px 20px;
-    border-top: 1px solid var(--border);
-    background: var(--bg);
-  }
-
-  .input-wrapper {
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 10px 12px;
-    transition: border-color 0.2s;
-  }
-
-  .input-wrapper:focus-within { border-color: var(--border-active); box-shadow: 0 0 0 3px var(--glow); }
-
-  #chatInput {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    color: var(--text);
-    resize: none;
-    max-height: 120px;
-    min-height: 24px;
-    line-height: 1.5;
-  }
-
-  #chatInput::placeholder { color: var(--text-dim); }
-
-  .send-btn {
-    width: 34px; height: 34px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border: none;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
-    transition: all 0.15s;
-    flex-shrink: 0;
-  }
-
-  .send-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(99,179,237,0.3); }
-  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-  .input-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 8px;
-    padding: 0 2px;
-  }
-
-  .user-select {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-
-  .user-select select {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-size: 12px;
-    padding: 3px 8px;
-    border-radius: 6px;
-    outline: none;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-  }
-
-  .input-hint { font-size: 11px; color: var(--text-dim); }
-
-  /* ── SEARCH PAGE ── */
-  .search-page-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-  }
-
-  .search-bar-wrapper {
-    position: relative;
-    margin-bottom: 24px;
-  }
-
-  .search-icon-pos {
-    position: absolute;
-    left: 16px; top: 50%;
-    transform: translateY(-50%);
-    font-size: 16px;
-    color: var(--text-muted);
-  }
-
-  #searchInput {
-    width: 100%;
-    padding: 14px 16px 14px 44px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font-size: 15px;
-    font-family: 'DM Sans', sans-serif;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-
-  #searchInput:focus { border-color: var(--border-active); box-shadow: 0 0 0 3px var(--glow); }
-  #searchInput::placeholder { color: var(--text-dim); }
-
-  .search-results { display: flex; flex-direction: column; gap: 12px; }
-
-  .result-card {
-    padding: 16px 20px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    border-radius: var(--radius);
-    cursor: pointer;
-    transition: all 0.15s;
-    animation: fadeUp 0.3s ease;
-  }
-
-  .result-card:hover { border-color: var(--border-active); background: var(--bg3); transform: translateX(2px); }
-
-  .result-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-
-  .result-source-badge {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    padding: 3px 8px;
-    border-radius: 20px;
-    text-transform: uppercase;
-  }
-
-  .badge-confluence { background: rgba(99,179,237,0.15); color: var(--accent); }
-  .badge-jira { background: rgba(159,122,234,0.15); color: var(--accent2); }
-  .badge-slack { background: rgba(104,211,145,0.15); color: var(--accent3); }
-
-  .result-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
-  .result-score { font-size: 12px; font-family: 'Syne', sans-serif; font-weight: 700; color: var(--accent3); }
-  .result-content { font-size: 13px; color: var(--text-muted); line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; text-overflow: ellipsis;} 
-  .result-url { font-size: 11px; color: var(--text-dim); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  /* ── CONNECTORS PAGE ── */
-  .connectors-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-  }
-
-  .connectors-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-
-  .connector-card {
-    padding: 20px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    border-radius: var(--radius);
-    transition: all 0.15s;
-  }
-
-  .connector-card:hover { border-color: var(--border-active); }
-
-  .connector-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-
-  .connector-icon {
-    width: 40px; height: 40px;
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-
-  .icon-confluence { background: rgba(99,179,237,0.1); border: 1px solid rgba(99,179,237,0.2); }
-  .icon-jira { background: rgba(159,122,234,0.1); border: 1px solid rgba(159,122,234,0.2); }
-  .icon-slack { background: rgba(104,211,145,0.1); border: 1px solid rgba(104,211,145,0.2); }
-
-  .connector-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
-  .connector-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-
-  .connector-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    margin-bottom: 16px;
-  }
-
-  .status-connected { color: var(--accent3); }
-  .status-dot-sm { width: 6px; height: 6px; border-radius: 50%; background: var(--accent3); }
-
-  .connector-stats {
-    display: flex;
-    gap: 16px;
-    padding: 10px 0;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 14px;
-  }
-
-  .stat-item { text-align: center; }
-  .stat-value { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; color: var(--text); }
-  .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-
-  .connector-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
-
-  .connector-status-badge {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    padding: 4px 9px;
-    border-radius: 20px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .connector-status-badge.connected { background: rgba(104,211,145,0.08); border-color: rgba(104,211,145,0.2); color: var(--accent3); }
-  .connector-status-badge.connected .status-dot-sm { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
-  .connector-status-badge.error { background: rgba(252,129,129,0.08); border-color: rgba(252,129,129,0.2); color: var(--danger); }
-  .connector-status-badge.error .status-dot-sm { background: var(--danger); }
-  .connector-status-badge.empty { background: rgba(246,173,85,0.08); border-color: rgba(246,173,85,0.2); color: var(--warn); }
-  .connector-status-badge.empty .status-dot-sm { background: var(--warn); }
-
-  .connector-meta {
-    padding: 10px 0;
-    border-top: 1px solid var(--border);
-    margin-bottom: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .meta-row { display: flex; align-items: center; gap: 8px; }
-  .meta-label { font-size: 11px; color: var(--text-dim); width: 90px; flex-shrink: 0; }
-  .meta-val { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  .sync-status-bar {
-    height: 2px;
-    background: var(--border);
-    border-radius: 2px;
-    margin-bottom: 12px;
-    overflow: hidden;
-  }
-
-  .sync-status-bar.running::after {
-    content: '';
-    display: block;
-    height: 100%;
-    width: 40%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 2px;
-    animation: progress 1.5s ease-in-out infinite;
-  }
-
-  @keyframes progress {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(350%); }
-  }
-
-  .sync-btn {
-    width: 100%;
-    padding: 9px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 500;
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-  }
-
-  .sync-btn:hover { background: var(--glow); border-color: var(--border-active); color: var(--accent); }
-
-  .sync-btn.syncing {
-    color: var(--accent);
-    border-color: var(--border-active);
-    cursor: not-allowed;
-  }
-
-  .spin { display: inline-block; animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ── HISTORY PAGE ── */
-  .history-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .history-item {
-    padding: 14px 18px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .history-item:hover { border-color: var(--border-active); background: var(--bg3); }
-
-  .history-icon { font-size: 18px; flex-shrink: 0; }
-  .history-body { flex: 1; min-width: 0; }
-  .history-question { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .history-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-  .history-arrow { color: var(--text-dim); font-size: 14px; }
-
-  /* ── USERS PAGE ── */
-  .users-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-
-  .section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
-
-  .add-btn {
-    padding: 7px 14px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    transition: all 0.15s;
-  }
-
-  .add-btn:hover { transform: scale(1.03); box-shadow: 0 4px 12px rgba(99,179,237,0.3); }
-
-  .users-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13.5px;
-    margin-bottom: 32px;
-  }
-
-  .users-table th {
-    text-align: left;
-    padding: 10px 14px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .users-table td {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    vertical-align: middle;
-  }
-
-  .users-table tr:hover td { background: var(--bg2); }
-
-  .user-td { display: flex; align-items: center; gap: 10px; }
-
-  .avatar-sm {
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; color: white;
-    font-family: 'Syne', sans-serif;
-    flex-shrink: 0;
-  }
-
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 9px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 500;
-  }
-
-  .tag-blue { background: rgba(99,179,237,0.1); color: var(--accent); }
-  .tag-purple { background: rgba(159,122,234,0.1); color: var(--accent2); }
-  .tag-green { background: rgba(104,211,145,0.1); color: var(--accent3); }
-
-  .action-btn {
-    padding: 5px 10px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text-muted);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: 'DM Sans', sans-serif;
-  }
-
-  .action-btn:hover { border-color: var(--border-active); color: var(--accent); }
-
-  /* ── TOAST ── */
-  .toast-container {
-    position: fixed;
-    bottom: 24px; right: 24px;
-    display: flex; flex-direction: column; gap: 8px;
-    z-index: 1000;
-  }
-
-  .toast {
-    padding: 12px 18px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    animation: slideIn 0.3s ease;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    max-width: 320px;
-  }
-
-  .toast.success { border-color: rgba(104,211,145,0.3); }
-  .toast.error { border-color: rgba(252,129,129,0.3); }
-
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateX(20px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  /* Scrollbar global */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    .sidebar { display: none; }
-  }
-
-  /* ── LOGIN SCREEN ─────────────────────────────────────────── */
-  #login-screen {
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--bg);
-  }
-  .login-card {
-    width: 400px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 40px 36px 36px;
-    box-shadow: 0 24px 60px rgba(0,0,0,.15);
-    position: relative;
-    overflow: hidden;
-  }
-  .login-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-  }
-  .login-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
-  .login-logo-icon {
-    width: 38px; height: 38px; border-radius: 10px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    display: flex; align-items: center; justify-content: center; font-size: 18px;
-  }
-  .login-logo-text { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; }
-  .login-logo-sub  { font-size: 11px; color: var(--text-muted); }
-  .login-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 22px; margin-bottom: 6px; }
-  .login-sub   { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.5; }
-  .login-field { margin-bottom: 16px; }
-  .login-field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
-  .login-field input {
-    width: 100%; padding: 11px 14px;
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 10px; color: var(--text);
-    font-size: 14px; font-family: 'DM Sans', sans-serif;
-    outline: none; transition: border-color .2s, box-shadow .2s;
-  }
-  .login-field input:focus { border-color: var(--border-active); box-shadow: 0 0 0 3px var(--glow); }
-  .login-field input::placeholder { color: var(--text-dim); }
-  .login-error {
-    font-size: 12.5px; color: var(--danger);
-    background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2);
-    border-radius: 8px; padding: 9px 12px;
-    margin-bottom: 16px; display: none;
-  }
-  .login-btn {
-    width: 100%; padding: 12px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border: none; border-radius: 10px;
-    color: white; font-size: 14px; font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer; transition: all .15s;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-  }
-  .login-btn:hover:not(:disabled) { transform: scale(1.02); box-shadow: 0 6px 20px rgba(99,179,237,.35); }
-  .login-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-  .login-footer { text-align: center; font-size: 11px; color: var(--text-dim); margin-top: 20px; }
-  .logout-btn {
-    width: 28px; height: 28px; border-radius: 6px;
-    background: var(--bg3); border: 1px solid var(--border);
-    cursor: pointer; font-size: 13px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all .15s; flex-shrink: 0;
-  }
-  .logout-btn:hover { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
-
-</style>
+<link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
 <!-- LOGIN SCREEN -->
@@ -1141,7 +69,10 @@
     <div class="nav-item" onclick="navigate('connectors', this)">
       <span class="nav-icon">🔗</span> Connectors
     </div>
-    <div class="nav-item" onclick="navigate('users', this)">
+    <div class="nav-item" id="nav-graph" onclick="navigate('graph', this)">
+      <span class="nav-icon">🕸️</span> Knowledge Graph
+    </div>
+    <div class="nav-item" id="nav-users" onclick="navigate('users', this)">
       <span class="nav-icon">👥</span> Users
     </div>
   </nav>
@@ -1150,8 +81,8 @@
     <div class="user-card">
       <div class="avatar" id="sidebarAvatar">A</div>
       <div class="user-info">
-        <div class="user-name" id="sidebarUsername">Alice</div>
-        <div class="user-role">Engineering</div>
+        <div class="user-name" id="sidebarUsername">Account</div>
+        <div class="user-role">Member</div>
       </div>
       <button class="logout-btn" onclick="doLogout()" title="Đăng xuất">&#128682;</button>
     </div>
@@ -1163,9 +94,15 @@
 
   <!-- TOPBAR -->
   <div class="topbar">
-    <div class="page-title" id="pageTitle">Chat AI</div>
-    <div class="status-dot" id="statusDot"></div>
-    <div class="status-text" id="statusText">Đang kết nối...</div>
+    <div class="page-context">
+      <div class="page-eyebrow">Technica Internal</div>
+      <div class="page-title" id="pageTitle">Chat AI</div>
+    </div>
+    <div class="topbar-badge">Graph-aware retrieval</div>
+    <div class="status-panel">
+      <div class="status-dot" id="statusDot"></div>
+      <div class="status-text" id="statusText">Đang kết nối...</div>
+    </div>
     <button class="theme-toggle" onclick="toggleTheme()" id="themeToggle" title="Đổi theme">🌙</button>
   </div>
 
@@ -1174,14 +111,36 @@
     <div class="chat-container">
       <div class="chat-messages" id="chatMessages">
         <div class="empty-state" id="emptyState">
-          <div class="empty-icon">🧠</div>
-          <div class="empty-title">Knowledge Platform AI</div>
-          <div class="empty-sub">Hỏi bất cứ điều gì về tài liệu nội bộ — Confluence, Jira, Slack</div>
-          <div class="suggestions">
-            <div class="suggestion-chip" onclick="useSuggestion(this)">API lấy thông tin xe là gì?</div>
-            <div class="suggestion-chip" onclick="useSuggestion(this)">Quy trình deploy production?</div>
-            <div class="suggestion-chip" onclick="useSuggestion(this)">Các bug đang mở trong ECOS2025?</div>
-            <div class="suggestion-chip" onclick="useSuggestion(this)">Tóm tắt meeting notes gần đây</div>
+          <div class="empty-panel">
+            <div class="empty-copy">
+              <div class="empty-kicker">Knowledge cockpit</div>
+              <div class="empty-icon">🧠</div>
+              <div class="empty-title">Knowledge Platform AI</div>
+              <div class="empty-sub">Hỏi xuyên suốt Confluence, Jira, Slack và tài liệu nội bộ với hybrid search + graph boost.</div>
+              <div class="suggestions">
+                <div class="suggestion-chip" onclick="useSuggestion(this)">API lấy thông tin xe là gì?</div>
+                <div class="suggestion-chip" onclick="useSuggestion(this)">Quy trình deploy production?</div>
+                <div class="suggestion-chip" onclick="useSuggestion(this)">Các bug đang mở trong project Jira hiện tại?</div>
+                <div class="suggestion-chip" onclick="useSuggestion(this)">Tóm tắt meeting notes gần đây</div>
+              </div>
+            </div>
+            <div class="hero-grid">
+              <div class="hero-metric">
+                <span>Coverage</span>
+                <strong>4 sources</strong>
+                <small>Slack, Jira, Confluence và file server trong cùng workspace.</small>
+              </div>
+              <div class="hero-metric">
+                <span>Ranking</span>
+                <strong>Hybrid + graph</strong>
+                <small>Vector, keyword và entity linking cùng tham gia xếp hạng.</small>
+              </div>
+              <div class="hero-metric">
+                <span>Action loop</span>
+                <strong>Task-ready</strong>
+                <small>Từ câu trả lời sang task draft, sync connector và review nguồn.</small>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1193,7 +152,7 @@
           <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
         </div>
         <div class="input-footer">
-          
+          <div class="composer-status"><span class="composer-ping"></span>Graph-aware retrieval online</div>
           <div class="input-hint">Enter gửi · Shift+Enter xuống dòng</div>
         </div>
       </div>
@@ -1203,6 +162,14 @@
   <!-- ── SEARCH PAGE ── -->
   <div class="page" id="page-search">
     <div class="search-page-content">
+      <div class="page-intro">
+        <div>
+          <div class="intro-kicker">Search mode</div>
+          <div class="intro-title">Tìm nhanh, xem nguồn rõ ràng</div>
+          <div class="intro-sub">Dùng khi bạn muốn duyệt tài liệu thay vì chat. Kết quả giữ nguyên URL, source và score để review nhanh.</div>
+        </div>
+        <div class="count-pill">Direct document lookup</div>
+      </div>
       <div class="search-bar-wrapper">
         <span class="search-icon-pos">🔍</span>
         <input id="searchInput" type="text" placeholder="Tìm kiếm tài liệu..."
@@ -1214,142 +181,81 @@
 
   <!-- ── CONNECTORS PAGE ── -->
   <div class="page" id="page-tasks">
-    <div style="padding:0;height:100%;display:flex;flex-direction:column">
-      <div style="padding:20px 28px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
-        <h2 style="font-size:16px;font-weight:600;margin:0;color:var(--text)">🤖 AI Task Drafts</h2>
-        <span id="tasksPanelCount" style="background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:12px;color:var(--text-muted)">0 pending</span>
-        <div style="margin-left:auto;display:flex;gap:8px">
-          <button onclick="loadTasks()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:inherit">🔄 Refresh</button>
-          <button onclick="triggerScan()" id="scanBtn" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">⚡ Quét Slack + Confluence</button>
+    <div class="tasks-shell">
+      <div class="tasks-header">
+        <div>
+          <div class="intro-kicker">Automation</div>
+          <div class="intro-title">AI Task Drafts</div>
+          <div class="intro-sub">Review task drafts từ Slack và Confluence trước khi đẩy sang Jira.</div>
+        </div>
+        <div class="tasks-actions">
+          <span id="tasksPanelCount" class="count-pill">0 open</span>
+          <input id="slackDaysInput" class="time-input" type="number" min="1" max="30" value="1" title="Slack days">
+          <input id="confluenceDaysInput" class="time-input" type="number" min="1" max="30" value="1" title="Confluence days">
+          <button onclick="loadTasks()" class="secondary-btn">Refresh</button>
+          <label class="toggle-chip" title="Include submitted Jira drafts">
+            <input id="tasksIncludeSubmitted" type="checkbox" onchange="loadTasks()">
+            <span>Show submitted</span>
+          </label>
+          <button onclick="syncJiraStatuses()" id="syncJiraStatusBtn" class="secondary-btn" style="display:none">Sync Jira status</button>
+          <button onclick="triggerScan()" id="scanBtn" class="primary-btn">Scan Slack + Confluence</button>
         </div>
       </div>
-      <div style="padding:12px 24px;background:rgba(99,179,237,.06);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted);flex-shrink:0">
-        💡 AI quét Slack và Confluence tự động lúc <b>11:00 PM</b> mỗi ngày — hoặc bấm <b>Quét ngay</b> để lấy task từ hôm nay
+      <div class="tasks-actions" id="tasksBulkBar" style="display:none;margin-top:10px">
+        <span id="tasksBulkCount" class="count-pill">0 selected</span>
+        <button onclick="bulkConfirmTasks()" class="secondary-btn">Confirm selected</button>
+        <button onclick="bulkRejectTasks()" class="secondary-btn">Dismiss selected</button>
+        <input id="bulkIssueTypeInput" class="time-input" type="text" placeholder="Issue type (Task/Story/Bug/Epic)" title="Bulk issue type">
+        <button onclick="bulkSetIssueType()" class="secondary-btn">Set type</button>
+        <input id="bulkAssigneeInput" class="time-input" type="text" placeholder="Assignee (email/name)" title="Bulk assign">
+        <button onclick="bulkAssignTasks()" class="primary-btn">Assign</button>
+        <button onclick="clearTaskSelection()" class="secondary-btn">Clear selection</button>
       </div>
-      <div id="tasksList" style="flex:1;overflow-y:auto;padding:20px 24px">
-        <div style="text-align:center;color:var(--text-dim);padding:60px 0;font-size:14px">Chưa có draft tasks. Bấm "Quét ngay" để bắt đầu.</div>
+      <div class="tasks-banner">
+        AI quét Slack và Confluence tự động lúc <b>11:00 PM</b> mỗi ngày. Bạn có thể bấm <b>Scan</b> để lấy draft task mới ngay.
+      </div>
+      <div id="tasksList" class="tasks-list">
+        <div class="tasks-empty">Chưa có draft tasks. Bấm "Scan" để bắt đầu.</div>
       </div>
     </div>
   </div>
 
   <div class="page" id="page-connectors">
     <div class="connectors-content">
-      <div class="connectors-grid">
-
-        <div class="connector-card" id="card-confluence">
-          <div class="connector-header">
-            <div class="connector-icon icon-confluence">📘</div>
-            <div>
-              <div class="connector-name">Confluence</div>
-              <div class="connector-desc">Space: ECOS (EEP2)</div>
-            </div>
-            <div class="connector-status-badge" id="status-confluence">
-              <div class="status-dot-sm"></div><span>Đang kiểm tra...</span>
-            </div>
-          </div>
-
-          <div class="connector-meta" id="meta-confluence">
-            <div class="meta-row"><span class="meta-label">🌐 URL</span><span class="meta-val" id="url-confluence">—</span></div>
-            <div class="meta-row"><span class="meta-label">📁 Spaces</span><span class="meta-val">EEP2 (ECOS)</span></div>
-          </div>
-
-          <div class="connector-stats">
-            <div class="stat-item">
-              <div class="stat-value" id="cfDocs">—</div>
-              <div class="stat-label">Documents</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value" id="cfChunks">—</div>
-              <div class="stat-label">Chunks</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value" id="cfLast" style="font-size:11px">—</div>
-              <div class="stat-label">Last Sync</div>
-            </div>
-          </div>
-
-          <div class="sync-status-bar" id="syncbar-confluence"></div>
-          <button class="sync-btn" id="syncConfluence" onclick="syncConnector('confluence', this)">
-            🔄 Sync ngay
-          </button>
+      <div class="page-intro">
+        <div>
+          <div class="intro-kicker">Sources</div>
+          <div class="intro-title">Connector control room</div>
+          <div class="intro-sub">Theo dõi cấu hình, sức khỏe kết nối, lịch sử đồng bộ và thao tác vận hành cho từng nguồn dữ liệu.</div>
         </div>
-
-        <div class="connector-card" id="card-jira">
-          <div class="connector-header">
-            <div class="connector-icon icon-jira">🟣</div>
-            <div>
-              <div class="connector-name">Jira</div>
-              <div class="connector-desc">Project: ECOS2025</div>
-            </div>
-            <div class="connector-status-badge" id="status-jira">
-              <div class="status-dot-sm"></div><span>Đang kiểm tra...</span>
-            </div>
-          </div>
-
-          <div class="connector-meta">
-            <div class="meta-row"><span class="meta-label">🌐 URL</span><span class="meta-val" id="url-jira">—</span></div>
-            <div class="meta-row"><span class="meta-label">📋 Projects</span><span class="meta-val">ECOS2025</span></div>
-          </div>
-
-          <div class="connector-stats">
-            <div class="stat-item">
-              <div class="stat-value" id="jiraDocs">—</div>
-              <div class="stat-label">Issues</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value" id="jiraChunks">—</div>
-              <div class="stat-label">Chunks</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value" id="jiraLast" style="font-size:11px">—</div>
-              <div class="stat-label">Last Sync</div>
-            </div>
-          </div>
-
-          <div class="sync-status-bar" id="syncbar-jira"></div>
-          <button class="sync-btn" id="syncJira" onclick="syncConnector('jira', this)">
-            🔄 Sync ngay
-          </button>
+        <div class="count-pill" id="connectorsSummaryPill">Manual sync enabled</div>
+      </div>
+      <div class="connectors-toolbar">
+        <div class="connectors-toolbar-copy">
+          <div class="connectors-toolbar-title">Operational overview</div>
+          <div class="connectors-toolbar-sub">Catalog này tách rõ trạng thái cấu hình, trạng thái sync và live connection test để tránh nhìn nhầm “có data” thành “đang khỏe”.</div>
         </div>
-
-        <div class="connector-card" id="card-slack">
-          <div class="connector-header">
-            <div class="connector-icon icon-slack">💬</div>
-            <div>
-              <div class="connector-name">Slack</div>
-              <div class="connector-desc">Public + Private channels</div>
-            </div>
-            <div class="connector-status-badge" id="status-slack">
-              <div class="status-dot-sm"></div><span>Đang kiểm tra...</span>
-            </div>
-          </div>
-
-          <div class="connector-meta">
-            <div class="meta-row"><span class="meta-label">🌐 Workspace</span><span class="meta-val">Technica</span></div>
-            <div class="meta-row"><span class="meta-label">📢 Channels</span><span class="meta-val">Public + Private</span></div>
-          </div>
-
-          <div class="connector-stats">
-            <div class="stat-item">
-              <div class="stat-value" id="slackDocs">—</div>
-              <div class="stat-label">Documents</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value" id="slackChunks">—</div>
-              <div class="stat-label">Chunks</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value" id="slackLast" style="font-size:11px">—</div>
-              <div class="stat-label">Last Sync</div>
-            </div>
-          </div>
-
-          <div class="sync-status-bar" id="syncbar-slack"></div>
-          <button class="sync-btn" id="syncSlack" onclick="syncConnector('slack', this)">
-            🔄 Sync ngay
-          </button>
+        <div class="connectors-toolbar-actions">
+          <button class="secondary-btn" onclick="loadConnectorStats(true)">Refresh</button>
+          <button class="primary-btn" id="syncTabConnectorsBtn" onclick="syncCurrentConnectorTab()">Sync tab</button>
+          <button class="danger-btn" id="clearTabDataBtn" onclick="clearCurrentConnectorTab()" style="display:none">Clear tab data</button>
+          <button class="danger-btn" id="clearAllDataBtn" onclick="clearAllKnowledgeBase()" style="display:none">Clear ALL</button>
+          <button class="secondary-btn" id="addConnectorBtn" onclick="openCreateConnectorInstance()" style="display:none">+ Add connector</button>
         </div>
+      </div>
 
+      <div class="connector-tabs" id="connectorTabs"></div>
+
+      <div class="connectors-summary-grid" id="connectorsSummaryGrid">
+        <div class="connector-summary-card">
+          <span>Total connectors</span>
+          <strong>—</strong>
+          <small>Loading catalog...</small>
+        </div>
+      </div>
+
+      <div class="connectors-grid connectors-grid-rich" id="connectorsGrid">
+        <div class="connectors-empty">Loading connector catalog...</div>
       </div>
     </div>
   </div>
@@ -1360,930 +266,95 @@
   </div>
 
   <!-- ── USERS PAGE ── -->
+  <!-- ── GRAPH PAGE ── -->
+  <div class="page" id="page-graph">
+    <div class="connectors-content">
+      <div class="page-intro">
+        <div>
+          <div class="intro-kicker">Data quality</div>
+          <div class="intro-title">Knowledge Health Dashboard</div>
+          <div class="intro-sub">Theo dõi độ phủ dữ liệu theo nguồn, độ tươi mới, và khám phá knowledge graph theo entities và relations.</div>
+        </div>
+        <div class="connectors-toolbar-actions">
+          <button class="secondary-btn" onclick="loadGraphDashboard(true)">Refresh</button>
+        </div>
+      </div>
+
+      <div class="health-grid" id="graphHealthGrid">
+        <div class="connector-summary-card">
+          <span>Loading health...</span>
+          <strong>—</strong>
+          <small>Please wait</small>
+        </div>
+      </div>
+
+      <div class="graph-panel">
+        <div class="graph-toolbar">
+          <div class="graph-toolbar-left">
+            <div class="connectors-toolbar-title">Interactive graph</div>
+            <div class="connectors-toolbar-sub">Kéo node để khám phá. Dùng search để highlight thực thể.</div>
+          </div>
+          <div class="graph-toolbar-actions">
+            <input id="graphSearchInput" class="time-input" type="text" placeholder="Search entity..." oninput="graphSearchChanged()">
+            <button class="secondary-btn" onclick="resetGraphView()">Reset view</button>
+          </div>
+        </div>
+        <div id="graphInsights" class="graph-insights" style="display:none"></div>
+        <div class="graph-canvas-wrap">
+          <canvas id="graphCanvas" width="1100" height="520" aria-label="Knowledge graph"></canvas>
+          <div id="graphHint" class="graph-hint">Tip: Wheel to zoom, drag background to pan, drag a node to pin it.</div>
+        </div>
+        <div id="graphNodeDetail" class="graph-detail" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-users">
     <div class="users-content">
       <div class="section-header">
         <div class="section-title">Danh sách Users</div>
-        <button class="add-btn">+ Thêm user</button>
+        <button class="add-btn" onclick="openCreateUser()">+ Thêm user</button>
       </div>
+      <div class="admin-editor" id="userEditorPanel"></div>
       <table class="users-table">
         <thead>
           <tr>
             <th>User</th>
             <th>Email</th>
             <th>Groups</th>
+            <th>Role</th>
             <th>Status</th>
+            <th>Role</th>
             <th></th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td><div class="user-td"><div class="avatar-sm">A</div> Alice</div></td>
-            <td style="color:var(--text-muted)"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="fd9c91949e98bd9e92908d9c9384d39e9290">[email&#160;protected]</a></td>
-            <td><span class="tag tag-blue">engineering</span></td>
-            <td><span class="tag tag-green">Active</span></td>
-            <td><button class="action-btn">Sửa</button></td>
-          </tr>
-          <tr>
-            <td><div class="user-td"><div class="avatar-sm">B</div> Bob</div></td>
-            <td style="color:var(--text-muted)"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d1b3beb391b2bebca1b0bfa8ffb2bebc">[email&#160;protected]</a></td>
-            <td><span class="tag tag-blue">engineering</span></td>
-            <td><span class="tag tag-green">Active</span></td>
-            <td><button class="action-btn">Sửa</button></td>
-          </tr>
-          <tr>
-            <td><div class="user-td"><div class="avatar-sm">C</div> Charlie</div></td>
-            <td style="color:var(--text-muted)"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="44272c2536282d2104272b2934252a3d6a272b29">[email&#160;protected]</a></td>
-            <td><span class="tag tag-purple">all_employees</span></td>
-            <td><span class="tag tag-green">Active</span></td>
-            <td><button class="action-btn">Sửa</button></td>
-          </tr>
+        <tbody id="usersTableBody">
+          <tr><td colspan="6" style="color:var(--text-muted)">Đang tải users...</td></tr>
         </tbody>
       </table>
 
       <div class="section-header">
         <div class="section-title">Groups & Permissions</div>
-        <button class="add-btn">+ Thêm group</button>
+        <button class="add-btn" onclick="openCreateGroup()">+ Thêm group</button>
       </div>
+      <div class="admin-editor" id="groupEditorPanel"></div>
       <table class="users-table">
         <thead>
           <tr>
             <th>Group</th>
             <th>Members</th>
-            <th>Nguồn dữ liệu</th>
+            <th>Count</th>
             <th></th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td><span class="tag tag-blue">group_engineering</span></td>
-            <td style="color:var(--text-muted)">Alice, Bob</td>
-            <td style="color:var(--text-muted)">Confluence, Jira, Slack</td>
-            <td><button class="action-btn">Sửa</button></td>
-          </tr>
-          <tr>
-            <td><span class="tag tag-purple">group_all_employees</span></td>
-            <td style="color:var(--text-muted)">Alice, Bob, Charlie</td>
-            <td style="color:var(--text-muted)">Confluence (public)</td>
-            <td><button class="action-btn">Sửa</button></td>
-          </tr>
-          <tr>
-            <td><span class="tag tag-purple">group_hr</span></td>
-            <td style="color:var(--text-muted)">—</td>
-            <td style="color:var(--text-muted)">HR docs</td>
-            <td><button class="action-btn">Sửa</button></td>
-          </tr>
+        <tbody id="groupsTableBody">
+          <tr><td colspan="4" style="color:var(--text-muted)">Loading groups...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
 </main>
-
-<!-- TOAST -->
-<div class="toast-container" id="toastContainer"></div>
-<script>
-
-// ═══════════════════════════════════════════════════════
-// AUTH MODULE — JWT + auto-refresh
-// ═══════════════════════════════════════════════════════
-const AUTH = {
-  get token()        { return localStorage.getItem('kp_token'); },
-  get refreshToken() { return localStorage.getItem('kp_refresh'); },
-  get user()         {
-    try { return JSON.parse(localStorage.getItem('kp_user') || '{}'); }
-    catch { return {}; }
-  },
-  save(data) {
-    localStorage.setItem('kp_token',   data.access_token);
-    localStorage.setItem('kp_refresh', data.refresh_token);
-    localStorage.setItem('kp_user', JSON.stringify({
-      user_id: data.user_id, email: data.email, is_admin: data.is_admin
-    }));
-  },
-  clear() {
-    ['kp_token','kp_refresh','kp_user'].forEach(k => localStorage.removeItem(k));
-  },
-  isExpired() {
-    const t = this.token;
-    if (!t) return true;
-    try {
-      const p = JSON.parse(atob(t.split('.')[1]));
-      return (p.exp * 1000) < (Date.now() + 60000);
-    } catch { return true; }
-  }
-};
-
-// authFetch: tự gắn Bearer token, auto-refresh nếu hết hạn
-async function authFetch(url, options = {}) {
-  if (AUTH.isExpired() && AUTH.refreshToken) await tryRefresh();
-  const resp = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(AUTH.token ? { 'Authorization': 'Bearer ' + AUTH.token } : {}),
-      ...(options.headers || {}),
-    }
-  });
-  if (resp.status === 401) {
-    const ok = AUTH.refreshToken ? await tryRefresh() : false;
-    if (ok) return authFetch(url, options);
-    showLoginScreen();
-    throw new Error('Phiên đăng nhập hết hạn');
-  }
-  return resp;
-}
-
-async function tryRefresh() {
-  try {
-    const r = await fetch(API + '/auth/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: AUTH.refreshToken }),
-    });
-    if (!r.ok) { AUTH.clear(); return false; }
-    AUTH.save(await r.json());
-    return true;
-  } catch { AUTH.clear(); return false; }
-}
-
-async function doLogin() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const pwd   = document.getElementById('loginPwd').value;
-  const err   = document.getElementById('loginError');
-  const btn   = document.getElementById('loginBtn');
-  if (!email || !pwd) {
-    err.textContent = 'Vui lòng nhập đầy đủ thông tin';
-    err.style.display = 'block';
-    return;
-  }
-  btn.disabled = true;
-  document.getElementById('loginBtnText').textContent = 'Đang đăng nhập...';
-  err.style.display = 'none';
-  try {
-    const r = await fetch(API + '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pwd }),
-    });
-    if (!r.ok) {
-      const d = await r.json().catch(() => ({}));
-      err.textContent = d.detail || 'Email hoặc mật khẩu không đúng';
-      err.style.display = 'block';
-      return;
-    }
-    AUTH.save(await r.json());
-    hideLoginScreen();
-  } catch {
-    err.textContent = 'Không kết nối được server. Kiểm tra API đang chạy.';
-    err.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    document.getElementById('loginBtnText').textContent = 'Đăng nhập';
-  }
-}
-
-function hideLoginScreen() {
-  const s = document.getElementById('login-screen');
-  if (!s) return;
-  s.style.opacity = '0';
-  s.style.transition = 'opacity .3s';
-  setTimeout(() => s.remove(), 300);
-  applyUser(AUTH.user);
-  checkHealth();
-  loadConnectorStats();
-}
-
-function showLoginScreen() {
-  AUTH.clear();
-  location.reload();
-}
-
-function applyUser(u) {
-  if (!u || !u.email) return;
-  const name = u.email.split('@')[0];
-  const el = document.getElementById('sidebarAvatar');
-  const nm = document.getElementById('sidebarUsername');
-  const rl = document.querySelector('.user-role');
-  if (el) el.textContent = name[0].toUpperCase();
-  if (nm) nm.textContent = name;
-  if (rl) rl.textContent = u.is_admin ? 'Admin' : 'Member';
-  currentUserId = u.user_id || 'user_001';
-}
-
-function doLogout() {
-  AUTH.clear();
-  location.reload();
-}
-
-// Auto-login nếu đã có token hợp lệ trong localStorage
-(function autoLogin() {
-  if (AUTH.token && !AUTH.isExpired()) {
-    // Token còn hạn → ẩn login screen ngay
-    window.addEventListener('DOMContentLoaded', hideLoginScreen);
-  } else if (AUTH.refreshToken) {
-    // Token hết hạn nhưng có refresh token → thử refresh
-    tryRefresh().then(ok => {
-      if (ok) window.addEventListener('DOMContentLoaded', hideLoginScreen);
-    });
-  }
-  // Không có gì → login screen hiển thị bình thường
-})();
-
-
-const API = 'http://10.1.10.33:8000';
-let chatHistory = [];
-let currentUserId = 'user_001';
-
-// ── Navigation ──
-function navigate(page, el) {
-  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  if (page === 'tasks') loadTasks();
-  const titles = { chat: 'Chat AI', search: 'Search', tasks: '🤖 AI Tasks', connectors: 'Connectors', history: 'Lịch sử Chat', users: 'Users & Permissions' };
-  document.getElementById('pageTitle').textContent = titles[page] || page;
-  if (page === 'history') renderHistory();
-}
-
-// ── Health check ──
-async function checkHealth() {
-  try {
-    const r = await fetch(`${API}/health`);
-    const d = await r.json();
-    const ok = d.status === 'ok' || d.postgresql === 'ok';
-    document.getElementById('statusDot').style.background = ok ? 'var(--accent3)' : 'var(--danger)';
-    document.getElementById('statusText').textContent = ok ? 'Hệ thống hoạt động' : 'Có lỗi kết nối';
-  } catch {
-    document.getElementById('statusDot').style.background = 'var(--danger)';
-    document.getElementById('statusText').textContent = 'Không kết nối được API';
-  }
-}
-
-// ── User ──
-function updateUser() {
-  currentUserId = document.getElementById('userSelect').value;
-  const names = { user_001: 'Alice', user_002: 'Bob', user_003: 'Charlie' };
-  const n = names[currentUserId] || 'User';
-  document.getElementById('sidebarAvatar').textContent = n[0];
-  document.getElementById('sidebarUsername').textContent = n;
-}
-
-// ── Chat ──
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-}
-
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-}
-
-function useSuggestion(el) {
-  document.getElementById('chatInput').value = el.textContent;
-  document.getElementById('emptyState') && (document.getElementById('emptyState').style.display = 'none');
-  sendMessage();
-}
-
-function formatTime() {
-  return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-}
-
-function getSourceIcon(source) {
-  if (source === 'confluence') return '📘';
-  if (source === 'jira') return '🟣';
-  if (source === 'slack') return '💬';
-  return '📄';
-}
-
-function getBadgeClass(source) {
-  if (source === 'confluence') return 'badge-confluence';
-  if (source === 'jira') return 'badge-jira';
-  if (source === 'slack') return 'badge-slack';
-  return 'badge-confluence';
-}
-
-function parseThinking(content) {
-  // Tách <think>...</think> ra khỏi answer
-  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/i);
-  const thinking = thinkMatch ? thinkMatch[1].trim() : null;
-  const answer   = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  return { thinking, answer };
-}
-
-function buildAgentStepsHTML(steps, usedTools, plan) {
-  if (!steps || steps.length === 0) return '';
-  const toolIcons = {
-    search_confluence: '\u{1F4D8}', search_jira: '\u{1F7E3}', search_slack: '\u{1F4AC}',
-    search_files: '\u{1F4C1}', search_all: '\u{1F50D}',
-    get_jira_issue: '\u{1F7E3}', list_jira_issues: '\u{1F7E3}',
-    get_slack_messages: '\u{1F4AC}', summarize_document: '\u{1F4C4}',
-  };
-  let planHTML = '';
-  if (plan && plan.length > 0) {
-    const planItems = plan.map(p =>
-      `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-        <span style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:10px;color:var(--text-muted);font-weight:600">${p.step}</span>
-        <span style="font-size:11px;color:var(--accent)">${toolIcons[p.tool]||'\u{1F527}'} ${p.tool}</span>
-        <span style="font-size:11px;color:var(--text-dim)">\u2014 ${p.reason}</span>
-      </div>`
-    ).join('');
-    planHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(99,179,237,.03)">
-      <div style="font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase">&#128506;&#65039; K&#7871; ho&#7841;ch</div>
-      ${planItems}
-    </div>`;
-  }
-  const stepsHTML = steps.map((s) => {
-    const obs = s.observation
-      ? `<div style="margin-top:6px;padding:6px 10px;background:var(--bg);border-radius:6px;font-size:11px;color:var(--text-muted);border-left:2px solid var(--accent3)">${s.observation.substring(0,300)}${s.observation.length>300?'...':''}</div>`
-      : '';
-    const action = s.action
-      ? `<div style="color:var(--accent);font-size:11px;margin-top:4px">${toolIcons[s.action]||'\u{1F527}'} <b>${s.action}</b>(${JSON.stringify(s.action_input||{}).substring(0,80)})</div>`
-      : '';
-    const badge = s.is_final
-      ? `<span style="background:rgba(104,211,145,.15);color:var(--accent3);border-radius:4px;padding:1px 6px;font-size:10px;margin-left:6px">&#10003; Final</span>`
-      : `<span style="background:var(--bg3);color:var(--text-dim);border-radius:4px;padding:1px 6px;font-size:10px;margin-left:6px">Step ${s.iteration}</span>`;
-    return `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${badge}</div>
-      <div style="font-size:12px;color:var(--text)">&#128161; ${s.thought.substring(0,200)}</div>
-      ${action}${obs}
-    </div>`;
-  }).join('');
-  const toolBadges = [...new Set(usedTools||[])].map(t =>
-    `<span style="background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:2px 8px;font-size:10px;color:var(--text-muted)">${toolIcons[t]||'\u{1F527}'} ${t}</span>`
-  ).join(' ');
-  return `<div class="thinking-block">
-    <div class="thinking-toggle" onclick="toggleThinking(this)">
-      <span class="thinking-icon">&#129504;</span>
-      <span>Agent reasoning (${steps.length} b\u01b0\u1edbc \u00b7 ${toolBadges||'no tools'})</span>
-      <span class="thinking-chevron">&#9662;</span>
-    </div>
-    <div class="thinking-content" style="display:none;padding:0">${planHTML}${stepsHTML}</div>
-  </div>`;
-}
-
-function renderAnswer(text) {
-  // Xóa [Source: ...] text do LLM tự sinh ra
-  text = text.replace(/\[Source[s]?:?[^\]]*\]/gi, '').trim();
-  // Escape HTML rồi format markdown cơ bản
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-size:12px">$1</code>')
-    .replace(/\n/g, '<br>');
-}
-
-function appendMessage(role, content, sources = [], agentSteps = [], usedTools = [], agentPlan = []) {
-  const empty = document.getElementById('emptyState');
-  if (empty) empty.remove();
-
-  const wrap = document.getElementById('chatMessages');
-  const div  = document.createElement('div');
-  div.className = `message ${role}`;
-
-  const avatarHTML = role === 'user'
-    ? `<div class="msg-avatar user-av">${document.getElementById('sidebarAvatar').textContent}</div>`
-    : `<div class="msg-avatar ai-av">🤖</div>`;
-
-  // Tách thinking và answer
-  let thinkingHTML = '';
-  let displayContent = content;
-
-  if (role === 'assistant') {
-    const { thinking, answer } = parseThinking(content);
-    displayContent = answer;
-
-    if (agentSteps && agentSteps.length > 0) {
-      thinkingHTML = buildAgentStepsHTML(agentSteps, usedTools, agentPlan);
-    } else if (thinking) {
-      thinkingHTML = `
-        <div class="thinking-block">
-          <div class="thinking-toggle" onclick="toggleThinking(this)">
-            <span class="thinking-icon">🧠</span>
-            <span>Quá trình suy nghĩ</span>
-            <span class="thinking-chevron">▾</span>
-          </div>
-          <div class="thinking-content">${thinking.replace(/\n/g, '<br>')}</div>
-        </div>`;
-    }
-  }
-
-  // Sources
-  let sourcesHTML = '';
-  if (sources && sources.length > 0) {
-    const items = sources
-      .filter(s => s.title && s.title !== 'Unknown' && s.url)
-      .map(s => `
-        <a class="source-item" href="${s.url}" target="_blank">
-          <span class="source-icon">${getSourceIcon(s.source)}</span>
-          <div class="source-info">
-            <div class="source-title">${s.title}</div>
-            <div class="source-meta">${s.source || ''} · ${s.url ? new URL(s.url).hostname : ''}</div>
-          </div>
-          <span class="source-score">${((s.score || 0) * 100).toFixed(0)}%</span>
-        </a>`).join('');
-
-    if (items) {
-      sourcesHTML = `
-        <div class="sources-list">
-          <div class="source-label">📎 NGUỒN THAM KHẢO</div>
-          ${items}
-        </div>`;
-    }
-  }
-
-  const msgId = 'msg-' + Date.now();
-
-  // Build sources panel (hidden by default)
-  let sourcesPanelHTML = '';
-  const validSources = (sources || []).filter(s => s.title || s.url || s.source);
-  if (role === 'assistant' && validSources.length > 0) {
-    const items = validSources.map(s => {
-      const href = s.url ? `href="${s.url}" target="_blank"` : '';
-      const title = s.title && s.title !== 'Unknown' ? s.title : (s.url ? s.url.split('/').pop() : 'Tài liệu');
-      const score = s.score ? ((s.score || 0) * 100).toFixed(0) + '%' : '';
-      return `<a class="source-item" ${href}>
-        <span class="source-icon">${getSourceIcon(s.source)}</span>
-        <div class="source-info">
-          <div class="source-title">${title}</div>
-          <div class="source-meta">${s.source || ''}</div>
-        </div>
-        ${score ? `<span class="source-score">${score}</span>` : ''}
-      </a>`;
-    }).join('');
-    sourcesPanelHTML = `
-      <div class="sources-panel" id="sp-${msgId}" style="display:none">
-        <div class="sources-panel-header">📎 Nguồn tham khảo (${validSources.length})</div>
-        ${items}
-      </div>`;
-  }
-
-  // Footer với time + sources toggle btn
-  const sourcesBtn = (role === 'assistant' && validSources.length > 0)
-    ? `<button class="sources-toggle-btn" onclick="toggleSources('sp-${msgId}', this)">
-        📎 ${validSources.length} nguồn
-       </button>`
-    : '';
-
-  div.innerHTML = `
-    ${avatarHTML}
-    <div class="msg-body">
-      ${thinkingHTML}
-      <div class="msg-bubble">${renderAnswer(displayContent)}</div>
-      ${sourcesPanelHTML}
-      <div class="msg-footer">
-        <span class="msg-time-inline">${formatTime()}</span>
-        ${sourcesBtn}
-      </div>
-    </div>`;
-
-  wrap.appendChild(div);
-  wrap.scrollTop = wrap.scrollHeight;
-  return div;
-}
-
-function toggleSources(id, btn) {
-  const panel = document.getElementById(id);
-  if (!panel) return;
-  const isOpen = panel.style.display !== 'none';
-  panel.style.display = isOpen ? 'none' : 'block';
-  btn.classList.toggle('active', !isOpen);
-}
-
-function toggleThinking(el) {
-  const content = el.nextElementSibling;
-  const chevron = el.querySelector('.thinking-chevron');
-  const isOpen  = content.style.display !== 'none';
-  content.style.display = isOpen ? 'none' : 'block';
-  chevron.textContent   = isOpen ? '▸' : '▾';
-}
-
-function appendTyping() {
-  const wrap = document.getElementById('chatMessages');
-  const div = document.createElement('div');
-  div.className = 'message assistant';
-  div.id = 'typingMsg';
-  div.innerHTML = `
-    <div class="msg-avatar ai-av">🤖</div>
-    <div class="msg-body">
-      <div class="msg-bubble">
-        <div class="typing-indicator">
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-        </div>
-      </div>
-    </div>`;
-  wrap.appendChild(div);
-  wrap.scrollTop = wrap.scrollHeight;
-  return div;
-}
-
-async function sendMessage() {
-  const input = document.getElementById('chatInput');
-  const question = input.value.trim();
-  if (!question) return;
-
-  const btn = document.getElementById('sendBtn');
-  btn.disabled = true;
-  input.value = '';
-  input.style.height = 'auto';
-
-  appendMessage('user', question);
-  const typing = appendTyping();
-
-  try {
-    const r = await authFetch(`${API}/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, user_id: currentUserId }),
-    });
-
-    const data = await r.json();
-    typing.remove();
-    appendMessage('assistant', data.answer || 'Không có câu trả lời.', data.sources || [], data.agent_steps || [], data.used_tools || [], data.agent_plan || []);
-
-    // Lưu lịch sử
-    chatHistory.unshift({ question, answer: data.answer, time: new Date(), sources: data.sources });
-    document.getElementById('historyBadge').textContent = chatHistory.length;
-
-  } catch (e) {
-    typing.remove();
-    appendMessage('assistant', '❌ Lỗi kết nối tới API. Kiểm tra server đang chạy tại localhost:8000');
-  }
-
-  btn.disabled = false;
-  input.focus();
-}
-
-// ── Search ──
-async function doSearch() {
-  const q = document.getElementById('searchInput').value.trim();
-  if (!q) return;
-
-  const container = document.getElementById('searchResults');
-  container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px">🔍 Đang tìm kiếm...</div>';
-
-  try {
-    const r = await authFetch(`${API}/search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, user_id: currentUserId }),
-    });
-
-    const data = await r.json();
-    const results = data.results || [];
-
-    if (results.length === 0) {
-      container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px">Không tìm thấy kết quả phù hợp</div>';
-      return;
-    }
-
-    container.innerHTML = results.map(r => `
-      <div class="result-card" onclick="window.open('${r.url}','_blank')">
-        <div class="result-header">
-          <span class="result-source-badge ${getBadgeClass(r.source)}">${r.source || 'doc'}</span>
-          <span class="result-title">${r.title || 'Untitled'}</span>
-          <span class="result-score">${((r.score || 0) * 100).toFixed(0)}%</span>
-        </div>
-        <div class="result-content">${r.content || ''}</div>
-        <div class="result-url">🔗 ${r.url || ''}</div>
-      </div>`).join('');
-
-  } catch {
-    container.innerHTML = '<div style="color:var(--danger);text-align:center;padding:40px">❌ Lỗi kết nối API</div>';
-  }
-}
-
-// ── Connector Stats ──
-async function loadConnectorStats() {
-  try {
-    const r = await authFetch(`${API}/connectors/stats`);
-    const data = await r.json();
-    const stats = data.stats || {};
-
-    const map = {
-      confluence: { docs: 'cfDocs',    chunks: 'cfChunks',    last: 'cfLast'    },
-      jira:       { docs: 'jiraDocs',  chunks: 'jiraChunks',  last: 'jiraLast'  },
-      slack:      { docs: 'slackDocs', chunks: 'slackChunks', last: 'slackLast' },
-    };
-
-    for (const [src, ids] of Object.entries(map)) {
-      const s = stats[src] || {};
-      const docs   = s.documents ?? 0;
-      const chunks = s.chunks    ?? 0;
-      const last   = s.last_sync ?? 'Chưa sync';
-      const status = s.status    ?? 'empty';
-
-      if (document.getElementById(ids.docs))   document.getElementById(ids.docs).textContent   = docs   > 0 ? docs.toLocaleString()   : '—';
-      if (document.getElementById(ids.chunks)) document.getElementById(ids.chunks).textContent = chunks > 0 ? chunks.toLocaleString() : '—';
-      if (document.getElementById(ids.last))   document.getElementById(ids.last).textContent   = last;
-
-      // Update status badge
-      const badge = document.getElementById(`status-${src}`);
-      if (badge) {
-        badge.className = 'connector-status-badge';
-        if (docs > 0) {
-          badge.classList.add('connected');
-          badge.innerHTML = '<div class="status-dot-sm"></div><span>Đã kết nối</span>';
-        } else if (status === 'empty') {
-          badge.classList.add('empty');
-          badge.innerHTML = '<div class="status-dot-sm"></div><span>Chưa có data</span>';
-        } else {
-          badge.classList.add('error');
-          badge.innerHTML = '<div class="status-dot-sm"></div><span>Lỗi</span>';
-        }
-      }
-    }
-
-    // Hiển thị URL từ settings nếu có
-    try {
-      const h = await fetch(`${API}/health`);
-      const hd = await h.json();
-      if (hd.confluence_url) document.getElementById('url-confluence').textContent = hd.confluence_url;
-      if (hd.jira_url)       document.getElementById('url-jira').textContent       = hd.jira_url;
-    } catch {}
-
-  } catch (e) {
-    console.warn('Cannot load connector stats:', e);
-  }
-}
-
-
-async function syncConnector(name, btn) {
-  btn.disabled = true;
-  btn.classList.add('syncing');
-  btn.innerHTML = '<span class="spin">⟳</span> Đang sync...';
-
-  const bar = document.getElementById(`syncbar-${name}`);
-  if (bar) bar.classList.add('running');
-
-  try {
-    const r = await authFetch(`${API}/ingest`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connector: name }),
-    });
-
-    const data = await r.json();
-    showToast(`✅ ${name} sync bắt đầu! Theo dõi terminal để xem tiến trình.`, 'success');
-
-    // Poll lại stats sau 5s, 15s, 30s, 60s
-    [5000, 15000, 30000, 60000].forEach(delay => {
-      setTimeout(() => loadConnectorStats(), delay);
-    });
-
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.classList.remove('syncing');
-      btn.innerHTML = '🔄 Sync ngay';
-      if (bar) bar.classList.remove('running');
-    }, 3000);
-
-  } catch {
-    showToast(`❌ Lỗi sync ${name}`, 'error');
-    btn.disabled = false;
-    btn.classList.remove('syncing');
-    btn.innerHTML = '🔄 Sync ngay';
-    if (bar) bar.classList.remove('running');
-  }
-}
-
-// ── History ──
-function renderHistory() {
-  const container = document.getElementById('historyList');
-  if (chatHistory.length === 0) {
-    container.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-muted)">
-      <div style="font-size:40px;opacity:0.3;margin-bottom:12px">🕘</div>
-      <div>Chưa có lịch sử chat</div></div>`;
-    return;
-  }
-
-  container.innerHTML = chatHistory.map((h, i) => `
-    <div class="history-item" onclick="loadHistory(${i})">
-      <span class="history-icon">💬</span>
-      <div class="history-body">
-        <div class="history-question">${h.question}</div>
-        <div class="history-meta">${h.time.toLocaleString('vi-VN')} · ${h.sources?.length || 0} nguồn</div>
-      </div>
-      <span class="history-arrow">›</span>
-    </div>`).join('');
-}
-
-function loadHistory(i) {
-  const h = chatHistory[i];
-  navigate('chat', document.querySelectorAll('.nav-item')[0]);
-  setTimeout(() => {
-    appendMessage('user', h.question);
-    appendMessage('assistant', h.answer, h.sources);
-  }, 100);
-}
-
-// ── Toast ──
-function showToast(msg, type = 'success') {
-  const container = document.getElementById('toastContainer');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = msg;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
-}
-
-// ── Theme Toggle ──
-function toggleTheme() {
-  const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
-  if (isDark) {
-    html.removeAttribute('data-theme');
-    document.getElementById('themeToggle').textContent = '🌙';
-    localStorage.setItem('theme', 'light');
-  } else {
-    html.setAttribute('data-theme', 'dark');
-    document.getElementById('themeToggle').textContent = '☀️';
-    localStorage.setItem('theme', 'dark');
-  }
-}
-
-// Load saved theme
-const savedTheme = localStorage.getItem('theme') || 'light';
-if (savedTheme === 'dark') {
-  document.documentElement.setAttribute('data-theme', 'dark');
-  document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('themeToggle');
-    if (btn) btn.textContent = '☀️';
-  });
-}
-
-// ── Init ──
-checkHealth();
-setInterval(checkHealth, 30000);
-loadConnectorStats();
-setInterval(loadConnectorStats, 450000);
-document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doSearch();
-});
-
-// ─── Tasks (Phase 3) ────────────────────────────────────────────────────────
-
-async function loadTasksCount() {
-  try {
-    const data = await authFetch('/tasks/count');
-    const count = data.count || 0;
-    const badge = document.getElementById('tasksBadge');
-    if (badge) {
-      badge.textContent = count;
-      badge.style.display = count > 0 ? 'inline-block' : 'none';
-    }
-    const panelCount = document.getElementById('tasksPanelCount');
-    if (panelCount) panelCount.textContent = `${count} pending`;
-  } catch(e) {}
-}
-
-async function loadTasks() {
-  try {
-    console.log("[Tasks] calling /tasks, token:", AUTH.token?.slice(0,20));
-
-    const res = await authFetch(API + "/tasks");
-
-    if (!res.ok) {
-      console.error("[Tasks] API error:", res.status);
-      document.getElementById("tasksList").innerHTML =
-        `<div style="text-align:center;color:var(--danger);padding:60px 0;font-size:14px">
-          ❌ Không tải được tasks
-        </div>`;
-      return;
-    }
-
-    const data = await res.json();
-    console.log("[Tasks] API response:", data);
-
-    const drafts = data.drafts || [];
-    const list = document.getElementById("tasksList");
-
-    if (!drafts.length) {
-      list.innerHTML =
-        `<div style="text-align:center;color:var(--text-dim);padding:60px 0;font-size:14px">
-          Chưa có draft tasks. Bấm "Quét ngay" để bắt đầu.
-        </div>`;
-      updateTasksCount(0);
-      return;
-    }
-
-    const html = drafts.map(renderTaskCard).join("");
-    list.innerHTML = html;
-
-    updateTasksCount(drafts.length);
-
-  } catch (e) {
-    console.error("[Tasks] loadTasks error:", e);
-
-    document.getElementById("tasksList").innerHTML =
-      `<div style="text-align:center;color:var(--danger);padding:60px 0;font-size:14px">
-        ❌ Lỗi tải tasks
-      </div>`;
-  }
-}
-function updateTasksCount(n) {
-  const badge = document.getElementById("tasksBadge");
-  const panel = document.getElementById("tasksPanelCount");
-
-  if (badge) {
-    badge.textContent = n;
-    badge.style.display = n ? "inline-block" : "none";
-  }
-
-  if (panel) {
-    panel.textContent = n + " pending";
-  }
-}
-function renderTaskCard(d) {
-  const srcIcon   = d.source_type === 'slack' ? '💬' : '📘';
-  const srcLabel  = d.source_type === 'slack' ? `Slack #${d.source_ref||''}` : `Confluence`;
-  const priBadge  = { High: 'background:#fed7d7;color:#c53030', Medium: 'background:#fefcbf;color:#744210', Low: 'background:#c6f6d5;color:#22543d' }[d.priority] || '';
-  const labels    = (d.labels||[]).map(l => `<span style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text-muted)">${l}</span>`).join(' ');
-  const assignee  = d.suggested_assignee ? `<span style="font-size:11px;color:var(--text-muted)">👤 ${d.suggested_assignee}</span>` : '';
-  const summary   = d.source_summary ? `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;padding:6px 10px;background:var(--bg);border-radius:6px;border-left:2px solid var(--border)">${d.source_summary.substring(0,150)}...</div>` : '';
-  return `<div id="task-${d.id}" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px">
-    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">${d.title}</div>
-        <div style="font-size:12px;color:var(--text-muted)">${d.description||''}</div>
-      </div>
-      <span style="${priBadge};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap">${d.priority}</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--text-dim)">${srcIcon} ${srcLabel}</span>
-      ${assignee}
-      ${labels}
-    </div>
-    ${summary}
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button onclick="submitTask('${d.id}')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">✅ Tạo Jira</button>
-      <button onclick="confirmTask('${d.id}')" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit">✏️ Sửa & Confirm</button>
-      <button onclick="rejectTask('${d.id}')" style="background:transparent;color:#e53e3e;border:1px solid #feb2b2;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit">✕ Bỏ qua</button>
-    </div>
-  </div>`;
-}
-
-async function triggerScan() {
-  const btn = document.getElementById('scanBtn');
-  if (btn) { btn.textContent = '⏳ Đang quét...'; btn.disabled = true; }
-  try {
-    await authFetch('/tasks/scan', { method: 'POST', body: JSON.stringify({ slack_days: 1, confluence_days: 1 }) });
-    setTimeout(async () => { await loadTasks(); if (btn) { btn.textContent = '⚡ Quét Slack + Confluence'; btn.disabled = false; } }, 15000);
-    showToast('Đang quét... kết quả sẽ hiện sau vài giây.');
-  } catch(e) {
-    if (btn) { btn.textContent = '⚡ Quét Slack + Confluence'; btn.disabled = false; }
-    showToast('Lỗi: ' + e.message);
-  }
-}
-
-async function submitTask(id) {
-  if (!confirm('Tạo Jira task này?')) return;
-  try {
-    const data = await authFetch(`/tasks/${id}/submit`, { method: 'POST' });
-    document.getElementById(`task-${id}`).innerHTML =
-      `<div style="padding:12px;background:#c6f6d5;border-radius:10px;color:#22543d;font-weight:600">✅ Đã tạo <a href="${data.jira_url}" target="_blank" style="color:#22543d">${data.jira_key}</a></div>`;
-    loadTasksCount();
-  } catch(e) { showToast('Lỗi: ' + e.message); }
-}
-
-async function rejectTask(id) {
-  try {
-    await authFetch(`/tasks/${id}/reject`, { method: 'POST' });
-    const el = document.getElementById(`task-${id}`);
-    if (el) el.style.opacity = '0.3';
-    setTimeout(() => { const e = document.getElementById(`task-${id}`); if(e) e.remove(); loadTasksCount(); }, 400);
-  } catch(e) { showToast('Lỗi: ' + e.message); }
-}
-
-async function confirmTask(id) {
-  const newTitle = prompt('Sửa title task (hoặc để nguyên):');
-  if (newTitle === null) return;
-  try {
-    await authFetch(`/tasks/${id}/confirm`, {
-      method: 'POST',
-      body: JSON.stringify(newTitle ? { title: newTitle } : {})
-    });
-    showToast('Đã confirm. Bấm "Tạo Jira" để tạo.');
-  } catch(e) { showToast('Lỗi: ' + e.message); }
-}
-
-function showToast(msg) {
-  let t = document.getElementById('toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toast';
-    t.style = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2d3748;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;z-index:9999;transition:opacity .3s';
-    document.body.appendChild(t);
-  }
-  t.textContent = msg; t.style.opacity = '1';
-  setTimeout(() => { t.style.opacity = '0'; }, 3000);
-}
-
-// Poll tasks count mỗi 30s
-setInterval(loadTasksCount, 30000);
-</script>
+<script src="/static/app.js"></script>
 </body>
 </html>

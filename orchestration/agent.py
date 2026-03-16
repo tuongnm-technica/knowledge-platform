@@ -67,7 +67,14 @@ class Agent:
     async def ask(self, question: str, user_id: str) -> dict:
         tools = build_tool_registry(self._session)
         loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS)
-        result: ReActResult = await loop.run(question, user_id=user_id)
+        try:
+            result: ReActResult = await loop.run(question, user_id=user_id)
+        finally:
+            try:
+                await loop.close()
+            except Exception:
+                pass
+
         sources = self._format_sources(result.sources)
 
         log.info(
@@ -81,7 +88,7 @@ class Agent:
         return {
             "answer": result.answer,
             "sources": sources,
-            "rewritten_query": question,
+            "rewritten_query": result.rewritten_query or question,
             "agent_steps": self._format_steps(result.steps),
             "agent_plan": [{"step": p.step, "tool": p.tool, "reason": p.reason} for p in result.plan],
             "used_tools": result.used_tools,
@@ -89,6 +96,9 @@ class Agent:
 
     async def search(self, query: SearchQuery) -> list[SearchResult]:
         allowed_ids = await self._permissions.allowed_docs(query.user_id)
+        # If the user is not admin and has no ACL matches, return no results (permission-aware retrieval).
+        if allowed_ids is not None and len(allowed_ids) == 0:
+            return []
         graph_doc_ids = await self._graph.find_related_documents(
             query.entities,
             limit=max(query.limit * 5, 20),
@@ -169,6 +179,8 @@ class Agent:
                     "source": source.get("source", ""),
                     "score": round(source.get("score", 0), 3),
                     "snippet": source.get("content", "")[:150],
+                    "document_id": source.get("document_id", ""),
+                    "chunk_id": source.get("chunk_id", ""),
                 }
         return list(seen.values())
 
@@ -192,18 +204,58 @@ class Agent:
         return {row["id"]: row for row in rows}
 
     def _to_results(self, scored: list[dict], doc_meta: dict[str, dict]) -> list[SearchResult]:
+        import json
+        import re
+
+        slack_ts_re = re.compile(r"^\[\d{2}:\d{2}\|([0-9]+\.[0-9]+)\]", re.MULTILINE)
+
+        def _jsonish(value):
+            if isinstance(value, dict):
+                return value
+            if isinstance(value, str):
+                try:
+                    return json.loads(value) if value else {}
+                except Exception:
+                    return {}
+            return {}
+
+        def _slack_deep_link(channel_id: str, ts: str) -> str:
+            ts = str(ts or "").strip()
+            if not ts:
+                return f"https://slack.com/archives/{channel_id}"
+            if "." in ts:
+                sec, frac = ts.split(".", 1)
+                frac = (frac + "000000")[:6]
+                ts_digits = f"{sec}{frac}"
+            else:
+                ts_digits = "".join([c for c in ts if c.isdigit()])
+            return f"https://slack.com/archives/{channel_id}/p{ts_digits}"
+
         results: list[SearchResult] = []
         for item in scored:
             doc_id = str(item.get("document_id", ""))
             meta = doc_meta.get(doc_id, {})
+
+            url = meta.get("url", "")
+            source = meta.get("source", "")
+            content = item.get("content", "")
+
+            # Slack: override doc.url with per-chunk deep link if we can extract ts from the chunk content.
+            if source == "slack" and content:
+                md = _jsonish(meta.get("metadata"))
+                channel_id = str(md.get("channel_id") or "").strip()
+                m = slack_ts_re.search(content)
+                if channel_id and m:
+                    url = _slack_deep_link(channel_id, m.group(1))
+
             results.append(
                 SearchResult(
                     document_id=doc_id,
                     chunk_id=str(item.get("chunk_id", "")),
                     title=meta.get("title", "Unknown"),
-                    content=item.get("content", ""),
-                    url=meta.get("url", ""),
-                    source=meta.get("source", ""),
+                    content=content,
+                    url=url,
+                    source=source,
                     author=meta.get("author", ""),
                     score=item.get("final_score", 0.0),
                     score_breakdown=item.get("score_breakdown", {}),

@@ -41,7 +41,9 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: str
     email: str
+    display_name: str | None = None
     is_admin: bool
+    role: str = "member"
 
 
 class RefreshRequest(BaseModel):
@@ -53,6 +55,7 @@ class MeResponse(BaseModel):
     email: str
     display_name: str | None
     is_admin: bool
+    role: str = "member"
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -60,6 +63,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         text("""
             SELECT id, email, display_name, password_hash, is_active, is_admin
+                 , COALESCE(role, 'member') AS role
             FROM users
             WHERE email = :email
         """),
@@ -73,7 +77,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             detail="Email hoac mat khau khong dung",
         )
 
-    access_token = create_access_token(row["id"], row["email"], row["is_admin"])
+    access_token = create_access_token(row["id"], row["email"], row["is_admin"], row.get("role") or "member")
     refresh_token = create_refresh_token(row["id"])
 
     return TokenResponse(
@@ -81,7 +85,9 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         refresh_token=refresh_token,
         user_id=row["id"],
         email=row["email"],
+        display_name=row["display_name"],
         is_admin=row["is_admin"],
+        role=row.get("role") or "member",
     )
 
 
@@ -99,7 +105,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
         )
 
     result = await db.execute(
-        text("SELECT id, email, is_active, is_admin FROM users WHERE id = :id"),
+        text("SELECT id, email, display_name, is_active, is_admin, COALESCE(role, 'member') AS role FROM users WHERE id = :id"),
         {"id": payload["sub"]},
     )
     row = result.mappings().first()
@@ -110,7 +116,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
             detail="Tai khoan khong hop le",
         )
 
-    access_token = create_access_token(row["id"], row["email"], row["is_admin"])
+    access_token = create_access_token(row["id"], row["email"], row["is_admin"], row.get("role") or "member")
     refresh_token = create_refresh_token(row["id"])
 
     return TokenResponse(
@@ -118,7 +124,9 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
         refresh_token=refresh_token,
         user_id=row["id"],
         email=row["email"],
+        display_name=row["display_name"],
         is_admin=row["is_admin"],
+        role=row.get("role") or "member",
     )
 
 
@@ -128,7 +136,7 @@ async def me(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        text("SELECT id, email, display_name, is_admin FROM users WHERE id = :id"),
+        text("SELECT id, email, display_name, is_admin, COALESCE(role, 'member') AS role FROM users WHERE id = :id"),
         {"id": current_user.user_id},
     )
     row = result.mappings().first()
@@ -141,4 +149,5 @@ async def me(
         email=row["email"],
         display_name=row["display_name"],
         is_admin=row["is_admin"],
+        role=row.get("role") or "member",
     )

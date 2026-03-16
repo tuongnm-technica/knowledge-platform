@@ -30,11 +30,14 @@ class KeywordSearch:
                 c.document_id,
                 c.content,
                 c.chunk_index,
+                d.source       AS source,
+                d.title        AS title,
                 ts_rank_cd(
                     to_tsvector('simple', c.content),
                     {tsquery_expr}
                 ) AS score
             FROM chunks c
+            JOIN documents d ON d.id = c.document_id
             WHERE
                 {filter_clause}
                 to_tsvector('simple', c.content) @@ {tsquery_expr}
@@ -42,8 +45,8 @@ class KeywordSearch:
             LIMIT :top_k
         """
 
-        tsquery_expr  = "websearch_to_tsquery('simple', :q)"
-        filter_clause = "c.document_id = ANY(:doc_ids) AND " if allowed_document_ids else ""
+        tsquery_expr = "websearch_to_tsquery('simple', :q)"
+        filter_clause = "c.document_id::text = ANY(:doc_ids) AND " if allowed_document_ids else ""
 
         sql = base_sql.format(
             tsquery_expr=tsquery_expr,
@@ -92,7 +95,7 @@ class KeywordSearch:
             return []
 
         conditions = " OR ".join([f"c.content ILIKE :w{i}" for i in range(len(words))])
-        filter_clause = "c.document_id = ANY(:doc_ids) AND " if allowed_document_ids else ""
+        filter_clause = "c.document_id::text = ANY(:doc_ids) AND " if allowed_document_ids else ""
 
         sql = f"""
             SELECT
@@ -100,8 +103,11 @@ class KeywordSearch:
                 c.document_id,
                 c.content,
                 c.chunk_index,
+                d.source       AS source,
+                d.title        AS title,
                 0.1            AS score
             FROM chunks c
+            JOIN documents d ON d.id = c.document_id
             WHERE {filter_clause} ({conditions})
             ORDER BY c.id
             LIMIT :top_k

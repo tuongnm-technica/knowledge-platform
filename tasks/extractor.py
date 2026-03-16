@@ -25,9 +25,11 @@ Quy tắc:
 - suggested_assignee: tên người được mention (@username) hoặc null
 - priority: High nếu có từ "urgent/gấp/quan trọng", Low nếu "khi rảnh/nice to have", còn lại Medium
 - labels: mảng tags phù hợp từ [bug, feature, docs, review, deploy, meeting, followup]
+- evidence_ts: (Slack only, optional) nếu trong nội dung có dạng [HH:MM|<ts>] thì hãy lấy đúng <ts> (vd: 1710561234.567890)
+- evidence: (optional) trích 1-2 dòng ngắn làm bằng chứng (ưu tiên dòng có [HH:MM|ts] nếu là Slack)
 
 ⚠️ Trả về JSON THUẦN TÚY — không markdown, không giải thích, chỉ JSON:
-{"tasks": [{"title": "...", "description": "...", "suggested_assignee": "...", "priority": "Medium", "labels": ["bug"]}]}
+{"tasks": [{"title": "...", "description": "...", "suggested_assignee": "...", "priority": "Medium", "labels": ["bug"], "evidence_ts": "1710561234.567890", "evidence": "..."}]}
 
 Nếu không có action item nào: {"tasks": []}
 """
@@ -103,6 +105,8 @@ def _parse_tasks(raw: str) -> list[ExtractedTask]:
                     suggested_assignee=item.get("suggested_assignee") or None,
                     priority=item.get("priority", "Medium"),
                     labels=item.get("labels", []),
+                    evidence_ts=str(item.get("evidence_ts") or "").strip() or None,
+                    evidence=str(item.get("evidence") or "").strip() or None,
                 ))
             except Exception:
                 continue

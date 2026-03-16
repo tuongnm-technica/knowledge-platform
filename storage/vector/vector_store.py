@@ -9,6 +9,7 @@ from qdrant_client.http.models import (
     MatchAny,
     PointStruct,
     VectorParams,
+    FilterSelector,
 )
 
 from config.settings import settings
@@ -55,6 +56,14 @@ class VectorStore:
     def __init__(self):
         self._client = get_qdrant_client()
         _ensure_collection(self._client)
+
+    @staticmethod
+    def _is_uuid(value: str) -> bool:
+        try:
+            uuid.UUID(value)
+            return True
+        except ValueError:
+            return False
 
     def upsert(
         self,
@@ -116,8 +125,6 @@ class VectorStore:
         return results
 
     def delete_by_document(self, document_id: str) -> None:
-        from qdrant_client.http.models import FilterSelector
-
         self._client.delete(
             collection_name=settings.QDRANT_COLLECTION,
             points_selector=FilterSelector(
@@ -125,10 +132,23 @@ class VectorStore:
             ),
         )
 
-    @staticmethod
-    def _is_uuid(value: str) -> bool:
-        try:
-            uuid.UUID(value)
-            return True
-        except ValueError:
-            return False
+    def delete_by_sources(self, sources: list[str]) -> None:
+        if not sources:
+            return
+        self._client.delete(
+            collection_name=settings.QDRANT_COLLECTION,
+            points_selector=FilterSelector(
+                filter=Filter(must=[FieldCondition(key="source", match=MatchAny(any=sources))])
+            ),
+        )
+
+
+def recreate_collection(collection_name: str, *, size: int, distance: Distance = Distance.COSINE) -> None:
+    client = get_qdrant_client()
+    existing = [c.name for c in client.get_collections().collections]
+    if collection_name in existing:
+        client.delete_collection(collection_name=collection_name)
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=size, distance=distance),
+    )

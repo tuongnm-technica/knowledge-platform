@@ -1,4 +1,5 @@
 import json
+import re
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,13 +7,49 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.document import Document
 
 
+def _pretty_group_name(group_id: str) -> str:
+    gid = (group_id or "").strip()
+    if not gid:
+        return "Scope"
+    gid = gid.removeprefix("group_")
+    gid = gid.replace("__", "_")
+    parts = [p for p in gid.split("_") if p]
+    if not parts:
+        return "Scope"
+
+    # Common prefixes -> nicer display.
+    if parts[:2] == ["confluence", "space"] and len(parts) >= 3:
+        return f"Confluence space: {parts[2].upper()}"
+    if parts[:2] == ["jira", "project"] and len(parts) >= 3:
+        return f"Jira project: {parts[2].upper()}"
+    if parts[:2] == ["slack", "channel"] and len(parts) >= 3:
+        return f"Slack channel: {parts[2]}"
+    if parts[:2] == ["file", "folder"] and len(parts) >= 3:
+        return f"File folder: {parts[2]}"
+
+    # Generic fallback: title-case tokens.
+    label = " ".join(parts[:6]).strip()
+    label = re.sub(r"\s+", " ", label)
+    return label.title() if label else "Scope"
+
+
 class DocumentRepository:
     def __init__(self, session: AsyncSession):
         self._session = session
 
-    async def upsert(self, doc: Document) -> None:
-        await self._session.execute(
-            text("""
+    async def upsert(self, doc: Document) -> str:
+        """
+        Upsert by (source, source_id) and return the canonical document id.
+
+        Important: connectors may generate a random UUID for doc.id on each fetch.
+        When a conflict happens, Postgres keeps the existing row id, so we must
+        return it to keep downstream FK writes (chunks/graph) consistent.
+        """
+        permissions = [str(p).strip() for p in (doc.permissions or []) if str(p).strip()]
+
+        result = await self._session.execute(
+            text(
+                """
                 INSERT INTO documents
                 (id, source, source_id, title, content, url, author,
                  created_at, updated_at, metadata, permissions, entities, workspace_id)
@@ -30,7 +67,9 @@ class DocumentRepository:
                     permissions  = EXCLUDED.permissions,
                     entities     = EXCLUDED.entities,
                     workspace_id = EXCLUDED.workspace_id
-            """),
+                RETURNING id::text
+                """
+            ),
             {
                 "id": doc.id,
                 "source": doc.source.value,
@@ -42,12 +81,47 @@ class DocumentRepository:
                 "created_at": doc.created_at,
                 "updated_at": doc.updated_at,
                 "metadata": json.dumps(doc.metadata),
-                "permissions": doc.permissions,
+                "permissions": permissions,
                 "entities": doc.entities,
                 "workspace_id": doc.workspace_id,
             },
         )
+        doc_id = result.scalar()
+        canonical_id = str(doc_id) if doc_id else str(doc.id)
+
+        # Permission-aware retrieval: sync ACL into document_permissions join table.
+        # This must happen at ingestion time so retrieval can filter at query-time.
+        if permissions:
+            for group_id in sorted(set(permissions)):
+                await self._session.execute(
+                    text(
+                        """
+                        INSERT INTO groups (id, name)
+                        VALUES (:id, :name)
+                        ON CONFLICT (id) DO NOTHING
+                        """
+                    ),
+                    {"id": group_id, "name": _pretty_group_name(group_id)},
+                )
+
+            await self._session.execute(
+                text("DELETE FROM document_permissions WHERE document_id::text = :doc_id"),
+                {"doc_id": canonical_id},
+            )
+            for group_id in sorted(set(permissions)):
+                await self._session.execute(
+                    text(
+                        """
+                        INSERT INTO document_permissions (document_id, group_id)
+                        VALUES (CAST(:doc_id AS UUID), :group_id)
+                        ON CONFLICT DO NOTHING
+                        """
+                    ),
+                    {"doc_id": canonical_id, "group_id": group_id},
+                )
+
         await self._session.commit()
+        return canonical_id
 
     async def get_by_ids(self, doc_ids: list[str]) -> list[dict]:
         result = await self._session.execute(
@@ -64,7 +138,7 @@ class DocumentRepository:
                     permissions,
                     workspace_id
                 FROM documents
-                WHERE id = ANY(:ids)
+                WHERE id::text = ANY(:ids)
             """),
             {"ids": doc_ids},
         )
@@ -81,7 +155,7 @@ class DocumentRepository:
         )
         return [row[0] for row in result.fetchall()]
 
-    async def get_neighbor_chunks(self, chunk_id: str):
+    async def get_neighbor_chunks(self, chunk_id: str, window: int | None = None):
         result = await self._session.execute(
             text("""
                 SELECT chunk_index, document_id
@@ -96,12 +170,14 @@ class DocumentRepository:
 
         idx = row["chunk_index"]
         doc_id = row["document_id"]
-        if idx <= 2:
-            window = 2
-        elif idx >= 10:
-            window = 2
-        else:
-            window = 1
+        if window is None:
+            if idx <= 2:
+                window = 2
+            elif idx >= 10:
+                window = 2
+            else:
+                window = 1
+        window = max(0, int(window))
 
         result = await self._session.execute(
             text("""

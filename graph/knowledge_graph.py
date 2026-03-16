@@ -4,7 +4,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from graph.entity_extractor import EntityExtractor, ExtractedEntity
-from graph.identity_resolver import ResolvedIdentity
+from graph.identity_resolver import (
+    ALIAS_STRENGTH_MEDIUM,
+    ALIAS_STRENGTH_STRONG,
+    IdentityAlias,
+    ResolvedIdentity,
+)
 
 
 class KnowledgeGraph:
@@ -48,14 +53,7 @@ class KnowledgeGraph:
     async def upsert_identity(self, identity: ResolvedIdentity) -> str:
         existing_id = await self._find_identity_entity_id(identity)
         if existing_id:
-            await self._session.execute(
-                text("""
-                    UPDATE entities
-                    SET name = :name
-                    WHERE id = :id
-                """),
-                {"id": existing_id, "name": identity.canonical_name},
-            )
+            await self._update_identity_name(existing_id, identity.canonical_name)
             await self._upsert_aliases(existing_id, identity.aliases, "person")
             return existing_id
 
@@ -200,45 +198,159 @@ class KnowledgeGraph:
         return result.scalar()
 
     async def _find_identity_entity_id(self, identity: ResolvedIdentity) -> str | None:
+        alias_values = [alias.normalized_value for alias in identity.aliases]
+        if not alias_values:
+            alias_values = [identity.normalized_name]
+
         result = await self._session.execute(
             text("""
-                SELECT e.id::text
+                SELECT
+                    e.id::text AS entity_id,
+                    e.normalized_name,
+                    ea.normalized_alias,
+                    ea.alias_type,
+                    COALESCE(ea.alias_strength, 1) AS alias_strength
                 FROM entities e
                 LEFT JOIN entity_aliases ea ON ea.entity_id = e.id
                 WHERE e.entity_type = 'person'
                   AND (
                         e.normalized_name = :normalized_name
-                     OR ea.normalized_alias = :normalized_name
                      OR ea.normalized_alias = ANY(:aliases)
                   )
-                LIMIT 1
             """),
             {
                 "normalized_name": identity.normalized_name,
-                "aliases": [self._extractor.normalize(alias) for alias in identity.aliases],
+                "aliases": alias_values,
             },
         )
-        return result.scalar()
+        rows = result.mappings().all()
+        if not rows:
+            return None
 
-    async def _upsert_aliases(self, entity_id: str, aliases: list[str], alias_type: str) -> None:
+        candidates: dict[str, dict[str, int]] = {}
+        strong_aliases = {
+            alias.normalized_value
+            for alias in identity.aliases
+            if alias.strength >= ALIAS_STRENGTH_STRONG
+        }
+        medium_aliases = {
+            alias.normalized_value
+            for alias in identity.aliases
+            if alias.strength >= ALIAS_STRENGTH_MEDIUM
+            and alias.alias_type in {"username", "handle", "account_id"}
+        }
+        allow_name_only_match = not strong_aliases and not medium_aliases
+
+        for row in rows:
+            entity_id = row["entity_id"]
+            candidate = candidates.setdefault(
+                entity_id,
+                {
+                    "score": 0,
+                    "exact_name": 0,
+                    "strong_match": 0,
+                    "medium_match": 0,
+                },
+            )
+            if row["normalized_name"] == identity.normalized_name and candidate["exact_name"] == 0:
+                candidate["score"] += 10
+                candidate["exact_name"] = 1
+            normalized_alias = row["normalized_alias"]
+            if normalized_alias in strong_aliases and candidate["strong_match"] == 0:
+                candidate["score"] += 100
+                candidate["strong_match"] = 1
+            elif normalized_alias in medium_aliases and candidate["medium_match"] == 0:
+                candidate["score"] += 40
+                candidate["medium_match"] = 1
+
+        ranked = sorted(
+            candidates.items(),
+            key=lambda item: (
+                item[1]["score"],
+                item[1]["strong_match"],
+                item[1]["medium_match"],
+                item[1]["exact_name"],
+            ),
+            reverse=True,
+        )
+        if not ranked:
+            return None
+
+        best_id, best = ranked[0]
+        top_score = best["score"]
+        tied = [entity_id for entity_id, data in ranked if data["score"] == top_score]
+
+        if top_score >= 40 and len(tied) == 1:
+            return best_id
+        if allow_name_only_match and top_score >= 10 and len(tied) == 1 and best["exact_name"] == 1:
+            return best_id
+        return None
+
+    async def _update_identity_name(self, entity_id: str, incoming_name: str) -> None:
+        result = await self._session.execute(
+            text("SELECT name FROM entities WHERE id = :id"),
+            {"id": entity_id},
+        )
+        current_name = result.scalar() or ""
+        chosen_name = max((current_name, incoming_name), key=self._identity_name_rank)
+        await self._session.execute(
+            text("""
+                UPDATE entities
+                SET name = :name
+                WHERE id = :id
+            """),
+            {"id": entity_id, "name": chosen_name},
+        )
+
+    async def _upsert_aliases(
+        self,
+        entity_id: str,
+        aliases: list[str | IdentityAlias],
+        alias_type: str,
+    ) -> None:
         for alias in aliases:
-            normalized_alias = self._extractor.normalize(alias)
+            if isinstance(alias, IdentityAlias):
+                normalized_alias = alias.normalized_value
+                alias_value = alias.value
+                current_type = alias.alias_type
+                alias_strength = alias.strength
+            else:
+                normalized_alias = self._extractor.normalize(alias)
+                alias_value = alias
+                current_type = alias_type
+                alias_strength = 1
+
             if not normalized_alias:
                 continue
+
             await self._session.execute(
                 text("""
-                    INSERT INTO entity_aliases (entity_id, normalized_alias, alias_value, alias_type)
-                    VALUES (:entity_id, :normalized_alias, :alias_value, :alias_type)
+                    INSERT INTO entity_aliases (
+                        entity_id,
+                        normalized_alias,
+                        alias_value,
+                        alias_type,
+                        alias_strength
+                    )
+                    VALUES (
+                        :entity_id,
+                        :normalized_alias,
+                        :alias_value,
+                        :alias_type,
+                        :alias_strength
+                    )
                     ON CONFLICT (entity_id, normalized_alias)
                     DO UPDATE SET
                         alias_value = EXCLUDED.alias_value,
-                        alias_type = EXCLUDED.alias_type
+                        alias_type = EXCLUDED.alias_type,
+                        alias_strength = GREATEST(entity_aliases.alias_strength, EXCLUDED.alias_strength)
                 """),
                 {
                     "entity_id": entity_id,
                     "normalized_alias": normalized_alias,
-                    "alias_value": alias,
-                    "alias_type": alias_type,
+                    "alias_value": alias_value,
+                    "alias_type": current_type,
+                    "alias_strength": alias_strength,
                 },
             )
 
@@ -259,3 +371,11 @@ class KnowledgeGraph:
                     normalized.append(candidate)
 
         return normalized
+
+    @staticmethod
+    def _identity_name_rank(value: str) -> tuple[int, int]:
+        stripped = (value or "").strip()
+        return (
+            1 if "@" not in stripped else 0,
+            len(stripped),
+        )

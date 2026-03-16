@@ -34,4 +34,11 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     status["embedding_model"] = settings.EMBEDDING_MODEL
 
     ok = all(status.get(k) == "ok" for k in ["postgresql", "qdrant", "ollama"])
-    return {"status": "ok" if ok else "degraded", "components": status}
+    return {
+        "status": "ok" if ok else "degraded",
+        "components": status,
+        "confluence_url": settings.CONFLUENCE_URL,
+        "jira_url": settings.JIRA_URL,
+        "confluence_space_keys": settings.CONFLUENCE_SPACE_KEYS,
+        "jira_project_keys": settings.JIRA_PROJECT_KEYS,
+    }

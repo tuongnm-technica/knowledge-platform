@@ -19,13 +19,14 @@ def _require_jwt() -> None:
         raise ValueError("Missing PyJWT dependency. Reinstall requirements.txt.")
 
 
-def create_access_token(user_id: str, email: str, is_admin: bool) -> str:
+def create_access_token(user_id: str, email: str, is_admin: bool, role: str = "member") -> str:
     _require_jwt()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {
         "sub": user_id,
         "email": email,
         "is_admin": is_admin,
+        "role": role or "member",
         "exp": expire,
         "iat": datetime.now(timezone.utc),
     }

@@ -34,14 +34,20 @@ class Settings(BaseSettings):
 
     QUERY_EXPANSION_ENABLED: bool = True
     RERANKING_ENABLED: bool = True
+    SEMANTIC_CACHE_ENABLED: bool = True
 
     SLACK_BOT_TOKEN: Optional[str] = None
     CONFLUENCE_URL: Optional[str] = None
     CONFLUENCE_USERNAME: Optional[str] = None
     CONFLUENCE_API_TOKEN: Optional[str] = None
+    CONFLUENCE_SPACE_KEYS: str = ""
+    CONFLUENCE_VERIFY_TLS: bool = True
     JIRA_URL: Optional[str] = None
     JIRA_USERNAME: Optional[str] = None
     JIRA_API_TOKEN: Optional[str] = None
+    JIRA_PROJECT_KEYS: str = ""
+    JIRA_VERIFY_TLS: bool = True
+    DEFAULT_JIRA_PROJECT: str = ""
 
     SMB_HOST: Optional[str] = None
     SMB_USERNAME: Optional[str] = None
@@ -49,11 +55,22 @@ class Settings(BaseSettings):
     SMB_SHARE: Optional[str] = None
     SMB_BASE_PATH: str = ""
 
+    DEFAULT_WORKSPACE: str = "ws_general"
+    CONFLUENCE_WORKSPACE_MAP: str = ""
+    JIRA_WORKSPACE_MAP: str = ""
+    SLACK_WORKSPACE_MAP: str = ""
+    SMB_WORKSPACE_MAP: str = ""
+
     JWT_SECRET: str = "change-me-in-production"
     JWT_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_DAYS: int = 7
 
+    PUBLIC_API_BASE_URL: Optional[str] = None
+
     AGENT_MAX_STEPS: int = 5
+
+    AGENT_SELF_CORRECT_ENABLED: bool = True
+    AGENT_LOGIC_CHECK_ENABLED: bool = True
 
     class Config:
         env_file = ".env"

@@ -25,19 +25,30 @@ class TextChunker:
         """Default: word-count chunking với overlap"""
         return self._word_count_chunk(document_id, content)
 
-    def chunk_by_sections(self, document_id: str, sections: list[dict]) -> list[Chunk]:
-        """Confluence semantic chunking theo heading"""
-        chunks = []
-        for i, section in enumerate(sections):
-            title   = section.get("title", "")
-            text    = section.get("content", "").strip()
+    def chunk_by_sections(self, document_id: str, sections: list[dict], *, doc_title: str = "") -> list[Chunk]:
+        """Confluence semantic chunking theo heading path."""
+        chunks: list[Chunk] = []
+        chunk_index = 0
+
+        for section in sections:
+            title = (section.get("title") or "").strip()
+            text = (section.get("content") or "").strip()
             if not text:
                 continue
-            # Prepend title vào chunk để embedding có context
-            full    = f"{title}\n\n{text}" if title else text
-            # Nếu section quá dài thì chia nhỏ thêm
-            sub     = self._word_count_chunk(document_id, full, start_index=i * 100)
+
+            header_parts = []
+            if doc_title:
+                header_parts.append(doc_title.strip())
+            if title:
+                header_parts.append(title)
+            header = "\n\n".join(header_parts).strip()
+
+            full = f"{header}\n\n{text}" if header else text
+
+            sub = self._word_count_chunk(document_id, full, start_index=chunk_index)
             chunks.extend(sub)
+            chunk_index += len(sub)
+
         return chunks
 
     def chunk_slack(self, document_id: str, content: str) -> list[Chunk]:
@@ -54,7 +65,7 @@ class TextChunker:
         for line in lines:
             window.append(line)
             # Đếm số tin nhắn (dòng bắt đầu bằng [HH:MM])
-            if re.match(r"^\[\d{2}:\d{2}\]", line):
+            if re.match(r"^\[\d{2}:\d{2}", line):
                 msg_count += 1
 
             # Mỗi chunk ~12 tin nhắn
@@ -71,7 +82,7 @@ class TextChunker:
                     # Overlap: giữ lại 3 tin nhắn cuối làm context
                     overlap_lines = self._last_n_messages(window, n=3)
                     window    = overlap_lines
-                    msg_count = len([l for l in overlap_lines if re.match(r"^\[\d{2}:\d{2}\]", l)])
+                    msg_count = len([l for l in overlap_lines if re.match(r"^\[\d{2}:\d{2}", l)])
 
         # Phần còn lại
         if window:
@@ -91,24 +102,66 @@ class TextChunker:
         Jira chunking: tách theo double newline (paragraph).
         Summary luôn được prepend vào mỗi chunk.
         """
-        lines   = content.split("\n", 2)
-        summary = lines[0].strip() if lines else ""
-        body    = lines[2].strip() if len(lines) > 2 else content
+        content = (content or "").strip()
+        if not content:
+            return []
 
         # Nếu content ngắn thì 1 chunk
         if len(content.split()) <= self.chunk_size:
-            return [Chunk(
-                id=str(uuid.uuid4()),
-                document_id=document_id,
-                content=content.strip(),
-                chunk_index=0,
-            )]
+            return [
+                Chunk(
+                    id=str(uuid.uuid4()),
+                    document_id=document_id,
+                    content=content,
+                    chunk_index=0,
+                )
+            ]
 
-        # Tách theo paragraph
-        paragraphs = re.split(r"\n{2,}", body)
-        chunks     = []
-        buffer     = summary  # luôn bắt đầu bằng summary
-        index      = 0
+        # Prefer "## Heading" sections if present (JiraConnector formats content this way).
+        if "\n## " in content or content.lstrip().startswith("## "):
+            lines = content.splitlines()
+            pre_lines: list[str] = []
+            i = 0
+            while i < len(lines) and not lines[i].startswith("## "):
+                pre_lines.append(lines[i])
+                i += 1
+
+            preamble = "\n".join(pre_lines).strip()
+
+            sections: list[tuple[str, str]] = []
+            current_title = ""
+            current_body: list[str] = []
+
+            for line in lines[i:]:
+                if line.startswith("## "):
+                    if current_body:
+                        sections.append((current_title, "\n".join(current_body).strip()))
+                    current_title = line.strip()
+                    current_body = []
+                else:
+                    current_body.append(line)
+
+            if current_body:
+                sections.append((current_title, "\n".join(current_body).strip()))
+
+            chunks: list[Chunk] = []
+            chunk_index = 0
+
+            for title, body in sections:
+                if not body.strip():
+                    continue
+                section_text = "\n\n".join([preamble, title, body]).strip() if preamble else "\n\n".join([title, body]).strip()
+                sub = self._word_count_chunk(document_id, section_text, start_index=chunk_index)
+                chunks.extend(sub)
+                chunk_index += len(sub)
+
+            return chunks if chunks else self._word_count_chunk(document_id, content)
+
+        # Fallback: paragraph chunking (legacy).
+        paragraphs = re.split(r"\n{2,}", content)
+        chunks: list[Chunk] = []
+        buffer = ""
+        index = 0
 
         for para in paragraphs:
             para = para.strip()
@@ -116,24 +169,28 @@ class TextChunker:
                 continue
             candidate = buffer + "\n\n" + para if buffer else para
             if len(candidate.split()) > self.chunk_size and buffer:
-                chunks.append(Chunk(
-                    id=str(uuid.uuid4()),
-                    document_id=document_id,
-                    content=buffer.strip(),
-                    chunk_index=index,
-                ))
-                index  += 1
-                buffer  = f"{summary}\n\n{para}"  # prepend summary cho chunk mới
+                chunks.append(
+                    Chunk(
+                        id=str(uuid.uuid4()),
+                        document_id=document_id,
+                        content=buffer.strip(),
+                        chunk_index=index,
+                    )
+                )
+                index += 1
+                buffer = para
             else:
                 buffer = candidate
 
         if buffer.strip():
-            chunks.append(Chunk(
-                id=str(uuid.uuid4()),
-                document_id=document_id,
-                content=buffer.strip(),
-                chunk_index=index,
-            ))
+            chunks.append(
+                Chunk(
+                    id=str(uuid.uuid4()),
+                    document_id=document_id,
+                    content=buffer.strip(),
+                    chunk_index=index,
+                )
+            )
 
         return chunks if chunks else self._word_count_chunk(document_id, content)
 
@@ -207,7 +264,7 @@ class TextChunker:
         count   = 0
         for line in reversed(lines):
             result.insert(0, line)
-            if re.match(r"^\[\d{2}:\d{2}\]", line):
+            if re.match(r"^\[\d{2}:\d{2}", line):
                 count += 1
             if count >= n:
                 break

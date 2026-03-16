@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
 from storage.db.db import create_tables
-from apps.api.routes import search, ask, ingest, health, connectors, auth
+from apps.api.routes import search, ask, ingest, health, connectors, auth, users, graph, srs
 from apps.api.routes.auth import router as auth_router
 from config.settings import settings
 from utils.logging import configure_logging
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
         qdrant.create_collection(
             collection_name="semantic_cache",
             vectors_config=VectorParams(
-                size=1024,  # embedding dimension
+                size=settings.VECTOR_DIM,  # embedding dimension
                 distance=Distance.COSINE,
             ),
         )
@@ -61,7 +61,10 @@ app.include_router(search.router)
 app.include_router(ingest.router)
 app.include_router(health.router)
 app.include_router(connectors.router)
+app.include_router(users.router)
 app.include_router(tasks_router)
+app.include_router(graph.router)
+app.include_router(srs.router)
 
 @app.get("/", include_in_schema=False)
 async def serve_ui():

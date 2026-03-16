@@ -15,7 +15,33 @@ import structlog
 from retrieval.query_router import route_query_advanced
 from retrieval.query_expansion import expand_query
 from retrieval.reranker import rerank
+from config.settings import settings
 log = structlog.get_logger()
+
+
+def _jsonish(value):
+    import json
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value) if value else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _slack_deep_link(channel_id: str, ts: str) -> str:
+    ts = str(ts or "").strip()
+    if not ts:
+        return f"https://slack.com/archives/{channel_id}"
+    if "." in ts:
+        sec, frac = ts.split(".", 1)
+        frac = (frac + "000000")[:6]
+        ts_digits = f"{sec}{frac}"
+    else:
+        ts_digits = "".join([c for c in ts if c.isdigit()])
+    return f"https://slack.com/archives/{channel_id}/p{ts_digits}"
 
 
 # ─────────────────────────────────────────
@@ -50,10 +76,16 @@ class _BaseSearchTool(BaseTool):
                 await self._permissions.allowed_docs(user_id)
                 if user_id else None
             )
+            if allowed_ids is not None and len(allowed_ids) == 0:
+                return ToolResult(
+                    success=True,
+                    data=[],
+                    summary="Khong co tai lieu nao ban duoc phep truy cap trong he thong.",
+                )
 
             # fetch nhiều hơn để ranking sau filter
             fetch_k = max(limit * 8, 20)
-            queries = await expand_query(query)
+            queries = await expand_query(query, use_llm=settings.QUERY_EXPANSION_ENABLED)
             raw = []
             for q in queries:
 
@@ -98,12 +130,22 @@ class _BaseSearchTool(BaseTool):
 
             doc_meta = {r["id"]: r for r in rows}
 
-            scored = self._scorer.score(raw, doc_meta)[:8]
-            scored = await rerank(
-                query = query, 
-                candidates = scored,
-                top_k=5
+            # Provide query string for ranking signals (e.g., title match boost).
+            for item in raw:
+                item["query"] = query
+
+            scored = self._scorer.score(raw, doc_meta)
+            shortlist_n = min(max(limit * 4, 12), 40)
+            shortlist = scored[:shortlist_n]
+
+            if settings.RERANKING_ENABLED:
+                shortlist = await rerank(
+                    query=query,
+                    candidates=shortlist,
+                    top_k=limit,
                 )
+            else:
+                shortlist = shortlist[:limit]
 
             results = []
 
@@ -111,7 +153,7 @@ class _BaseSearchTool(BaseTool):
             # build result objects
             # ─────────────────────────────────────
 
-            for item in scored:
+            for item in shortlist:
 
                 doc_id = str(item.get("document_id", ""))
 
@@ -137,13 +179,24 @@ class _BaseSearchTool(BaseTool):
                 except Exception:
                     pass
 
+                url = meta.get("url", "")
+                if meta.get("source") == "slack" and context_text:
+                    import re
+                    m = re.search(r"^\[\d{2}:\d{2}\|([0-9]+\.[0-9]+)\]", context_text, re.MULTILINE)
+                    md = _jsonish(meta.get("metadata"))
+                    channel_id = str(md.get("channel_id") or "").strip()
+                    if channel_id and m:
+                        url = _slack_deep_link(channel_id, m.group(1))
+
                 results.append({
                     "document_id": doc_id,
+                    "chunk_id": chunk_id,
                     "title": meta.get("title", "Untitled"),
                     "source": meta.get("source", source_filter),
-                    "url": meta.get("url", ""),
+                    "url": url,
                     "content": context_text,
-                    "score": round(item.get("rerank_score", 0), 3),
+                    "snippet": (context_text or "")[:350],
+                    "score": round(item.get("rerank_score", item.get("final_score", 0)), 3),
                 })
 
 

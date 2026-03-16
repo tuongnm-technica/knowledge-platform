@@ -16,6 +16,11 @@ from persistence.document_repository import DocumentRepository
 from ingestion.cleaner import TextCleaner
 from ingestion.chunker import TextChunker
 
+try:
+    import bcrypt
+except ImportError:  # pragma: no cover - seed helper
+    bcrypt = None
+
 
 # ─── Data mẫu ─────────────────────────────────────────────────────────────────
 SAMPLE_DOCUMENTS = [
@@ -227,7 +232,7 @@ async def seed():
             )
 
             # Lưu document
-            await repo.upsert(doc)
+            doc.id = await repo.upsert(doc)
             print(f"   ✅ Saved document: {doc.id}")
 
             # Chunking
@@ -266,14 +271,24 @@ async def seed_users_groups(session: AsyncSession):
 
     # Tạo users
     users = [
-        ("user_001", "alice@company.com",   "Alice Nguyen"),
-        ("user_002", "bob@company.com",     "Bob Tran"),
-        ("user_003", "charlie@company.com", "Charlie Le"),
+        ("user_001", "alice@company.com",   "Alice Nguyen", "Password123!", True),
+        ("user_002", "bob@company.com",     "Bob Tran", "Password123!", False),
+        ("user_003", "charlie@company.com", "Charlie Le", "Password123!", False),
     ]
-    for user_id, email, name in users:
+    for user_id, email, name, password, is_admin in users:
         await session.execute(
-            text("INSERT INTO users (id, email, display_name) VALUES (:id, :email, :name) ON CONFLICT DO NOTHING"),
-            {"id": user_id, "email": email, "name": name},
+            text("""
+                INSERT INTO users (id, email, display_name, password_hash, is_active, is_admin)
+                VALUES (:id, :email, :name, :password_hash, TRUE, :is_admin)
+                ON CONFLICT DO NOTHING
+            """),
+            {
+                "id": user_id,
+                "email": email,
+                "name": name,
+                "password_hash": _hash_password(password),
+                "is_admin": is_admin,
+            },
         )
 
     # Gán users vào groups
@@ -297,6 +312,12 @@ async def seed_users_groups(session: AsyncSession):
     print("      - user_001 (Alice): all_employees + engineering ← thấy TẤT CẢ")
     print("      - user_002 (Bob):   all_employees + engineering ← thấy TẤT CẢ")
     print("      - user_003 (Charlie): chỉ all_employees ← KHÔNG thấy docs engineering")
+
+
+def _hash_password(password: str) -> str:
+    if bcrypt is None:
+        raise RuntimeError("bcrypt is required to seed loginable users")
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 if __name__ == "__main__":

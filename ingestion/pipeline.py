@@ -5,6 +5,7 @@ import structlog
 from connectors.base.base_connector import BaseConnector
 from graph.entity_extractor import EntityExtractor
 from graph.identity_resolver import IdentityResolver
+from graph.document_linker import DocumentLinker
 from graph.knowledge_graph import KnowledgeGraph
 from indexing.keyword_index import KeywordIndex
 from indexing.vector_index import VectorIndex
@@ -30,12 +31,13 @@ class IngestionPipeline:
         self._vector_index = VectorIndex(session)
         self._keyword_index = KeywordIndex(session)
         self._graph = KnowledgeGraph(session)
+        self._linker = DocumentLinker(session)
         self._repo = DocumentRepository(session)
         self._sync_repo = SyncRepository(session)
 
-    async def run(self, connector: BaseConnector, incremental: bool = True) -> dict:
+    async def run(self, connector: BaseConnector, incremental: bool = True, connector_key: str | None = None) -> dict:
         stats = {"fetched": 0, "indexed": 0, "skipped": 0, "errors": 0}
-        connector_name = connector.__class__.__name__.replace("Connector", "").lower()
+        connector_name = connector_key or connector.__class__.__name__.replace("Connector", "").lower()
 
         last_sync = None
         if incremental:
@@ -63,7 +65,7 @@ class IngestionPipeline:
 
         for doc in documents:
             try:
-                await self._process(doc)
+                await self._process(doc, connector_key=connector_key or connector_name)
                 stats["indexed"] += 1
             except Exception as e:
                 log.error("ingestion.doc.error", doc_id=doc.id, error=str(e))
@@ -81,7 +83,7 @@ class IngestionPipeline:
         log.info("ingestion.done", connector=connector_name, **stats)
         return stats
 
-    async def _process(self, doc: Document) -> None:
+    async def _process(self, doc: Document, *, connector_key: str) -> None:
         sections = None
         if doc.source == SourceType.CONFLUENCE:
             raw_html = doc.metadata.get("raw_html", "")
@@ -96,6 +98,14 @@ class IngestionPipeline:
             log.debug("ingestion.skip.empty", doc_id=doc.id)
             return
 
+        # Persist instance lineage so multi-instance dashboards and clears can target a specific connector key.
+        try:
+            if not isinstance(doc.metadata, dict):
+                doc.metadata = {}
+            doc.metadata["connector_key"] = str(connector_key or "").strip()
+        except Exception:
+            pass
+
         extracted_entities = self._entities.extract_typed(f"{doc.title}\n{doc.content}")
         resolved_identities = self._identities.resolve(doc)
         doc.entities = [entity.name for entity in extracted_entities]
@@ -106,13 +116,30 @@ class IngestionPipeline:
             for entity in extracted_entities
         ]
         doc.metadata["identities"] = [
-            {"name": identity.canonical_name, "aliases": identity.aliases}
+            {
+                "name": identity.canonical_name,
+                "aliases": [
+                    {
+                        "value": alias.value,
+                        "type": alias.alias_type,
+                        "strength": alias.strength,
+                    }
+                    for alias in identity.aliases
+                ],
+            }
             for identity in resolved_identities
         ]
 
-        await self._repo.upsert(doc)
+        # Keep doc.id consistent with the actual DB row id (conflict keeps old id).
+        doc.id = await self._repo.upsert(doc)
         await self._graph.link_document_identities(doc.id, resolved_identities)
         await self._graph.link_document_entities(doc.id, extracted_entities)
+        # Best-effort explicit cross-document links (URLs, Jira keys, SMB paths).
+        try:
+            await self._linker.upsert_for_document(doc.id, f"{doc.title}\n{doc.content}")
+        except Exception:
+            # Link extraction should not block ingestion.
+            pass
 
         chunks = self._smart_chunk(doc, sections)
         if not chunks:
@@ -130,7 +157,7 @@ class IngestionPipeline:
 
     def _smart_chunk(self, doc: Document, sections=None) -> list:
         if sections:
-            chunks = self._chunker.chunk_by_sections(doc.id, sections)
+            chunks = self._chunker.chunk_by_sections(doc.id, sections, doc_title=doc.title)
             log.info("ingestion.chunk.semantic", doc_id=doc.id, chunks=len(chunks))
             return chunks
 

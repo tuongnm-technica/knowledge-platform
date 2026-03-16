@@ -15,6 +15,15 @@ from utils.embedding_cache import get_embedding_cached, set_embedding_cached, ge
 
 log = structlog.get_logger()
 
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=300)
+    return _http_client
+
 
 async def get_embedding(text: str) -> list[float]:
     """
@@ -72,18 +81,18 @@ async def _call_ollama_embed(text: str) -> list[float]:
     base = settings.OLLAMA_BASE_URL.rstrip("/")
     model = settings.OLLAMA_EMBED_MODEL
 
-    async with httpx.AsyncClient(timeout=300) as client:
-        resp = await client.post(
-            f"{base}/api/embed",
-            json={"model": model, "input": text},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        # Ollama /api/embed trả về {"embeddings": [[...]]}
-        embeddings = data.get("embeddings") or data.get("embedding")
-        if isinstance(embeddings[0], list):
-            return embeddings[0]
-        return embeddings
+    client = _get_http_client()
+    resp = await client.post(
+        f"{base}/api/embed",
+        json={"model": model, "input": text},
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    # Ollama /api/embed trả về {"embeddings": [[...]]}
+    embeddings = data.get("embeddings") or data.get("embedding")
+    if isinstance(embeddings[0], list):
+        return embeddings[0]
+    return embeddings
 
 
 async def _call_ollama_embed_batch(texts: list[str]) -> list[list[float]]:

@@ -1,105 +1,57 @@
-"""
-orchestration/tools/jira_tool.py
-
-Tools:
-- get_jira_issue
-- list_jira_issues
-
-Gọi trực tiếp Jira REST API (on-premise) bằng Personal Access Token (PAT).
-"""
-
-from orchestration.tools.base import BaseTool, ToolSpec, ToolResult
 from config.settings import settings
+from orchestration.tools.base import BaseTool, ToolResult, ToolSpec
 
 import httpx
 import structlog
 
+
 log = structlog.get_logger()
 
 
-# ==============================
-# Global configuration
-# ==============================
+def _headers() -> dict[str, str] | None:
+    if not settings.JIRA_API_TOKEN:
+        return None
+    return {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {settings.JIRA_API_TOKEN}",
+    }
 
-if not getattr(settings, "JIRA_API_TOKEN", None):
-    raise RuntimeError("JIRA_API_TOKEN is not configured")
-
-_HEADERS = {
-    "Accept": "application/json",
-    "Authorization": f"Bearer {settings.JIRA_API_TOKEN}",
-}
-
-
-# ==============================
-# Tool: Get Jira Issue
-# ==============================
 
 class GetJiraIssueTool(BaseTool):
-
     @property
     def spec(self) -> ToolSpec:
         return ToolSpec(
             name="get_jira_issue",
-            description=(
-                "Lấy chi tiết một Jira issue theo key "
-                "(ví dụ: ECOS-123 hoặc ECOS2025-45). "
-                "Dùng khi user hỏi về một bug hoặc task cụ thể."
-            ),
+            description="Get one Jira issue by key.",
             parameters={
                 "type": "object",
-                "properties": {
-                    "key": {
-                        "type": "string",
-                        "description": "Jira issue key, ví dụ: ECOS-123 hoặc ECOS2025-45"
-                    }
-                },
-                "required": ["key"]
+                "properties": {"key": {"type": "string", "description": "Jira issue key"}},
+                "required": ["key"],
             },
         )
 
     async def run(self, key: str, **_) -> ToolResult:
-
-        url = f"{settings.JIRA_URL}/rest/api/2/issue/{key}"
+        headers = _headers()
+        if not headers or not settings.JIRA_URL:
+            return ToolResult(success=False, data={}, summary="", error="Jira is not configured")
 
         try:
-
-            async with httpx.AsyncClient(timeout=15, verify=False) as client:
-                resp = await client.get(url, headers=_HEADERS)
-
-            # ===== error handling =====
-
-            if resp.status_code == 401:
-                return ToolResult(
-                    success=False,
-                    data={},
-                    summary="",
-                    error="Jira authentication failed (401)"
+            async with httpx.AsyncClient(timeout=15, verify=settings.JIRA_VERIFY_TLS) as client:
+                response = await client.get(
+                    f"{settings.JIRA_URL.rstrip('/')}/rest/api/2/issue/{key}",
+                    headers=headers,
                 )
+            if response.status_code == 404:
+                return ToolResult(success=False, data={}, summary="", error=f"Issue {key} does not exist")
+            if response.status_code != 200:
+                return ToolResult(success=False, data={}, summary="", error=f"Jira API error {response.status_code}")
 
-            if resp.status_code == 404:
-                return ToolResult(
-                    success=False,
-                    data={},
-                    summary="",
-                    error=f"Issue {key} không tồn tại"
-                )
-
-            if resp.status_code != 200:
-                return ToolResult(
-                    success=False,
-                    data={},
-                    summary="",
-                    error=f"Jira API error {resp.status_code}: {resp.text}"
-                )
-
-            d = resp.json()
-
-            fields = d.get("fields", {})
+            payload = response.json()
+            fields = payload.get("fields", {})
             assignee = fields.get("assignee") or {}
             reporter = fields.get("reporter") or {}
-
             result = {
-                "key": d.get("key"),
+                "key": payload.get("key"),
                 "summary": fields.get("summary", ""),
                 "status": (fields.get("status") or {}).get("name", ""),
                 "priority": (fields.get("priority") or {}).get("name", ""),
@@ -109,188 +61,79 @@ class GetJiraIssueTool(BaseTool):
                 "created": fields.get("created", "")[:10],
                 "updated": fields.get("updated", "")[:10],
                 "labels": fields.get("labels", []),
-                "url": f"{settings.JIRA_URL}/browse/{d.get('key')}",
+                "url": f"{settings.JIRA_URL.rstrip('/')}/browse/{payload.get('key')}",
             }
-
             summary = (
                 f"Issue {result['key']}: {result['summary']}\n"
                 f"Status: {result['status']} | Priority: {result['priority']}\n"
                 f"Assignee: {result['assignee']} | Reporter: {result['reporter']}\n"
-                f"Description: {result['description'][:5000]}\n"
+                f"Description: {result['description']}\n"
                 f"URL: {result['url']}"
             )
+            return ToolResult(success=True, data=result, summary=summary)
+        except Exception as exc:
+            log.error("tool.get_jira_issue.error", key=key, error=str(exc))
+            return ToolResult(success=False, data={}, summary="", error=str(exc))
 
-            log.info("tool.get_jira_issue.success", key=key)
-
-            return ToolResult(
-                success=True,
-                data=result,
-                summary=summary
-            )
-
-        except Exception as e:
-
-            log.error(
-                "tool.get_jira_issue.error",
-                key=key,
-                error=str(e)
-            )
-
-            return ToolResult(
-                success=False,
-                data={},
-                summary="",
-                error=str(e)
-            )
-
-
-# ==============================
-# Tool: List Jira Issues
-# ==============================
 
 class ListJiraIssuesTool(BaseTool):
-
     @property
     def spec(self) -> ToolSpec:
         return ToolSpec(
             name="list_jira_issues",
-            description=(
-                "Tìm danh sách Jira issues theo JQL. "
-                "Dùng khi user hỏi về danh sách bug/task trong project hoặc sprint."
-            ),
+            description="List Jira issues by JQL.",
             parameters={
                 "type": "object",
                 "properties": {
-                    "jql": {
-                        "type": "string",
-                        "description": "JQL query, ví dụ: project=ECOS2025 AND status=Open"
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Số lượng tối đa issues trả về",
-                        "default": 10
-                    }
+                    "jql": {"type": "string", "description": "JQL query"},
+                    "limit": {"type": "integer", "description": "Maximum results", "default": 10},
                 },
-                "required": ["jql"]
+                "required": ["jql"],
             },
         )
 
     async def run(self, jql: str, limit: int = 10, **_) -> ToolResult:
-
-        url = f"{settings.JIRA_URL}/rest/api/2/search"
-
-        body = {
-            "jql": jql,
-            "maxResults": min(limit, 20),
-            "fields": [
-                "summary",
-                "status",
-                "assignee",
-                "priority",
-                "created",
-                "labels"
-            ],
-        }
-
-        headers = {
-            **_HEADERS,
-            "Content-Type": "application/json"
-        }
+        headers = _headers()
+        if not headers or not settings.JIRA_URL:
+            return ToolResult(success=False, data=[], summary="", error="Jira is not configured")
 
         try:
-
-            async with httpx.AsyncClient(timeout=15, verify=False) as client:
-                resp = await client.post(url, headers=headers, json=body)
-
-            # ===== error handling =====
-
-            if resp.status_code == 401:
-                return ToolResult(
-                    success=False,
-                    data=[],
-                    summary="",
-                    error="Jira authentication failed (401)"
+            async with httpx.AsyncClient(timeout=15, verify=settings.JIRA_VERIFY_TLS) as client:
+                response = await client.post(
+                    f"{settings.JIRA_URL.rstrip('/')}/rest/api/2/search",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json={
+                        "jql": jql,
+                        "maxResults": min(limit, 20),
+                        "fields": ["summary", "status", "assignee", "priority", "created", "labels"],
+                    },
                 )
-
-            if resp.status_code == 400:
-                err = resp.json().get("errorMessages", [resp.text])
-                return ToolResult(
-                    success=False,
-                    data=[],
-                    summary="",
-                    error=f"Jira JQL error: {err}"
-                )
-
-            if resp.status_code != 200:
-                return ToolResult(
-                    success=False,
-                    data=[],
-                    summary="",
-                    error=f"Jira API error {resp.status_code}: {resp.text}"
-                )
-
-            data = resp.json()
+            if response.status_code == 400:
+                return ToolResult(success=False, data=[], summary="", error="Invalid Jira JQL")
+            if response.status_code != 200:
+                return ToolResult(success=False, data=[], summary="", error=f"Jira API error {response.status_code}")
 
             issues = []
-
-            for issue in data.get("issues", []):
-                f = issue.get("fields", {})
-
-                assignee = (f.get("assignee") or {}).get(
-                    "displayName",
-                    "Unassigned"
+            for issue in response.json().get("issues", []):
+                fields = issue.get("fields", {})
+                issues.append(
+                    {
+                        "key": issue["key"],
+                        "summary": fields.get("summary", ""),
+                        "status": (fields.get("status") or {}).get("name", ""),
+                        "assignee": (fields.get("assignee") or {}).get("displayName", "Unassigned"),
+                        "priority": (fields.get("priority") or {}).get("name", ""),
+                        "url": f"{settings.JIRA_URL.rstrip('/')}/browse/{issue['key']}",
+                    }
                 )
-
-                issues.append({
-                    "key": issue["key"],
-                    "summary": f.get("summary", ""),
-                    "status": (f.get("status") or {}).get("name", ""),
-                    "assignee": assignee,
-                    "priority": (f.get("priority") or {}).get("name", ""),
-                    "url": f"{settings.JIRA_URL}/browse/{issue['key']}",
-                })
 
             if not issues:
-
-                return ToolResult(
-                    success=True,
-                    data=[],
-                    summary=f"Không tìm thấy issue nào với JQL: {jql}"
-                )
-
-            lines = [
-                f"Tìm thấy {len(issues)} issues (JQL: {jql}):"
-            ]
-
-            for i in issues:
-                lines.append(
-                    f"- {i['key']}: {i['summary']} "
-                    f"[{i['status']}] → {i['assignee']}"
-                )
-
-            log.info(
-                "tool.list_jira_issues.success",
-                jql=jql,
-                found=len(issues)
-            )
-
+                return ToolResult(success=True, data=[], summary=f"No Jira issues for JQL: {jql}")
             return ToolResult(
                 success=True,
                 data=issues,
-                summary="\n".join(lines)
+                summary="\n".join([f"Found {len(issues)} issues:"] + [f"- {item['key']}: {item['summary']}" for item in issues]),
             )
-
-        except Exception as e:
-
-            log.error(
-                "tool.list_jira_issues.error",
-                jql=jql,
-                error=str(e)
-            )
-
-            return ToolResult(
-                success=False,
-                data=[],
-                summary="",
-                error=str(e)
-            )
+        except Exception as exc:
+            log.error("tool.list_jira_issues.error", jql=jql, error=str(exc))
+            return ToolResult(success=False, data=[], summary="", error=str(exc))

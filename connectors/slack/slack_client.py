@@ -11,10 +11,11 @@ SYNC_DAYS = 90
 
 
 class SlackClient:
-    def __init__(self):
-        if not settings.SLACK_BOT_TOKEN:
+    def __init__(self, *, bot_token: str | None = None):
+        token = (bot_token or settings.SLACK_BOT_TOKEN or "").strip()
+        if not token:
             raise ValueError("SLACK_BOT_TOKEN chưa được cấu hình")
-        self._client     = AsyncWebClient(token=settings.SLACK_BOT_TOKEN)
+        self._client     = AsyncWebClient(token=token)
         self._user_cache: dict[str, dict] = {}
 
     async def get_channels(self) -> list[dict]:
@@ -33,6 +34,14 @@ class SlackClient:
         except SlackApiError as e:
             log.error("slack.get_channels.failed", error=str(e))
         return channels
+
+    async def test_connection(self) -> bool:
+        try:
+            await self._client.auth_test()
+            return True
+        except SlackApiError as e:
+            log.error("slack.test_connection.failed", error=str(e))
+            return False
 
     async def get_channel_members(self, channel_id: str) -> list[str]:
         try:
@@ -108,11 +117,14 @@ class SlackClient:
             if uid and uid not in self._user_cache:
                 try:
                     result  = await self._client.users_info(user=uid)
+                    user = result.get("user", {})
                     profile = result.get("user", {}).get("profile", {})
                     self._user_cache[uid] = {
+                        "user_id": uid,
                         "display_name": profile.get("display_name", ""),
                         "real_name":    profile.get("real_name", ""),
-                        "name":         result.get("user", {}).get("name", ""),
+                        "name":         user.get("name", ""),
+                        "email":        profile.get("email", ""),
                     }
                 except Exception:
                     self._user_cache[uid] = {}
