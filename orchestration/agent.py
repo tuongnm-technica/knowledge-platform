@@ -19,6 +19,7 @@ from persistence.asset_repository import AssetRepository
 from ranking.scorer import RankingScorer
 from retrieval.hybrid.hybrid_search import HybridSearch
 from utils.vision_answer import answer_with_images
+from utils.ollama_api import ollama_chat
 
 
 log = structlog.get_logger()
@@ -26,28 +27,23 @@ log = structlog.get_logger()
 
 class OllamaLLM:
     def __init__(self):
-        self._base = settings.OLLAMA_BASE_URL.rstrip("/")
         self._model = settings.OLLAMA_LLM_MODEL
 
     async def chat(self, system: str, user: str, max_tokens: int = 800) -> str:
-        payload = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "stream": False,
-            "options": {"num_predict": max_tokens, "temperature": 0.1},
-        }
-        async with httpx.AsyncClient(timeout=settings.LLM_TIMEOUT) as client:
-            try:
-                resp = await client.post(f"{self._base}/api/chat", json=payload)
-                resp.raise_for_status()
-                return resp.json()["message"]["content"].strip()
-            except httpx.TimeoutException:
-                raise RuntimeError(f"Ollama timed out ({settings.LLM_TIMEOUT}s)")
-            except httpx.HTTPStatusError as e:
-                raise RuntimeError(f"Ollama error {e.response.status_code}")
+        try:
+            return await ollama_chat(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                options={"num_predict": max_tokens, "temperature": 0.1},
+                timeout=settings.LLM_TIMEOUT,
+            )
+        except httpx.TimeoutException:
+            raise RuntimeError(f"Ollama timed out ({settings.LLM_TIMEOUT}s)")
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Ollama error {e.response.status_code}")
 
     async def is_available(self) -> bool:
         try:

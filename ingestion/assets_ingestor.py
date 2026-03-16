@@ -222,7 +222,7 @@ class AssetIngestor:
         # Fetch image bytes for each placeholder.
         fetched: list[dict] = []
         for p in placeholders:
-            item = {"placeholder": p, "bytes": b"", "filename": "", "mime_type": "", "source_ref": ""}
+            item = {"placeholder": p, "bytes": b"", "filename": "", "mime_type": "", "source_ref": "", "staged_path": ""}
 
             if p.kind == "confluence_attachment":
                 it = confluence_attachments.get(p.key.lower())
@@ -287,6 +287,7 @@ class AssetIngestor:
                 if staged_path:
                     try:
                         item["bytes"] = Path(staged_path).read_bytes()
+                        item["staged_path"] = staged_path
                     except Exception as exc:
                         log.warning("assets.import.read_failed", path=staged_path, error=str(exc))
 
@@ -347,6 +348,21 @@ class AssetIngestor:
                 replacement = f"{replacement} [[ASSET_ID:{asset_id}]]".strip()
                 content = content.replace(p.raw, replacement)
                 replacements[p.raw] = replacement
+
+                # Cleanup: imported staging files are temporary.
+                staged_path = str(it.get("staged_path") or "").strip()
+                if staged_path:
+                    try:
+                        Path(staged_path).unlink(missing_ok=True)  # py3.8+ on Windows supports missing_ok
+                    except TypeError:
+                        try:
+                            pth = Path(staged_path)
+                            if pth.exists():
+                                pth.unlink()
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
                 continue
 
             # Compute basic dimensions (best-effort).
@@ -406,5 +422,20 @@ class AssetIngestor:
             replacement = f"{replacement} [[ASSET_ID:{db_asset_id}]]".strip()
             content = content.replace(p.raw, replacement)
             replacements[p.raw] = replacement
+
+            # Cleanup: imported staging files are temporary.
+            staged_path = str(it.get("staged_path") or "").strip()
+            if staged_path:
+                try:
+                    Path(staged_path).unlink(missing_ok=True)
+                except TypeError:
+                    try:
+                        pth = Path(staged_path)
+                        if pth.exists():
+                            pth.unlink()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
 
         return {"content": content, "asset_ids": created_ids, "ingested": len(created_ids), "replacements": replacements}

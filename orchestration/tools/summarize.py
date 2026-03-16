@@ -6,8 +6,8 @@ from orchestration.tools.base import BaseTool, ToolSpec, ToolResult
 from persistence.document_repository import DocumentRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.settings import settings
-import httpx
 import structlog
+from utils.ollama_api import ollama_chat
 
 log = structlog.get_logger()
 
@@ -50,21 +50,15 @@ class SummarizeDocumentTool(BaseTool):
             focus_hint = f"\nTập trung vào: {focus}" if focus else ""
             prompt = f"Tài liệu: {title}\n\nNội dung:\n{content}{focus_hint}\n\nTóm tắt:"
 
-            async with httpx.AsyncClient(timeout=120) as client:
-                resp = await client.post(
-                    f"{self._base}/api/chat",
-                    json={
-                        "model": self._model,
-                        "messages": [
-                            {"role": "system", "content": SUMMARIZE_SYSTEM},
-                            {"role": "user",   "content": prompt},
-                        ],
-                        "stream": False,
-                        "options": {"num_predict": 400, "temperature": 0.1},
-                    }
-                )
-                resp.raise_for_status()
-                summary_text = resp.json()["message"]["content"].strip()
+            summary_text = await ollama_chat(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": SUMMARIZE_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                options={"num_predict": 400, "temperature": 0.1},
+                timeout=120,
+            )
 
             result = {"document_id": document_id, "title": title, "summary": summary_text}
             log.info("tool.summarize_document", doc_id=document_id)
