@@ -456,8 +456,8 @@ function appendMessage(role, content, sources = [], agentSteps = [], usedTools =
     ? `<button class="sources-toggle-btn" onclick="createTaskFromAnswer('${msgId}')">🧾 Create task</button>`
     : '';
 
-  const srsBtn = (role === 'assistant' && assistantMessageStore[msgId] && (assistantMessageStore[msgId].sources || []).some(s => s && s.document_id))
-    ? `<button class="sources-toggle-btn" onclick="generateSrsFromAnswer('${msgId}')">✨ Generate SRS</button>`
+  const docDraftBtn = (role === 'assistant' && assistantMessageStore[msgId] && (assistantMessageStore[msgId].sources || []).some(s => s && s.document_id))
+    ? `<button class="sources-toggle-btn" onclick="generateDocFromAnswer('${msgId}')">✨ Tạo draft</button>`
     : '';
 
   div.innerHTML = `
@@ -469,7 +469,7 @@ function appendMessage(role, content, sources = [], agentSteps = [], usedTools =
       <div class="msg-footer">
         <span class="msg-time-inline">${formatTime()}</span>
         ${taskBtn}
-        ${srsBtn}
+        ${docDraftBtn}
         ${sourcesBtn}
       </div>
     </div>`;
@@ -637,18 +637,107 @@ async function createTaskFromAnswer(msgId) {
   }
 }
 
-async function generateSrsFromAnswer(msgId) {
+const DOC_DRAFT_TYPES = {
+  srs: 'SRS',
+  brd: 'BRD',
+  api_spec: 'API Spec',
+  use_cases: 'Use Cases',
+  validation_rules: 'Validation Rules',
+  user_stories: 'User Stories',
+  requirements_intake: 'Requirements Intake',
+  requirement_review: 'Requirement Review',
+  solution_design: 'Solution Design',
+  fe_spec: 'FE Spec',
+  qa_test_spec: 'QA Test Spec',
+  deployment_spec: 'Deployment Spec',
+  change_request: 'Change Request',
+  release_notes: 'Release Notes',
+  function_list: 'Function List',
+  risk_log: 'Risk Log',
+};
+
+function docDraftTypeLabel(docType) {
+  const key = String(docType || '').trim().toLowerCase();
+  return DOC_DRAFT_TYPES[key] || key || 'Draft';
+}
+
+async function generateDocFromAnswer(msgId, presetDocType = '') {
   const payload = assistantMessageStore[msgId];
   if (!payload) {
-    showToast('No message context found.', 'error');
+    showToast('Không tìm thấy message context.', 'error');
     return;
   }
 
+  let docType = String(presetDocType || '').trim().toLowerCase();
+  let title = '';
+
+  if (!docType) {
+    const body = document.createElement('div');
+    body.className = 'kp-modal-form-wrap';
+    const form = document.createElement('div');
+    form.className = 'kp-modal-form';
+
+    const typeWrap = document.createElement('div');
+    typeWrap.className = 'kp-modal-field';
+    const typeLab = document.createElement('div');
+    typeLab.className = 'kp-modal-label';
+    typeLab.textContent = 'Loại tài liệu';
+    const typeSelect = document.createElement('select');
+    typeSelect.className = 'time-input kp-modal-input';
+    Object.entries(DOC_DRAFT_TYPES).forEach(([k, v]) => {
+      const opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = v;
+      typeSelect.appendChild(opt);
+    });
+    typeSelect.value = 'srs';
+    typeWrap.appendChild(typeLab);
+    typeWrap.appendChild(typeSelect);
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'kp-modal-field';
+    const titleLab = document.createElement('div');
+    titleLab.className = 'kp-modal-label';
+    titleLab.textContent = 'Tiêu đề (tuỳ chọn)';
+    const titleInput = document.createElement('input');
+    titleInput.className = 'time-input kp-modal-input';
+    titleInput.type = 'text';
+    titleInput.placeholder = 'Tự động';
+    titleWrap.appendChild(titleLab);
+    titleWrap.appendChild(titleInput);
+
+    const help = document.createElement('div');
+    help.className = 'kp-modal-help';
+    help.textContent = 'Hệ thống sẽ dùng các sources (Confluence/Jira/Slack/File) trong câu trả lời này để tạo bản nháp (Markdown).';
+
+    form.appendChild(typeWrap);
+    form.appendChild(titleWrap);
+    form.appendChild(help);
+    body.appendChild(form);
+
+    const cfg = await kpOpenModal({
+      title: 'Tạo bản nháp',
+      subtitle: 'Chọn loại tài liệu cần tạo',
+      content: body,
+      okText: 'Tạo',
+      cancelText: 'Hủy',
+      onOk: async () => {
+        const t = String(typeSelect.value || '').trim().toLowerCase();
+        if (!t) return { error: 'Vui lòng chọn loại tài liệu.' };
+        return { docType: t, title: String(titleInput.value || '').trim() };
+      }
+    });
+    if (!cfg) return;
+    docType = String(cfg.docType || '').trim().toLowerCase();
+    title = String(cfg.title || '').trim();
+  }
+
   try {
-    const response = await authFetch(`${API}/srs/drafts/from-answer`, {
+    const response = await authFetch(`${API}/docs/drafts/from-answer`, {
       method: 'POST',
       body: JSON.stringify({
-        title: '',
+        doc_type: docType || 'srs',
+        title: title || '',
         question: payload.question,
         answer: payload.answer,
         sources: payload.sources || [],
@@ -658,11 +747,108 @@ async function generateSrsFromAnswer(msgId) {
     const data = await response.json();
     const draft = data && data.draft ? data.draft : null;
     if (!draft || !draft.id) throw new Error('Invalid draft response.');
-    showToast('SRS draft generated.', 'success');
-    await openSrsDraftEditor(draft.id);
+    showToast(`Đã tạo bản nháp ${docDraftTypeLabel(docType)}.`, 'success');
+    await openDocDraftEditor(draft.id);
   } catch (error) {
-    showToast(error.message || 'Cannot generate SRS draft.', 'error');
+    showToast(error.message || 'Không thể tạo draft.', 'error');
   }
+}
+
+async function generateSrsFromAnswer(msgId) {
+  return generateDocFromAnswer(msgId, 'srs');
+}
+
+async function openDocDraftEditor(draftId) {
+  const id = String(draftId || '').trim();
+  if (!id) return;
+
+  let draft = null;
+  let supportedDocTypes = null;
+  try {
+    const r = await authFetch(`${API}/docs/drafts/${encodeURIComponent(id)}`);
+    if (!r.ok) throw new Error(await readApiError(r));
+    const data = await r.json();
+    draft = data && data.draft ? data.draft : null;
+    supportedDocTypes = (data && data.supported_doc_types) ? data.supported_doc_types : null;
+  } catch (e) {
+    showToast(e.message || 'Không thể tải draft.', 'error');
+    return;
+  }
+
+  const docType = String((draft && draft.doc_type) || '').trim().toLowerCase();
+  const docTypeLabel = (supportedDocTypes && docType && supportedDocTypes[docType])
+    ? String(supportedDocTypes[docType])
+    : docDraftTypeLabel(docType);
+
+  const body = document.createElement('div');
+  body.className = 'kp-modal-form-wrap';
+  const form = document.createElement('div');
+  form.className = 'kp-modal-form';
+
+  const typeWrap = document.createElement('div');
+  typeWrap.className = 'kp-modal-field';
+  const typeLab = document.createElement('div');
+  typeLab.className = 'kp-modal-label';
+  typeLab.textContent = 'Loại tài liệu';
+  const typeVal = document.createElement('div');
+  typeVal.className = 'kp-modal-help';
+  typeVal.textContent = docTypeLabel;
+  typeWrap.appendChild(typeLab);
+  typeWrap.appendChild(typeVal);
+
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'kp-modal-field';
+  const titleLab = document.createElement('div');
+  titleLab.className = 'kp-modal-label';
+  titleLab.textContent = 'Tiêu đề';
+  const titleInput = document.createElement('input');
+  titleInput.className = 'time-input kp-modal-input';
+  titleInput.type = 'text';
+  titleInput.value = String((draft && draft.title) || 'Draft');
+  titleWrap.appendChild(titleLab);
+  titleWrap.appendChild(titleInput);
+
+  const contentWrap = document.createElement('div');
+  contentWrap.className = 'kp-modal-field';
+  const contentLab = document.createElement('div');
+  contentLab.className = 'kp-modal-label';
+  contentLab.textContent = 'Nội dung (Markdown)';
+  const contentInput = document.createElement('textarea');
+  contentInput.className = 'time-input kp-modal-input';
+  contentInput.value = String((draft && draft.content) || '');
+  contentInput.style.minHeight = '360px';
+  contentWrap.appendChild(contentLab);
+  contentWrap.appendChild(contentInput);
+
+  const help = document.createElement('div');
+  help.className = 'kp-modal-help';
+  help.textContent = 'MVP: chỉnh sửa bản nháp dạng Markdown. (Push to Confluence/Jira sẽ làm ở bước sau.)';
+
+  form.appendChild(typeWrap);
+  form.appendChild(titleWrap);
+  form.appendChild(contentWrap);
+  form.appendChild(help);
+  body.appendChild(form);
+
+  await kpOpenModal({
+    title: docTypeLabel || 'Draft',
+    subtitle: `Draft ID: ${id}`,
+    content: body,
+    okText: 'Lưu',
+    cancelText: 'Đóng',
+    onOk: async () => {
+      const response = await authFetch(`${API}/docs/drafts/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: titleInput.value,
+          content: contentInput.value,
+        }),
+      });
+      if (!response.ok) return { error: await readApiError(response) };
+      showToast('Đã lưu draft.', 'success');
+      return true;
+    }
+  });
 }
 
 async function openSrsDraftEditor(draftId) {
