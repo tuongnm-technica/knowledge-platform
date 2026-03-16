@@ -98,37 +98,16 @@ class EntityORM(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False, index=True)
-    normalized_name = Column(String(255), index=True)
     entity_type = Column(String(100))
 
 
 class EntityRelationORM(Base):
     __tablename__ = "entity_relations"
-    __table_args__ = (
-        Index("uq_entity_relations_triplet", "source_id", "target_id", "relation_type", unique=True),
-    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source_id = Column(UUID(as_uuid=True), ForeignKey("entities.id"))
     target_id = Column(UUID(as_uuid=True), ForeignKey("entities.id"))
     relation_type = Column(String(100))
-
-
-class DocumentEntityORM(Base):
-    __tablename__ = "document_entities"
-
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True)
-    entity_id = Column(UUID(as_uuid=True), ForeignKey("entities.id", ondelete="CASCADE"), primary_key=True)
-    entity_type = Column(String(100), nullable=False)
-
-
-class EntityAliasORM(Base):
-    __tablename__ = "entity_aliases"
-
-    entity_id = Column(UUID(as_uuid=True), ForeignKey("entities.id", ondelete="CASCADE"), primary_key=True)
-    normalized_alias = Column(String(255), primary_key=True)
-    alias_value = Column(String(255), nullable=False)
-    alias_type = Column(String(100), nullable=False, default="identity")
 
 
 class QueryLogORM(Base):
@@ -217,42 +196,8 @@ async def create_tables():
             "ON documents (workspace_id)"
         ))
         await conn.execute(text(
-            "ALTER TABLE entities ADD COLUMN IF NOT EXISTS normalized_name VARCHAR(255)"
-        ))
-        await conn.execute(text(
-            "UPDATE entities SET normalized_name = LOWER(name) WHERE normalized_name IS NULL"
-        ))
-        await conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_entities_normalized_name ON entities (normalized_name)"
-        ))
-        await conn.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_relations_triplet "
-            "ON entity_relations (source_id, target_id, relation_type)"
-        ))
-        await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_chunks_fts "
             "ON chunks USING GIN (to_tsvector('simple', content))"
-        ))
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS document_entities (
-                document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-                entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-                entity_type VARCHAR(100) NOT NULL,
-                PRIMARY KEY (document_id, entity_id)
-            )
-        """))
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS entity_aliases (
-                entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-                normalized_alias VARCHAR(255) NOT NULL,
-                alias_value VARCHAR(255) NOT NULL,
-                alias_type VARCHAR(100) NOT NULL DEFAULT 'identity',
-                PRIMARY KEY (entity_id, normalized_alias)
-            )
-        """))
-        await conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_entity_aliases_normalized_alias "
-            "ON entity_aliases (normalized_alias)"
         ))
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ai_task_drafts (

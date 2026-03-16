@@ -1,44 +1,261 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
 import uuid
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from graph.entity_extractor import EntityExtractor, ExtractedEntity
+from graph.identity_resolver import ResolvedIdentity
 
 
 class KnowledgeGraph:
     def __init__(self, session: AsyncSession):
         self._session = session
+        self._extractor = EntityExtractor()
 
-    async def add_entity(self, name: str, entity_type: str = "UNKNOWN") -> str:
+    async def upsert_entity(self, entity: ExtractedEntity) -> str:
+        existing_id = await self._find_entity_id(
+            normalized_name=entity.normalized_name,
+            entity_type=entity.entity_type,
+        )
+        if existing_id:
+            await self._session.execute(
+                text("""
+                    UPDATE entities
+                    SET name = :name
+                    WHERE id = :id
+                """),
+                {"id": existing_id, "name": entity.name},
+            )
+            await self._upsert_aliases(existing_id, [entity.name], entity.entity_type)
+            return existing_id
+
         entity_id = str(uuid.uuid4())
         await self._session.execute(
             text("""
-                INSERT INTO entities (id, name, entity_type)
-                VALUES (:id, :name, :type)
-                ON CONFLICT DO NOTHING
+                INSERT INTO entities (id, name, normalized_name, entity_type)
+                VALUES (:id, :name, :normalized_name, :entity_type)
             """),
-            {"id": entity_id, "name": name, "type": entity_type},
+            {
+                "id": entity_id,
+                "name": entity.name,
+                "normalized_name": entity.normalized_name,
+                "entity_type": entity.entity_type,
+            },
         )
-        await self._session.commit()
+        await self._upsert_aliases(entity_id, [entity.name], entity.entity_type)
         return entity_id
 
-    async def add_relation(self, source_id: str, target_id: str, relation_type: str) -> None:
+    async def upsert_identity(self, identity: ResolvedIdentity) -> str:
+        existing_id = await self._find_identity_entity_id(identity)
+        if existing_id:
+            await self._session.execute(
+                text("""
+                    UPDATE entities
+                    SET name = :name
+                    WHERE id = :id
+                """),
+                {"id": existing_id, "name": identity.canonical_name},
+            )
+            await self._upsert_aliases(existing_id, identity.aliases, "person")
+            return existing_id
+
+        entity_id = str(uuid.uuid4())
         await self._session.execute(
             text("""
-                INSERT INTO entity_relations (id, source_id, target_id, relation_type)
-                VALUES (:id, :source, :target, :rel)
-                ON CONFLICT DO NOTHING
+                INSERT INTO entities (id, name, normalized_name, entity_type)
+                VALUES (:id, :name, :normalized_name, 'person')
             """),
-            {"id": str(uuid.uuid4()), "source": source_id, "target": target_id, "rel": relation_type},
+            {
+                "id": entity_id,
+                "name": identity.canonical_name,
+                "normalized_name": identity.normalized_name,
+            },
         )
+        await self._upsert_aliases(entity_id, identity.aliases, "person")
+        return entity_id
+
+    async def link_document_entities(self, document_id: str, entities: list[ExtractedEntity]) -> None:
+        await self._session.execute(
+            text("DELETE FROM document_entities WHERE document_id = :document_id AND entity_type != 'person'"),
+            {"document_id": document_id},
+        )
+
+        entity_ids: list[str] = []
+        for entity in entities:
+            entity_id = await self.upsert_entity(entity)
+            entity_ids.append(entity_id)
+            await self._session.execute(
+                text("""
+                    INSERT INTO document_entities (document_id, entity_id, entity_type)
+                    VALUES (:document_id, :entity_id, :entity_type)
+                    ON CONFLICT DO NOTHING
+                """),
+                {
+                    "document_id": document_id,
+                    "entity_id": entity_id,
+                    "entity_type": entity.entity_type,
+                },
+            )
+
+        for left, right in zip(entity_ids, entity_ids[1:]):
+            await self._session.execute(
+                text("""
+                    INSERT INTO entity_relations (id, source_id, target_id, relation_type)
+                    VALUES (:id, :source_id, :target_id, 'co_occurs')
+                    ON CONFLICT DO NOTHING
+                """),
+                {
+                    "id": str(uuid.uuid4()),
+                    "source_id": left,
+                    "target_id": right,
+                },
+            )
+
         await self._session.commit()
 
-    async def find_related_entities(self, entity_name: str) -> list[str]:
+    async def link_document_identities(self, document_id: str, identities: list[ResolvedIdentity]) -> None:
+        await self._session.execute(
+            text("DELETE FROM document_entities WHERE document_id = :document_id AND entity_type = 'person'"),
+            {"document_id": document_id},
+        )
+
+        for identity in identities:
+            entity_id = await self.upsert_identity(identity)
+            await self._session.execute(
+                text("""
+                    INSERT INTO document_entities (document_id, entity_id, entity_type)
+                    VALUES (:document_id, :entity_id, 'person')
+                    ON CONFLICT DO NOTHING
+                """),
+                {
+                    "document_id": document_id,
+                    "entity_id": entity_id,
+                },
+            )
+
+        await self._session.commit()
+
+    async def find_related_documents(
+        self,
+        entity_names: list[str],
+        limit: int = 20,
+    ) -> list[str]:
+        normalized = self._normalize_candidates(entity_names)
+        if not normalized:
+            return []
+
         result = await self._session.execute(
             text("""
-                SELECT e2.name FROM entities e1
+                SELECT de.document_id::text
+                FROM document_entities de
+                JOIN entities e ON e.id = de.entity_id
+                LEFT JOIN entity_aliases ea ON ea.entity_id = e.id
+                WHERE e.normalized_name = ANY(:normalized_names)
+                   OR ea.normalized_alias = ANY(:normalized_names)
+                GROUP BY de.document_id
+                ORDER BY COUNT(*) DESC
+                LIMIT :limit
+            """),
+            {
+                "normalized_names": normalized,
+                "limit": limit,
+            },
+        )
+        return list(result.scalars().all())
+
+    async def find_related_entities(self, entity_name: str) -> list[str]:
+        normalized_values = self._normalize_candidates([entity_name])
+        if not normalized_values:
+            return []
+
+        result = await self._session.execute(
+            text("""
+                SELECT e2.name
+                FROM entities e1
+                LEFT JOIN entity_aliases ea1 ON ea1.entity_id = e1.id
                 JOIN entity_relations er ON er.source_id = e1.id
                 JOIN entities e2 ON e2.id = er.target_id
-                WHERE e1.name = :name LIMIT 20
+                WHERE e1.normalized_name = ANY(:normalized_values)
+                   OR ea1.normalized_alias = ANY(:normalized_values)
+                LIMIT 20
             """),
-            {"name": entity_name},
+            {"normalized_values": normalized_values},
         )
-        return [r[0] for r in result.all()]
+        return [row[0] for row in result.all()]
+
+    async def _find_entity_id(self, normalized_name: str, entity_type: str) -> str | None:
+        result = await self._session.execute(
+            text("""
+                SELECT id::text
+                FROM entities
+                WHERE normalized_name = :normalized_name
+                  AND entity_type = :entity_type
+                LIMIT 1
+            """),
+            {
+                "normalized_name": normalized_name,
+                "entity_type": entity_type,
+            },
+        )
+        return result.scalar()
+
+    async def _find_identity_entity_id(self, identity: ResolvedIdentity) -> str | None:
+        result = await self._session.execute(
+            text("""
+                SELECT e.id::text
+                FROM entities e
+                LEFT JOIN entity_aliases ea ON ea.entity_id = e.id
+                WHERE e.entity_type = 'person'
+                  AND (
+                        e.normalized_name = :normalized_name
+                     OR ea.normalized_alias = :normalized_name
+                     OR ea.normalized_alias = ANY(:aliases)
+                  )
+                LIMIT 1
+            """),
+            {
+                "normalized_name": identity.normalized_name,
+                "aliases": [self._extractor.normalize(alias) for alias in identity.aliases],
+            },
+        )
+        return result.scalar()
+
+    async def _upsert_aliases(self, entity_id: str, aliases: list[str], alias_type: str) -> None:
+        for alias in aliases:
+            normalized_alias = self._extractor.normalize(alias)
+            if not normalized_alias:
+                continue
+            await self._session.execute(
+                text("""
+                    INSERT INTO entity_aliases (entity_id, normalized_alias, alias_value, alias_type)
+                    VALUES (:entity_id, :normalized_alias, :alias_value, :alias_type)
+                    ON CONFLICT (entity_id, normalized_alias)
+                    DO UPDATE SET
+                        alias_value = EXCLUDED.alias_value,
+                        alias_type = EXCLUDED.alias_type
+                """),
+                {
+                    "entity_id": entity_id,
+                    "normalized_alias": normalized_alias,
+                    "alias_value": alias,
+                    "alias_type": alias_type,
+                },
+            )
+
+    def _normalize_candidates(self, entity_names: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+
+        for entity_name in entity_names:
+            typed = self._extractor.extract_typed(entity_name)
+            if typed:
+                candidates = [entity.normalized_name for entity in typed]
+            else:
+                candidates = [self._extractor.normalize(entity_name)]
+
+            for candidate in candidates:
+                if candidate and candidate not in seen:
+                    seen.add(candidate)
+                    normalized.append(candidate)
+
+        return normalized

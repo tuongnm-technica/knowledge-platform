@@ -64,7 +64,8 @@ Nhiệm vụ: Chấm điểm (0-3) mức độ liên quan giữa câu hỏi và 
 
 QUY TẮC BẮT BUỘC:
 1. Nếu câu hỏi có mốc thời gian (vd: 9/2), nội dung PHẢI nhắc đến sự kiện hoặc yêu cầu của ngày đó mới được điểm 3, kể cả khi ngày tạo văn bản là ngày khác.
-2. Ưu tiên cao các từ khóa chuyên môn như "Auction", "đấu giá", "kế hoạch 2026".
+2. Tuyệt đối Ưu tiên nội dung từ content hơn title. Sau đó mới xem xét title.
+3. Ưu tiên cao các từ khóa chuyên môn như "Auction", "đấu giá", "kế hoạch 2026".
 
 Thang điểm:
 3: Trả lời trực tiếp nội dung sự kiện/yêu cầu của ngày được hỏi.

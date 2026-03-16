@@ -90,6 +90,11 @@ class ConfluenceConnector(BaseConnector):
                 "space_name":    space_name,
                 "page_id":       page_id,
                 "raw_html":      body_html,
+                "author_name":   author,
+                "author_username": page.get("history", {}).get("createdBy", {}).get("username", "")
+                                  or page.get("history", {}).get("createdBy", {}).get("name", ""),
+                "author_email":  page.get("history", {}).get("createdBy", {}).get("email", "")
+                                 or page.get("history", {}).get("createdBy", {}).get("emailAddress", ""),
                 "permission_id": f"confluence_space_{space_key}",
             },
             permissions=permissions,

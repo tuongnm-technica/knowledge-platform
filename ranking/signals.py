@@ -12,6 +12,10 @@ def keyword_signal(score: float) -> float:
     return min(score / 5, 1.0)
 
 
+def graph_signal(score: float) -> float:
+    return max(0.0, min(1.0, score))
+
+
 def recency_signal(updated_at: datetime | None) -> float:
     if updated_at is None:
         return 0.0

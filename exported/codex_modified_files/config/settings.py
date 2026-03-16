@@ -25,7 +25,6 @@ class Settings(BaseSettings):
 
     HYBRID_ALPHA: float = 0.5
     BM25_WEIGHT: float = 0.3
-    GRAPH_WEIGHT: float = 0.2
     RECENCY_WEIGHT: float = 0.1
     POPULARITY_WEIGHT: float = 0.1
     TOP_K: int = 10
