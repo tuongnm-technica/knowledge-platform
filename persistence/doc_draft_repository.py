@@ -130,3 +130,90 @@ class DocDraftRepository:
         await self._session.commit()
         return await self.get(draft_id)
 
+    async def list_recent(
+        self,
+        *,
+        created_by: str | None,
+        limit: int = 50,
+        doc_type: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 200))
+        created_by = (created_by or "").strip() or None
+        doc_type = (doc_type or "").strip().lower() or None
+        status = (status or "").strip().lower() or None
+
+        where: list[str] = []
+        params: dict[str, Any] = {"limit": limit}
+        if created_by is not None:
+            where.append("created_by = :created_by")
+            params["created_by"] = created_by
+        if doc_type is not None:
+            where.append("doc_type = :doc_type")
+            params["doc_type"] = doc_type
+        if status is not None:
+            where.append("status = :status")
+            params["status"] = status
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+        rows = (
+            await self._session.execute(
+                text(
+                    f"""
+                    SELECT
+                      id::text AS id,
+                      doc_type,
+                      title,
+                      created_by,
+                      status,
+                      created_at,
+                      updated_at,
+                      source_document_ids,
+                      source_snapshot
+                    FROM doc_drafts
+                    {where_sql}
+                    ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+                    LIMIT :limit
+                    """
+                ),
+                params,
+            )
+        ).mappings().all()
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            item = dict(r)
+            for k in ("source_document_ids", "source_snapshot"):
+                if isinstance(item.get(k), str):
+                    try:
+                        item[k] = json.loads(item[k]) if item[k] else ([] if k == "source_document_ids" else {})
+                    except Exception:
+                        item[k] = ([] if k == "source_document_ids" else {})
+            out.append(item)
+        return out
+
+    async def delete(
+        self,
+        draft_id: str,
+        *,
+        created_by: str | None = None,
+        allow_any: bool = False,
+    ) -> bool:
+        draft_id = str(draft_id or "").strip()
+        if not draft_id:
+            return False
+
+        params: dict[str, Any] = {"id": draft_id}
+        where = "id::text = :id"
+        if not allow_any:
+            created_by = (created_by or "").strip() or None
+            if created_by is None:
+                return False
+            where += " AND created_by = :created_by"
+            params["created_by"] = created_by
+
+        res = await self._session.execute(
+            text(f"DELETE FROM doc_drafts WHERE {where}"),
+            params,
+        )
+        await self._session.commit()
+        return bool(getattr(res, "rowcount", 0) or 0)

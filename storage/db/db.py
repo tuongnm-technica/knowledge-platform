@@ -92,7 +92,7 @@ class UserORM(Base):
     password_hash = Column(String(255))
     is_active = Column(Boolean, nullable=False, default=True)
     is_admin = Column(Boolean, nullable=False, default=False)
-    role = Column(String(50), nullable=False, default="member")
+    role = Column(String(50), nullable=False, default="standard")
 
 
 class GroupORM(Base):
@@ -309,7 +309,13 @@ async def create_tables():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"
         ))
         await conn.execute(text(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'member'"
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'standard'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE users ALTER COLUMN role SET DEFAULT 'standard'"
+        ))
+        await conn.execute(text(
+            "UPDATE users SET role = 'standard' WHERE role IS NULL OR role = ''"
         ))
         await conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_source_source_id "

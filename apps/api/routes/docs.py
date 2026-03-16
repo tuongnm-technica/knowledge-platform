@@ -38,6 +38,7 @@ class FromDocumentsRequest(BaseModel):
 class DraftUpdateRequest(BaseModel):
     title: str | None = Field(default=None, max_length=255)
     content: str | None = None
+    status: str | None = Field(default=None, max_length=30)
 
 
 def _extract_doc_ids(sources: list[dict]) -> list[str]:
@@ -256,6 +257,24 @@ async def get_doc_draft(
     return {"draft": draft, "viewer": {"user_id": current_user.user_id}, "supported_doc_types": SUPPORTED_DOC_TYPES}
 
 
+@router.get("/drafts")
+async def list_doc_drafts(
+    limit: int = 50,
+    doc_type: str | None = None,
+    status: str | None = None,
+    session: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    # MVP: list only own drafts (admin can add a global list later).
+    drafts = await DocDraftRepository(session).list_recent(
+        created_by=current_user.user_id,
+        limit=limit,
+        doc_type=doc_type,
+        status=status,
+    )
+    return {"drafts": drafts, "supported_doc_types": SUPPORTED_DOC_TYPES}
+
+
 @router.put("/drafts/{draft_id}")
 async def update_doc_draft(
     draft_id: str,
@@ -267,7 +286,24 @@ async def update_doc_draft(
         draft_id,
         title=req.title,
         content=req.content,
+        status=req.status,
     )
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found.")
     return {"draft": draft}
+
+
+@router.delete("/drafts/{draft_id}")
+async def delete_doc_draft(
+    draft_id: str,
+    session: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    ok = await DocDraftRepository(session).delete(
+        draft_id,
+        created_by=current_user.user_id,
+        allow_any=bool(current_user.is_admin),
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail="Draft not found (or not allowed).")
+    return {"status": "deleted", "id": str(draft_id)}

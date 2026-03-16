@@ -60,6 +60,10 @@
       <span class="nav-icon">📌</span> Giỏ ngữ cảnh
       <span class="nav-badge" id="basketBadge" style="display:none">0</span>
     </div>
+    <div class="nav-item" id="nav-drafts" onclick="navigate('drafts', this)">
+      <span class="nav-icon">📝</span> Drafts
+      <span class="nav-badge" id="draftsBadge" style="display:none">0</span>
+    </div>
     <div class="nav-item" id="nav-tasks" onclick="navigate('tasks', this)">
       <span class="nav-icon">🤖</span> Tasks
       <span class="nav-badge" id="tasksBadge" style="display:none">0</span>
@@ -215,6 +219,37 @@
         <div class="connector-section-title" style="margin:0 0 10px">Danh sách item</div>
         <div id="basketPageList" class="basket-list" style="padding:0"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── DRAFTS PAGE ── -->
+  <div class="page" id="page-drafts">
+    <div class="connectors-content">
+      <div class="page-intro">
+        <div>
+          <div class="intro-kicker">Draft management</div>
+          <div class="intro-title">Drafts</div>
+          <div class="intro-sub">Danh sách tài liệu nháp do AI sinh ra (lưu trong database). Bạn có thể mở để edit hoặc xóa.</div>
+        </div>
+        <div class="connectors-toolbar-actions">
+          <select id="draftsTypeFilter" class="time-input" onchange="loadDraftsPage(true)">
+            <option value="">All types</option>
+            <option value="srs">SRS</option>
+            <option value="brd">BRD</option>
+            <option value="api_spec">API Spec</option>
+            <option value="use_cases">Use Cases</option>
+            <option value="validation_rules">Validation Rules</option>
+            <option value="user_stories">User Stories</option>
+            <option value="fe_spec">FE Spec</option>
+            <option value="qa_test_spec">QA Test Spec</option>
+            <option value="deployment_spec">Deployment Spec</option>
+            <option value="change_request">Change Request</option>
+          </select>
+          <button class="secondary-btn" onclick="loadDraftsPage(true)">Refresh</button>
+        </div>
+      </div>
+
+      <div class="search-results" id="draftsList"></div>
     </div>
   </div>
 

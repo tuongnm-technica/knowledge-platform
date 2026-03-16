@@ -6,7 +6,17 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.auth.dependencies import CurrentUser, require_admin
+from apps.api.auth.dependencies import (
+    CurrentUser,
+    ROLE_BA_SA,
+    ROLE_DEV_QA,
+    ROLE_KNOWLEDGE_ARCHITECT,
+    ROLE_PM_PO,
+    ROLE_STANDARD,
+    ROLE_SYSTEM_ADMIN,
+    normalize_role,
+    require_admin,
+)
 from storage.db.db import get_db
 
 try:
@@ -18,13 +28,33 @@ except ImportError:  # pragma: no cover - runtime safeguard
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+_ALLOWED_ROLES: set[str] = {
+    ROLE_SYSTEM_ADMIN,
+    ROLE_KNOWLEDGE_ARCHITECT,
+    ROLE_PM_PO,
+    ROLE_BA_SA,
+    ROLE_DEV_QA,
+    ROLE_STANDARD,
+}
+
+
+def _normalize_role(role: str | None, *, strict: bool) -> str:
+    normalized = normalize_role(role or ROLE_STANDARD, is_admin=False)
+    if normalized not in _ALLOWED_ROLES:
+        if not strict:
+            return ROLE_STANDARD
+        allowed = ", ".join(sorted(_ALLOWED_ROLES))
+        raise HTTPException(status_code=400, detail=f"Role khong hop le: {normalized}. Allowed: {allowed}")
+    return normalized
+
+
 class UserCreateRequest(BaseModel):
     email: EmailStr
     display_name: str = Field(..., min_length=1, max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
     is_active: bool = True
     is_admin: bool = False
-    role: str = Field(default="member", max_length=50)
+    role: str = Field(default=ROLE_STANDARD, max_length=50)
     group_ids: list[str] = Field(default_factory=list)
 
 
@@ -70,7 +100,7 @@ async def list_users_admin(
                 u.display_name,
                 u.is_active,
                 u.is_admin,
-                COALESCE(u.role, 'member') AS role,
+                COALESCE(u.role, 'standard') AS role,
                 COALESCE(
                     JSON_AGG(
                         JSON_BUILD_OBJECT('id', g.id, 'name', g.name)
@@ -100,14 +130,18 @@ async def list_users_admin(
     for row in users_result.mappings().all():
         groups = list(row["groups"] or [])
         group_overrides = list(row.get("group_overrides") or [])
+        role = _normalize_role(row.get("role") or ROLE_STANDARD, strict=False)
+        # Backward compatible: admin flag implies system_admin.
+        if bool(row["is_admin"]) and role != ROLE_SYSTEM_ADMIN:
+            role = ROLE_SYSTEM_ADMIN
         users.append(
             {
                 "id": row["id"],
                 "email": row["email"],
                 "display_name": row["display_name"] or row["email"],
                 "is_active": row["is_active"],
-                "is_admin": row["is_admin"],
-                "role": row.get("role") or "member",
+                "is_admin": bool(row["is_admin"]) or role == ROLE_SYSTEM_ADMIN,
+                "role": role,
                 "groups": groups,
                 "group_ids": [group["id"] for group in groups],
                 "group_overrides": group_overrides,
@@ -170,6 +204,11 @@ async def create_user_admin(
     user_id = _make_user_id(req.email)
     password_hash = _hash_password(req.password)
 
+    role = _normalize_role(req.role or ROLE_STANDARD, strict=True)
+    if bool(req.is_admin):
+        role = ROLE_SYSTEM_ADMIN
+    is_admin = role == ROLE_SYSTEM_ADMIN
+
     await db.execute(
         text(
             """
@@ -183,8 +222,8 @@ async def create_user_admin(
             "display_name": req.display_name.strip(),
             "password_hash": password_hash,
             "is_active": req.is_active,
-            "is_admin": req.is_admin,
-            "role": (req.role or "member").strip().lower(),
+            "is_admin": is_admin,
+            "role": role,
         },
     )
     await _replace_user_groups(db, user_id, group_ids)
@@ -200,7 +239,7 @@ async def update_user_admin(
     current_user: CurrentUser = Depends(require_admin),
 ):
     result = await db.execute(
-        text("SELECT id, email FROM users WHERE id = :id"),
+        text("SELECT id, email, is_admin, COALESCE(role, 'standard') AS role FROM users WHERE id = :id"),
         {"id": user_id},
     )
     row = result.mappings().first()
@@ -235,15 +274,23 @@ async def update_user_admin(
         updates.append("is_active = :is_active")
         params["is_active"] = req.is_active
 
-    if req.is_admin is not None:
+    next_role: str | None = None
+    if req.role is not None:
+        next_role = _normalize_role(req.role, strict=True)
+        if req.is_admin is True:
+            next_role = ROLE_SYSTEM_ADMIN
+        if current_user.user_id == user_id and next_role != ROLE_SYSTEM_ADMIN:
+            raise HTTPException(status_code=400, detail="Khong the tu ha quyen admin cua chinh minh")
+    elif req.is_admin is not None:
         if current_user.user_id == user_id and not req.is_admin:
             raise HTTPException(status_code=400, detail="Khong the tu ha quyen admin cua chinh minh")
-        updates.append("is_admin = :is_admin")
-        params["is_admin"] = req.is_admin
+        next_role = ROLE_SYSTEM_ADMIN if req.is_admin else ROLE_STANDARD
 
-    if req.role is not None:
+    if next_role is not None:
         updates.append("role = :role")
-        params["role"] = (req.role or "member").strip().lower()
+        params["role"] = next_role
+        updates.append("is_admin = :is_admin")
+        params["is_admin"] = (next_role == ROLE_SYSTEM_ADMIN)
 
     if updates:
         await db.execute(

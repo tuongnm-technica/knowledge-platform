@@ -17,7 +17,7 @@ const AUTH = {
       email: data.email,
       display_name: data.display_name || currentUser.display_name || '',
       is_admin: data.is_admin,
-      role: data.role || currentUser.role || 'member'
+      role: data.role || currentUser.role || 'standard'
     }));
   },
   clear() {
@@ -111,6 +111,7 @@ function hideLoginScreen() {
   applyUser(AUTH.user);
   renderBasket();
   updateBasketBadges();
+  loadDraftsCount();
   checkHealth();
   loadConnectorStats();
   if (document.getElementById('page-users')?.classList.contains('active') && AUTH.user.is_admin) {
@@ -121,6 +122,54 @@ function hideLoginScreen() {
 function showLoginScreen() {
   AUTH.clear();
   location.reload();
+}
+
+function normalizeUserRole(role, isAdmin) {
+  if (isAdmin) return 'system_admin';
+  const r = String(role || '').trim().toLowerCase();
+  const aliases = {
+    admin: 'system_admin',
+    system_admin: 'system_admin',
+    sysadmin: 'system_admin',
+    knowledge_architect: 'knowledge_architect',
+    prompt_engineer: 'knowledge_architect',
+    pm: 'pm_po',
+    po: 'pm_po',
+    product_owner: 'pm_po',
+    project_manager: 'pm_po',
+    team_lead: 'pm_po',
+    lead: 'pm_po',
+    ba: 'ba_sa',
+    sa: 'ba_sa',
+    business_analyst: 'ba_sa',
+    system_analyst: 'ba_sa',
+    dev: 'dev_qa',
+    developer: 'dev_qa',
+    qa: 'dev_qa',
+    qa_engineer: 'dev_qa',
+    member: 'standard',
+    standard: 'standard',
+  };
+  return aliases[r] || (r || 'standard');
+}
+
+function getUserRoleLabel(roleCode) {
+  const labels = {
+    system_admin: 'System Administrator',
+    knowledge_architect: 'Knowledge Architect / Prompt Engineer',
+    pm_po: 'Project Manager / Product Owner',
+    ba_sa: 'Business Analyst / System Analyst',
+    dev_qa: 'Developer / QA Engineer',
+    standard: 'Standard Member / Newcomer',
+  };
+  return labels[String(roleCode || '').toLowerCase()] || 'Standard Member / Newcomer';
+}
+
+function getUserRoleTagClass(roleCode) {
+  const code = String(roleCode || '').toLowerCase();
+  if (code === 'system_admin') return 'tag-blue';
+  if (code === 'knowledge_architect') return 'tag-purple';
+  return 'tag-green';
 }
 
 function applyUser(u) {
@@ -138,9 +187,8 @@ function applyUser(u) {
   if (el) el.textContent = (name[0] || 'U').toUpperCase();
   if (nm) nm.textContent = name;
   if (rl) {
-    const r = String(u.role || '').toLowerCase();
-    const label = u.is_admin ? 'Admin' : (r === 'pm' ? 'PM' : (r === 'team_lead' || r === 'lead' ? 'Team Lead' : 'Member'));
-    rl.textContent = label;
+    const roleCode = normalizeUserRole(u.role, u.is_admin);
+    rl.textContent = getUserRoleLabel(roleCode);
   }
   if (navUsers) navUsers.style.display = u.is_admin ? '' : 'none';
   if (navGraph) navGraph.style.display = u.is_admin ? '' : 'none';
@@ -542,9 +590,10 @@ function navigate(page, el) {
   if (targetPage === 'tasks') loadTasks();
   if (targetPage === 'connectors') loadConnectorStats(true);
   if (targetPage === 'basket') loadBasketPage();
+  if (targetPage === 'drafts') loadDraftsPage(true);
   if (targetPage === 'users') loadUsersAdmin();
   if (targetPage === 'graph') loadGraphDashboard(true);
-  const titles = { chat: 'Chat AI', search: 'Search', basket: 'Giỏ Ngữ Cảnh', tasks: '🤖 AI Tasks', connectors: 'Connectors', history: 'Lịch sử Chat', users: 'Users & Permissions' };
+  const titles = { chat: 'Chat AI', search: 'Search', basket: 'Giỏ Ngữ Cảnh', drafts: 'Drafts', tasks: '🤖 AI Tasks', connectors: 'Connectors', history: 'Lịch sử Chat', users: 'Users & Permissions' };
   if (targetPage === 'graph') {
     document.getElementById('pageTitle').textContent = 'Knowledge Graph';
   } else {
@@ -1101,6 +1150,117 @@ async function openSyncProgressModal({ title = 'Sync progress', connectors = [],
   stopped = true;
   clearInterval(intervalId);
   await loadConnectorStats(true);
+}
+
+async function loadDraftsPage(force = false) {
+  if (!AUTH.token) return;
+  const list = document.getElementById('draftsList');
+  if (!list) return;
+  if (!force && !document.getElementById('page-drafts')?.classList.contains('active')) return;
+
+  const typeEl = document.getElementById('draftsTypeFilter');
+  const docType = String(typeEl ? typeEl.value : '').trim();
+
+  list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px">Loading drafts...</div>';
+  try {
+    const url = `${API}/docs/drafts?limit=120${docType ? `&doc_type=${encodeURIComponent(docType)}` : ''}`;
+    const r = await authFetch(url);
+    if (!r.ok) throw new Error(await readApiError(r));
+    const data = await r.json();
+    const drafts = (data && data.drafts) ? data.drafts : [];
+
+    updateDraftsBadge(drafts.length);
+
+    if (!drafts.length) {
+      list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px">Chưa có draft nào.</div>';
+      return;
+    }
+
+    list.innerHTML = drafts.map(d => {
+      const idRaw = String(d.id || '').trim();
+      const id = escapeHtml(idRaw);
+      const title = escapeHtml(String(d.title || 'Draft'));
+      const type = escapeHtml(String(d.doc_type || ''));
+      const st = escapeHtml(String(d.status || 'draft'));
+      const updated = formatDateTime(d.updated_at || d.created_at);
+      const srcIds = Array.isArray(d.source_document_ids) ? d.source_document_ids.length : (d.source_document_ids ? 1 : 0);
+      const srcSnap = (d && d.source_snapshot && typeof d.source_snapshot === 'object') ? d.source_snapshot : {};
+      const sources = Array.isArray(srcSnap.sources) ? srcSnap.sources : [];
+      const sourcesHtml = sources.length
+        ? `<div class="draft-sources">
+            ${sources.slice(0, 5).map(s => {
+              const ss = (s && typeof s === 'object') ? s : {};
+              const src = escapeHtml(String(ss.source || ''));
+              const url = String(ss.url || '').trim();
+              const stitle = escapeHtml(String(ss.title || 'Untitled'));
+              const icon = getSourceIcon(String(ss.source || ''));
+              const link = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${stitle}</a>` : `<span>${stitle}</span>`;
+              return `<div class="draft-source"><span>${icon}</span><span class="result-source-badge ${getBadgeClass(src)}">${src || 'doc'}</span>${link}</div>`;
+            }).join('')}
+            ${sources.length > 5 ? `<div class="draft-source"><span>…</span><span>${sources.length - 5} nguồn khác</span></div>` : ''}
+          </div>`
+        : '';
+      return `
+        <div class="draft-card" id="draft-${idRaw}">
+          <div class="result-header" style="margin-bottom:6px">
+            <span class="result-source-badge badge-confluence">${type || 'draft'}</span>
+            <span class="result-title">${title}</span>
+            <span class="result-score">${st}</span>
+          </div>
+          <div class="result-content">Updated: ${escapeHtml(updated || '—')} · Sources: ${formatNumber(srcIds)}</div>
+          ${sourcesHtml}
+          <div class="draft-actions">
+            <button class="secondary-btn" onclick="openDocDraftEditor('${id}')">Edit</button>
+            <button class="danger-btn" onclick="deleteDocDraft('${id}')">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--danger);text-align:center;padding:40px">Cannot load drafts: ${escapeHtml(e.message || 'API error')}</div>`;
+  }
+}
+
+function updateDraftsBadge(count) {
+  const badge = document.getElementById('draftsBadge');
+  if (!badge) return;
+  const n = Number(count || 0) || 0;
+  badge.textContent = String(n);
+  badge.style.display = n ? '' : 'none';
+}
+
+async function loadDraftsCount() {
+  try {
+    const r = await authFetch(`${API}/docs/drafts?limit=200`);
+    if (!r.ok) return;
+    const data = await r.json();
+    const drafts = (data && data.drafts) ? data.drafts : [];
+    updateDraftsBadge(Array.isArray(drafts) ? drafts.length : 0);
+  } catch {}
+}
+
+async function deleteDocDraft(draftId) {
+  const id = String(draftId || '').trim();
+  if (!id) return;
+  const ok = await kpConfirm({
+    title: 'Xóa draft',
+    message: 'Bạn chắc chắn muốn xóa draft này?',
+    okText: 'Xóa',
+    cancelText: 'Hủy',
+    danger: true,
+  });
+  if (!ok) return;
+
+  try {
+    const r = await authFetch(`${API}/docs/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(await readApiError(r));
+    const el = document.getElementById(`draft-${id}`);
+    if (el) el.remove();
+    showToast('Đã xóa draft.', 'success');
+    await loadDraftsCount();
+  } catch (e) {
+    showToast(e.message || 'Không thể xóa draft.', 'error');
+  }
 }
 
 const DOC_DRAFT_TYPES = {
@@ -1852,7 +2012,8 @@ function renderUsersTable(users) {
     const groups = (user.groups || []).map(group => (
       `<span class="tag ${group.id === 'group_admin' ? 'tag-blue' : 'tag-purple'}">${escapeHtml(group.name || group.id)}</span>`
     )).join(' ');
-    const roleClass = user.is_admin ? 'tag-blue' : 'tag-green';
+    const roleCode = normalizeUserRole(user.role, user.is_admin);
+    const roleClass = getUserRoleTagClass(roleCode);
     const statusClass = user.is_active ? 'tag-green' : 'tag-purple';
     const toggleLabel = user.is_active ? 'Disable' : 'Enable';
 
@@ -1868,7 +2029,7 @@ function renderUsersTable(users) {
       </td>
       <td>${email}</td>
       <td>${groups || '<span class="muted-cell">No groups</span>'}</td>
-      <td><span class="tag ${roleClass}">${user.is_admin ? 'Admin' : 'Member'}</span></td>
+      <td><span class="tag ${roleClass}">${escapeHtml(getUserRoleLabel(roleCode))}</span></td>
       <td><span class="tag ${statusClass}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
       <td>
         <button class="action-btn" onclick="editUser('${escapeHtml(user.id)}')">Edit</button>
@@ -1945,6 +2106,19 @@ function renderUserEditor() {
   }
 
   const selectedGroupIds = new Set(user?.group_ids || []);
+  const selectedRoleCode = normalizeUserRole(user?.role, user?.is_admin);
+  const roleOptions = [
+    'standard',
+    'dev_qa',
+    'ba_sa',
+    'pm_po',
+    'knowledge_architect',
+    'system_admin',
+  ].map(code => `
+    <option value="${escapeHtml(code)}" ${code === selectedRoleCode ? 'selected' : ''}>
+      ${escapeHtml(getUserRoleLabel(code))}
+    </option>
+  `).join('');
   const groupOptions = adminDirectory.groups.length
     ? adminDirectory.groups.map(group => `
         <label class="admin-group-option">
@@ -1980,6 +2154,10 @@ function renderUserEditor() {
           <input id="user-email" name="email" type="email" value="${escapeHtml(user?.email || '')}" required />
         </div>
         <div class="admin-field">
+          <label for="user-role">Role</label>
+          <select id="user-role" name="role">${roleOptions}</select>
+        </div>
+        <div class="admin-field">
           <label for="user-password">${isEdit ? 'New password (optional)' : 'Password'}</label>
           <input id="user-password" name="password" type="password" ${isEdit ? '' : 'required'} minlength="8" />
         </div>
@@ -1989,10 +2167,6 @@ function renderUserEditor() {
         <label class="admin-check">
           <input type="checkbox" name="is_active" ${user?.is_active === false ? '' : 'checked'} />
           <span>Active</span>
-        </label>
-        <label class="admin-check">
-          <input type="checkbox" name="is_admin" ${user?.is_admin ? 'checked' : ''} />
-          <span>Admin</span>
         </label>
       </div>
 
@@ -2018,8 +2192,8 @@ async function submitUserEditor(event) {
   const payload = {
     display_name: form.display_name.value.trim(),
     email: form.email.value.trim(),
+    role: form.role.value,
     is_active: form.is_active.checked,
-    is_admin: form.is_admin.checked,
     group_ids: [...form.querySelectorAll('input[name="group_ids"]:checked')].map(input => input.value),
   };
   const password = form.password.value.trim();

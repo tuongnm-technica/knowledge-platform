@@ -271,15 +271,15 @@ async def seed_users_groups(session: AsyncSession):
 
     # Tạo users
     users = [
-        ("user_001", "alice@company.com",   "Alice Nguyen", "Password123!", True),
-        ("user_002", "bob@company.com",     "Bob Tran", "Password123!", False),
-        ("user_003", "charlie@company.com", "Charlie Le", "Password123!", False),
+        ("user_001", "alice@company.com",   "Alice Nguyen", "Password123!", True,  "system_admin"),
+        ("user_002", "bob@company.com",     "Bob Tran", "Password123!", False, "pm_po"),
+        ("user_003", "charlie@company.com", "Charlie Le", "Password123!", False, "standard"),
     ]
-    for user_id, email, name, password, is_admin in users:
+    for user_id, email, name, password, is_admin, role in users:
         await session.execute(
             text("""
-                INSERT INTO users (id, email, display_name, password_hash, is_active, is_admin)
-                VALUES (:id, :email, :name, :password_hash, TRUE, :is_admin)
+                INSERT INTO users (id, email, display_name, password_hash, is_active, is_admin, role)
+                VALUES (:id, :email, :name, :password_hash, TRUE, :is_admin, :role)
                 ON CONFLICT DO NOTHING
             """),
             {
@@ -288,6 +288,7 @@ async def seed_users_groups(session: AsyncSession):
                 "name": name,
                 "password_hash": _hash_password(password),
                 "is_admin": is_admin,
+                "role": role,
             },
         )
 

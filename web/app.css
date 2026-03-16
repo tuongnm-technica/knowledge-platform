@@ -1001,6 +1001,58 @@
   .result-content { font-size: 13px; color: var(--text-muted); line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; text-overflow: ellipsis;} 
   .result-url { font-size: 11px; color: var(--text-dim); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+  .draft-card {
+    padding: 18px 20px;
+    background: rgba(255,255,255,0.68);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow);
+    border-radius: 22px;
+    transition: all 0.18s ease;
+    animation: fadeUp 0.3s ease;
+  }
+
+  [data-theme="dark"] .draft-card {
+    background: rgba(19,28,34,0.72);
+  }
+
+  .draft-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 12px;
+  }
+
+  .draft-sources {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .draft-source {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .draft-source a {
+    color: var(--accent);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .draft-source a:hover {
+    text-decoration: underline;
+  }
+
   /* ── CONNECTORS PAGE ── */
   .connectors-content {
     flex: 1;
@@ -2103,6 +2155,17 @@
     background: rgba(255,255,255,0.9);
     color: var(--text);
     font: inherit;
+  }
+
+  .admin-field select {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.9);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
   }
 
   .admin-inline-checks {

@@ -17,11 +17,13 @@ class PermissionFilter:
         """
         try:
             r = await self._session.execute(
-                text("SELECT is_admin FROM users WHERE id = :id"),
+                text("SELECT is_admin, COALESCE(role, '') AS role FROM users WHERE id = :id"),
                 {"id": user_id},
             )
-            is_admin = bool(r.scalar() or False)
-            if is_admin:
+            row = r.mappings().first() or {}
+            is_admin = bool(row.get("is_admin") or False)
+            role = str(row.get("role") or "").strip().lower()
+            if is_admin or role == "system_admin":
                 return None
         except Exception:
             pass

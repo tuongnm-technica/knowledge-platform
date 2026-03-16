@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.auth.dependencies import CurrentUser, get_current_user
+from apps.api.auth.dependencies import CurrentUser, ROLE_SYSTEM_ADMIN, get_current_user, normalize_role
 from apps.api.auth.jwt_handler import create_access_token, create_refresh_token, decode_token
 from storage.db.db import get_db
 
@@ -43,7 +43,7 @@ class TokenResponse(BaseModel):
     email: str
     display_name: str | None = None
     is_admin: bool
-    role: str = "member"
+    role: str = "standard"
 
 
 class RefreshRequest(BaseModel):
@@ -55,7 +55,7 @@ class MeResponse(BaseModel):
     email: str
     display_name: str | None
     is_admin: bool
-    role: str = "member"
+    role: str = "standard"
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -63,7 +63,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         text("""
             SELECT id, email, display_name, password_hash, is_active, is_admin
-                 , COALESCE(role, 'member') AS role
+                 , COALESCE(role, 'standard') AS role
             FROM users
             WHERE email = :email
         """),
@@ -77,7 +77,9 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             detail="Email hoac mat khau khong dung",
         )
 
-    access_token = create_access_token(row["id"], row["email"], row["is_admin"], row.get("role") or "member")
+    role = normalize_role(row.get("role") or "standard", is_admin=bool(row["is_admin"]))
+    effective_admin = bool(row["is_admin"]) or role == ROLE_SYSTEM_ADMIN
+    access_token = create_access_token(row["id"], row["email"], effective_admin, role)
     refresh_token = create_refresh_token(row["id"])
 
     return TokenResponse(
@@ -86,8 +88,8 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         user_id=row["id"],
         email=row["email"],
         display_name=row["display_name"],
-        is_admin=row["is_admin"],
-        role=row.get("role") or "member",
+        is_admin=effective_admin,
+        role=role,
     )
 
 
@@ -105,7 +107,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
         )
 
     result = await db.execute(
-        text("SELECT id, email, display_name, is_active, is_admin, COALESCE(role, 'member') AS role FROM users WHERE id = :id"),
+        text("SELECT id, email, display_name, is_active, is_admin, COALESCE(role, 'standard') AS role FROM users WHERE id = :id"),
         {"id": payload["sub"]},
     )
     row = result.mappings().first()
@@ -116,7 +118,9 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
             detail="Tai khoan khong hop le",
         )
 
-    access_token = create_access_token(row["id"], row["email"], row["is_admin"], row.get("role") or "member")
+    role = normalize_role(row.get("role") or "standard", is_admin=bool(row["is_admin"]))
+    effective_admin = bool(row["is_admin"]) or role == ROLE_SYSTEM_ADMIN
+    access_token = create_access_token(row["id"], row["email"], effective_admin, role)
     refresh_token = create_refresh_token(row["id"])
 
     return TokenResponse(
@@ -125,8 +129,8 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
         user_id=row["id"],
         email=row["email"],
         display_name=row["display_name"],
-        is_admin=row["is_admin"],
-        role=row.get("role") or "member",
+        is_admin=effective_admin,
+        role=role,
     )
 
 
@@ -136,7 +140,7 @@ async def me(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        text("SELECT id, email, display_name, is_admin, COALESCE(role, 'member') AS role FROM users WHERE id = :id"),
+        text("SELECT id, email, display_name, is_admin, COALESCE(role, 'standard') AS role FROM users WHERE id = :id"),
         {"id": current_user.user_id},
     )
     row = result.mappings().first()
@@ -144,10 +148,12 @@ async def me(
     if not row:
         raise HTTPException(status_code=404, detail="User khong ton tai")
 
+    role = normalize_role(row.get("role") or "standard", is_admin=bool(row["is_admin"]))
+    effective_admin = bool(row["is_admin"]) or role == ROLE_SYSTEM_ADMIN
     return MeResponse(
         user_id=row["id"],
         email=row["email"],
         display_name=row["display_name"],
-        is_admin=row["is_admin"],
-        role=row.get("role") or "member",
+        is_admin=effective_admin,
+        role=role,
     )
