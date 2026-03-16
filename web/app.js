@@ -110,6 +110,7 @@ function hideLoginScreen() {
   setTimeout(() => s.remove(), 300);
   applyUser(AUTH.user);
   renderBasket();
+  updateBasketBadges();
   checkHealth();
   loadConnectorStats();
   if (document.getElementById('page-users')?.classList.contains('active') && AUTH.user.is_admin) {
@@ -271,6 +272,12 @@ async function refreshBasketDetails() {
   const ids = (basketState.items || []).map(i => i.document_id);
   if (!ids.length) return renderBasket();
   try {
+    const sub = document.getElementById('basketSub');
+    const sub2 = document.getElementById('basketPageSub');
+    if (sub) sub.textContent = `${(basketState.items || []).length} items · đang tải...`;
+    if (sub2) sub2.textContent = `${(basketState.items || []).length} items · đang tải...`;
+  } catch {}
+  try {
     const r = await authFetch(`${API}/documents/batch`, {
       method: 'POST',
       body: JSON.stringify({ ids, include_content: false }),
@@ -323,14 +330,22 @@ async function basketAddDocument(documentId, { openDrawer = true, silent = false
 
 async function basketAddDocuments(docIds, { openDrawer = true } = {}) {
   const ids = Array.isArray(docIds) ? docIds : [];
-  let added = 0;
-  for (const id of ids) {
+  _loadBasket();
+  const existing = new Set((basketState.items || []).map(i => i.document_id));
+  const unique = [];
+  const seen = new Set();
+  for (const v of ids) {
+    const s = String(v || '').trim();
+    if (!s || seen.has(s) || existing.has(s)) continue;
+    seen.add(s);
+    unique.push(s);
+  }
+  for (const id of unique) {
     // best-effort, don't await sequentially
     basketAddDocument(id, { openDrawer: false, silent: true });
-    added++;
   }
   if (openDrawer) openBasketDrawer();
-  if (added) showToast(`Đã ghim ${added} item vào giỏ.`, 'success');
+  if (unique.length) showToast(`Đã ghim ${unique.length} item vào giỏ.`, 'success');
 }
 
 function basketRemoveDocument(documentId) {
@@ -393,19 +408,39 @@ async function basketPreviewDocument(documentId) {
 }
 
 function renderBasket() {
-  const list = document.getElementById('basketList');
-  const sub = document.getElementById('basketSub');
-  const tokenText = document.getElementById('basketTokenText');
-  const fill = document.getElementById('basketProgressFill');
-  const hint = document.getElementById('basketTokenHint');
+  renderBasketInto({
+    listId: 'basketList',
+    subId: 'basketSub',
+    tokenTextId: 'basketTokenText',
+    progressFillId: 'basketProgressFill',
+    tokenHintId: 'basketTokenHint',
+  });
+  renderBasketInto({
+    listId: 'basketPageList',
+    subId: 'basketPageSub',
+    tokenTextId: 'basketPageTokenText',
+    progressFillId: 'basketPageProgressFill',
+    tokenHintId: 'basketPageTokenHint',
+  });
+  updateBasketBadges();
+}
+
+function renderBasketInto({ listId, subId, tokenTextId, progressFillId, tokenHintId } = {}) {
+  const list = document.getElementById(String(listId || ''));
   if (!list) return;
+
+  const sub = document.getElementById(String(subId || ''));
+  const tokenText = document.getElementById(String(tokenTextId || ''));
+  const fill = document.getElementById(String(progressFillId || ''));
+  const hint = document.getElementById(String(tokenHintId || ''));
 
   _loadBasket();
   const items = basketState.items || [];
   const used = _basketTokenUsed();
   const pct = Math.max(0, Math.min(100, (used / BASKET_TOKEN_LIMIT) * 100));
+  const selectedCount = _basketIncludedIds().length;
 
-  if (sub) sub.textContent = `${items.length} items · ${_basketIncludedIds().length} selected`;
+  if (sub) sub.textContent = `${items.length} items · ${selectedCount} selected`;
   if (tokenText) tokenText.textContent = `${used.toLocaleString('vi-VN')} / ${BASKET_TOKEN_LIMIT.toLocaleString('vi-VN')} tokens`;
   if (fill) {
     fill.style.width = pct.toFixed(1) + '%';
@@ -457,6 +492,25 @@ function renderBasket() {
   }).join('');
 }
 
+function updateBasketBadges() {
+  _loadBasket();
+  const count = (basketState.items || []).length;
+  const badge = document.getElementById('basketBadge');
+  if (badge) {
+    badge.textContent = String(count);
+    badge.style.display = count ? '' : 'none';
+  }
+  const fab = document.getElementById('basketFab');
+  if (fab) {
+    fab.title = count ? `Giỏ ngữ cảnh (${count})` : 'Giỏ ngữ cảnh';
+  }
+}
+
+function loadBasketPage() {
+  renderBasket();
+  refreshBasketDetails();
+}
+
 async function basketRunSkill() {
   _loadBasket();
   const ids = _basketIncludedIds();
@@ -487,9 +541,10 @@ function navigate(page, el) {
   document.getElementById('page-' + targetPage).classList.add('active');
   if (targetPage === 'tasks') loadTasks();
   if (targetPage === 'connectors') loadConnectorStats(true);
+  if (targetPage === 'basket') loadBasketPage();
   if (targetPage === 'users') loadUsersAdmin();
   if (targetPage === 'graph') loadGraphDashboard(true);
-  const titles = { chat: 'Chat AI', search: 'Search', tasks: '🤖 AI Tasks', connectors: 'Connectors', history: 'Lịch sử Chat', users: 'Users & Permissions' };
+  const titles = { chat: 'Chat AI', search: 'Search', basket: 'Giỏ Ngữ Cảnh', tasks: '🤖 AI Tasks', connectors: 'Connectors', history: 'Lịch sử Chat', users: 'Users & Permissions' };
   if (targetPage === 'graph') {
     document.getElementById('pageTitle').textContent = 'Knowledge Graph';
   } else {
@@ -878,11 +933,18 @@ async function syncConnector(name) {
     if (!response.ok) {
       throw new Error(await readApiError(response));
     }
+    const data = await response.json().catch(() => ({}));
+    if (String(data.status || '') !== 'started') {
+      showToast(data.reason || 'Sync skipped.', 'info');
+      await loadConnectorStats(true);
+      return;
+    }
 
-    showToast(`${name} sync started.`);
-    await loadConnectorStats(true);
-    [5000, 15000, 30000, 60000].forEach(delay => {
-      setTimeout(() => loadConnectorStats(), delay);
+    const connectorKey = String(data.connector || `${conn.connector_type}:${conn.instance_id}`);
+    showToast('Đã bắt đầu sync. Đang theo dõi tiến độ...', 'success');
+    await openSyncProgressModal({
+      title: `Sync progress`,
+      connectors: [connectorKey],
     });
   } catch (error) {
     showToast(error.message || `Cannot sync ${name}.`, 'error');
@@ -918,6 +980,127 @@ async function createTaskFromAnswer(msgId) {
   } catch (error) {
     showToast(error.message || 'Cannot create task draft.', 'error');
   }
+}
+
+async function openSyncProgressModal({ title = 'Sync progress', connectors = [], skipped = [] } = {}) {
+  const keys = Array.isArray(connectors) ? connectors.map(k => String(k || '').trim()).filter(Boolean) : [];
+  if (!keys.length) return;
+
+  const body = document.createElement('div');
+  body.className = 'kp-modal-form-wrap';
+
+  const header = document.createElement('div');
+  header.className = 'kp-modal-help';
+  header.textContent = 'Mẹo: bạn có thể đóng cửa sổ này; sync vẫn chạy ở background.';
+  body.appendChild(header);
+
+  const list = document.createElement('div');
+  list.style.display = 'flex';
+  list.style.flexDirection = 'column';
+  list.style.gap = '10px';
+  list.style.marginTop = '10px';
+  body.appendChild(list);
+
+  const skippedBox = document.createElement('div');
+  skippedBox.className = 'kp-modal-help';
+  skippedBox.style.marginTop = '10px';
+  body.appendChild(skippedBox);
+
+  function labelForKey(key) {
+    const c = connectorIndex[String(key)] || null;
+    if (c && c.name) return `${c.name} (${key})`;
+    return key;
+  }
+
+  function renderRow(key, run) {
+    const status = run ? String(run.status || '') : 'never';
+    const fetched = run ? Number(run.fetched || 0) : 0;
+    const indexed = run ? Number(run.indexed || 0) : 0;
+    const errors = run ? Number(run.errors || 0) : 0;
+    const startedAt = run ? (run.started_at || '') : '';
+
+    const indeterminate = status === 'running' && fetched <= 0;
+    const pct = (status !== 'running')
+      ? 100
+      : (fetched > 0 ? Math.max(0, Math.min(99, Math.round((indexed / Math.max(1, fetched)) * 100))) : 0);
+    const barClass = indeterminate ? 'connector-progress indeterminate' : 'connector-progress';
+    const color = errors > 0 ? `linear-gradient(90deg, var(--warn), var(--danger))` : `linear-gradient(90deg, var(--accent3), var(--accent))`;
+
+    return `
+      <div style="border:1px solid var(--border);border-radius:16px;padding:10px 10px;background:rgba(255,255,255,0.62)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <div style="font-weight:900">${escapeHtml(labelForKey(key))}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(status)}${startedAt ? ` · ${escapeHtml(formatDateTime(startedAt))}` : ''}</div>
+        </div>
+        <div class="${barClass}"><div class="connector-progress-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--text-muted)">
+          <span>Fetched ${formatNumber(fetched)}</span>
+          <span>Indexed ${formatNumber(indexed)}</span>
+          <span>Errors ${formatNumber(errors)}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  let stopped = false;
+  let tick = 0;
+
+  async function poll() {
+    if (stopped) return;
+    tick++;
+    try {
+      const r = await authFetch(`${API}/connectors/sync/status`, {
+        method: 'POST',
+        body: JSON.stringify({ connectors: keys }),
+      });
+      if (!r.ok) throw new Error(await readApiError(r));
+      const data = await r.json();
+      const statuses = (data && data.statuses) ? data.statuses : {};
+
+      let doneCount = 0;
+      list.innerHTML = keys.map(key => {
+        const run = statuses[key] ? statuses[key].run : null;
+        if (run && String(run.status || '') !== 'running' && run.finished_at) doneCount++;
+        return renderRow(key, run);
+      }).join('');
+
+      if (Array.isArray(skipped) && skipped.length) {
+        const txt = skipped.slice(0, 10).map(s => `${s.connector || ''}: ${s.reason || ''}`.trim()).filter(Boolean).join(' · ');
+        skippedBox.textContent = `Skipped: ${txt}${skipped.length > 10 ? ' ...' : ''}`;
+        skippedBox.style.display = '';
+      } else {
+        skippedBox.style.display = 'none';
+      }
+
+      if (doneCount === keys.length) {
+        stopped = true;
+        showToast('Sync hoàn tất.', 'success');
+        await loadConnectorStats(true);
+      }
+    } catch (e) {
+      if (tick <= 2) {
+        // ignore transient on start
+      } else {
+        showToast(e.message || 'Không lấy được tiến độ sync.', 'error');
+      }
+    }
+  }
+
+  await poll();
+  const intervalId = setInterval(poll, 1200);
+
+  await kpOpenModal({
+    title,
+    subtitle: `${keys.length} connector(s)`,
+    content: body,
+    okText: 'Đóng',
+    cancelText: '',
+    onOk: () => true,
+  });
+
+  stopped = true;
+  clearInterval(intervalId);
+  await loadConnectorStats(true);
 }
 
 const DOC_DRAFT_TYPES = {
@@ -2882,6 +3065,25 @@ function renderConnectorHistory(history) {
   `).join('');
 }
 
+function renderConnectorProgress(run, running) {
+  if (!running) return '';
+  const fetched = Number((run || {}).fetched || 0) || 0;
+  const indexed = Number((run || {}).indexed || 0) || 0;
+  const errors = Number((run || {}).errors || 0) || 0;
+
+  const indeterminate = fetched <= 0;
+  let pct = 0;
+  if (!indeterminate) {
+    pct = Math.max(0, Math.min(99, Math.round((indexed / Math.max(1, fetched)) * 100)));
+  }
+  const color = errors > 0 ? `linear-gradient(90deg, var(--warn), var(--danger))` : `linear-gradient(90deg, var(--accent3), var(--accent))`;
+  return `
+    <div class="connector-progress ${indeterminate ? 'indeterminate' : ''}" title="${indeterminate ? 'Fetching...' : `${indexed}/${fetched}`}">
+      <div class="connector-progress-fill" style="width:${pct}%;background:${color}"></div>
+    </div>
+  `;
+}
+
 function pad2(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return '';
@@ -3068,6 +3270,8 @@ function renderConnectorCard(connector) {
             <span>Errors ${formatNumber((latestRun || {}).errors)}</span>
           </div>
         </div>
+
+        ${renderConnectorProgress(latestRun, sync.running)}
 
         <div class="connector-capabilities">
           ${(connector.capabilities || []).map(capability => `<span class="connector-capability">${escapeHtml(capability)}</span>`).join('')}
@@ -3693,13 +3897,18 @@ async function syncCurrentConnectorTab() {
     const data = await response.json();
     const started = data.started || [];
     const skipped = data.skipped || [];
-    showToast(
-      started.length
-        ? `Started ${started.length} sync(s) for ${tab}.`
-        : `No connector started for ${tab}. ${skipped.length ? 'All were skipped.' : ''}`,
-      started.length ? 'success' : 'error'
-    );
-    await loadConnectorStats(true);
+    if (!started.length) {
+      showToast(`Không có connector nào được sync cho ${tab}.`, skipped.length ? 'info' : 'error');
+      await loadConnectorStats(true);
+      return;
+    }
+
+    showToast(`Đã bắt đầu ${started.length} sync cho ${tab}.`, 'success');
+    await openSyncProgressModal({
+      title: `Sync progress · ${tab.toUpperCase()}`,
+      connectors: started,
+      skipped,
+    });
   } catch (error) {
     showToast(error.message || `Cannot sync ${tab}.`, 'error');
   } finally {

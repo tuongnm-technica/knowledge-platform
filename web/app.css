@@ -2925,3 +2925,30 @@
     background: rgba(19,28,34,0.72);
   }
 
+  /* ── Connector sync progress ───────────────────────────────────────────── */
+  .connector-progress {
+    margin-top: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(100,116,139,0.18);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .connector-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent3), var(--accent));
+    transition: width .2s ease;
+  }
+
+  .connector-progress.indeterminate .connector-progress-fill {
+    width: 38%;
+    animation: connectorIndeterminate 1.2s ease-in-out infinite;
+  }
+
+  @keyframes connectorIndeterminate {
+    0%   { transform: translateX(-90%); }
+    100% { transform: translateX(290%); }
+  }
+

@@ -56,6 +56,10 @@
     <div class="nav-item" onclick="navigate('search', this)">
       <span class="nav-icon">🔍</span> Search
     </div>
+    <div class="nav-item" id="nav-basket" onclick="navigate('basket', this)">
+      <span class="nav-icon">📌</span> Giỏ ngữ cảnh
+      <span class="nav-badge" id="basketBadge" style="display:none">0</span>
+    </div>
     <div class="nav-item" id="nav-tasks" onclick="navigate('tasks', this)">
       <span class="nav-icon">🤖</span> Tasks
       <span class="nav-badge" id="tasksBadge" style="display:none">0</span>
@@ -176,6 +180,41 @@
           onkeydown="if(event.key==='Enter') doSearch()">
       </div>
       <div class="search-results" id="searchResults"></div>
+    </div>
+  </div>
+
+  <!-- ── BASKET PAGE ── -->
+  <div class="page" id="page-basket">
+    <div class="connectors-content">
+      <div class="page-intro">
+        <div>
+          <div class="intro-kicker">Context curation</div>
+          <div class="intro-title">Giỏ Ngữ Cảnh</div>
+          <div class="intro-sub">Quản trị các tài liệu đã ghim, lọc “rác” trước khi chạy Skill để tránh Garbage In/Garbage Out.</div>
+        </div>
+        <div class="connectors-toolbar-actions">
+          <button class="secondary-btn" onclick="refreshBasketDetails()">Refresh</button>
+          <button class="danger-btn" onclick="clearBasket()">Xóa giỏ</button>
+          <button class="primary-btn" onclick="basketRunSkill()">🚀 Chạy Skill</button>
+        </div>
+      </div>
+
+      <div class="basket-token" style="margin:0 18px 18px;border-radius:18px;border:1px solid var(--border);background:rgba(255,255,255,0.65)">
+        <div class="basket-token-row">
+          <div class="basket-token-label">Dung lượng não AI</div>
+          <div class="basket-token-value" id="basketPageTokenText">0 / 32000</div>
+        </div>
+        <div class="basket-progress">
+          <div class="basket-progress-fill" id="basketPageProgressFill" style="width:0%"></div>
+        </div>
+        <div class="basket-token-hint" id="basketPageTokenHint" style="display:none"></div>
+        <div class="basket-sub" id="basketPageSub" style="margin-top:8px">0 items</div>
+      </div>
+
+      <div class="graph-panel" style="margin:0 18px 18px">
+        <div class="connector-section-title" style="margin:0 0 10px">Danh sách item</div>
+        <div id="basketPageList" class="basket-list" style="padding:0"></div>
+      </div>
     </div>
   </div>
 

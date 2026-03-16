@@ -1,4 +1,5 @@
 import inspect
+import time
 
 import structlog
 
@@ -62,7 +63,13 @@ class IngestionPipeline:
             return stats
 
         stats["fetched"] = len(documents)
+        try:
+            await self._sync_repo.update_progress(log_id, fetched=stats["fetched"], indexed=0, errors=0)
+        except Exception:
+            pass
 
+        last_flush = time.monotonic()
+        flush_every = 10
         for doc in documents:
             try:
                 await self._process(doc, connector_key=connector_key or connector_name)
@@ -70,6 +77,19 @@ class IngestionPipeline:
             except Exception as e:
                 log.error("ingestion.doc.error", doc_id=doc.id, error=str(e))
                 stats["errors"] += 1
+
+            # Lightweight progress heartbeat for UI.
+            if (stats["indexed"] + stats["errors"]) % flush_every == 0 or (time.monotonic() - last_flush) > 2.0:
+                last_flush = time.monotonic()
+                try:
+                    await self._sync_repo.update_progress(
+                        log_id,
+                        fetched=stats["fetched"],
+                        indexed=stats["indexed"],
+                        errors=stats["errors"],
+                    )
+                except Exception:
+                    pass
 
         status = "success" if stats["errors"] == 0 else "partial"
         await self._sync_repo.finish_sync(

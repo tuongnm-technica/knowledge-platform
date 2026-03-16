@@ -1,5 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Depends
+from datetime import datetime
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.auth.dependencies import CurrentUser, get_current_user, require_admin
@@ -21,6 +24,25 @@ from storage.db.db import get_db
 
 
 router = APIRouter(prefix="/connectors", tags=["connectors"])
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+def _serialize_run(row: dict | None) -> dict | None:
+    if not row:
+        return None
+    return {
+        "id": int(row.get("id") or 0),
+        "status": str(row.get("status") or ""),
+        "started_at": _iso(row.get("started_at")),
+        "finished_at": _iso(row.get("finished_at")),
+        "last_sync_at": _iso(row.get("last_sync_at")),
+        "fetched": int(row.get("fetched") or 0),
+        "indexed": int(row.get("indexed") or 0),
+        "errors": int(row.get("errors") or 0),
+    }
 
 
 @router.get("")
@@ -84,6 +106,10 @@ class ConnectorInstanceUpdateRequest(BaseModel):
     username: str | None = None
     secret: str | None = None
     extra: dict | None = None
+
+
+class SyncStatusRequest(BaseModel):
+    connectors: list[str] = Field(default_factory=list, max_length=60)
 
 
 @router.get("/{connector_type}/instances")
@@ -200,6 +226,81 @@ async def sync_connector_instance(
         instance_id,
         incremental=True,
     )
+
+
+@router.get("/{connector_type}/instances/{instance_id}/sync/status")
+async def connector_sync_status(
+    connector_type: str,
+    instance_id: str,
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_admin),
+):
+    connector_key = f"{connector_type}:{instance_id}"
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT id, status, started_at, finished_at, last_sync_at, fetched, indexed, errors
+                FROM sync_logs
+                WHERE connector = :connector
+                ORDER BY COALESCE(started_at, last_sync_at) DESC, id DESC
+                LIMIT 1
+                """
+            ),
+            {"connector": connector_key},
+        )
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No sync run found for this connector instance.")
+    run = _serialize_run(dict(row))
+    return {"connector": connector_key, "run": run}
+
+
+@router.post("/sync/status")
+async def connectors_sync_status(
+    req: SyncStatusRequest,
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_admin),
+):
+    keys = [str(k or "").strip() for k in (req.connectors or []) if str(k or "").strip()]
+    seen: set[str] = set()
+    connectors: list[str] = []
+    for k in keys:
+        if k in seen:
+            continue
+        seen.add(k)
+        connectors.append(k)
+    if not connectors:
+        return {"statuses": {}}
+    if len(connectors) > 60:
+        raise HTTPException(status_code=400, detail="Too many connectors (max 60).")
+
+    rows = (
+        await session.execute(
+            text(
+                """
+                SELECT connector, id, status, started_at, finished_at, last_sync_at, fetched, indexed, errors
+                FROM sync_logs
+                WHERE connector = ANY(:connectors)
+                ORDER BY connector, COALESCE(started_at, last_sync_at) DESC, id DESC
+                """
+            ),
+            {"connectors": connectors},
+        )
+    ).mappings().all()
+
+    latest: dict[str, dict] = {}
+    for r in rows:
+        key = str(r.get("connector") or "")
+        if not key or key in latest:
+            continue
+        latest[key] = dict(r)
+
+    statuses: dict[str, dict] = {}
+    for key in connectors:
+        run = _serialize_run(latest.get(key))
+        statuses[key] = {"run": run}
+    return {"statuses": statuses}
 
 
 @router.post("/{connector_type}/sync-all")
