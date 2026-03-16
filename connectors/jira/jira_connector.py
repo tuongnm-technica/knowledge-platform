@@ -99,6 +99,29 @@ class JiraConnector(BaseConnector):
 
         comments_text = self._format_comments(fields.get("comment") or {})
 
+        # Attachments: screenshots/diagrams are critical context (added as placeholders for later vision ingestion).
+        image_attachments: list[dict] = []
+        for att in (fields.get("attachment") or []):
+            if not isinstance(att, dict):
+                continue
+            mimetype = str(att.get("mimeType") or att.get("mime_type") or "").strip().lower()
+            if mimetype and not mimetype.startswith("image/"):
+                continue
+            att_id = str(att.get("id") or "").strip()
+            filename = str(att.get("filename") or att.get("name") or "attachment").strip()
+            content_url = str(att.get("content") or "").strip()
+            if not (att_id or content_url):
+                continue
+            image_attachments.append(
+                {
+                    "id": att_id,
+                    "filename": filename,
+                    "mime_type": mimetype,
+                    "content_url": content_url,
+                    "size": int(att.get("size") or 0) or None,
+                }
+            )
+
         meta_lines = [
             f"Key: {issue_key}" if issue_key else "",
             f"Project: {project_key} ({project_name})",
@@ -121,6 +144,15 @@ class JiraConnector(BaseConnector):
         if comments_text:
             parts.append("## Comments")
             parts.append(comments_text)
+        if image_attachments:
+            parts.append("## Attachments (images)")
+            for att in image_attachments[:20]:
+                fid = str(att.get("id") or "").strip()
+                fn = str(att.get("filename") or "").strip() or "image"
+                if fid:
+                    parts.append(f"- {fn} [[JIRA_ATTACHMENT:{fid}]]")
+                else:
+                    parts.append(f"- {fn} [[JIRA_ATTACHMENT]]")
 
         content = "\n\n".join([p for p in parts if p and str(p).strip()]).strip()
         if len(content) < 10:
@@ -154,6 +186,7 @@ class JiraConnector(BaseConnector):
                 "assignee_account": fields.get("assignee", {}).get("name", "") or fields.get("assignee", {}).get("accountId", ""),
                 "permission_id": f"group_jira_project_{str(project_key or '').strip().lower()}",
                 "comment_count": self._comment_count(fields.get("comment") or {}),
+                "image_attachments": image_attachments,
             },
             permissions=permissions,
             workspace_id=workspace_id,  # ← thêm

@@ -9,11 +9,11 @@ import uuid
 import hashlib
 import json
 import structlog
-from sqlalchemy import text, select, func
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
-from tasks.models import AITaskDraftORM, TaskDraftOut
+from tasks.models import TaskDraftOut
 
 log = structlog.get_logger()
 
@@ -112,12 +112,16 @@ class TaskDraftRepository:
 
     async def get_open(self) -> list[dict]:
         """Lấy tất cả draft đang pending/confirmed (chưa submit)."""
-        stmt = (
-            select(AITaskDraftORM)
-            .where(AITaskDraftORM.status.in_(["pending", "confirmed"]))
-            .order_by(AITaskDraftORM.created_at.desc())
+        result = await self._session.execute(
+            text(
+                """
+                SELECT *
+                FROM ai_task_drafts
+                WHERE status IN ('pending', 'confirmed')
+                ORDER BY created_at DESC
+                """
+            )
         )
-        result = await self._session.execute(stmt)
         return [dict(r) for r in result.mappings().all()]
 
     async def get_by_status(self, statuses: list[str]) -> list[dict]:
@@ -128,12 +132,17 @@ class TaskDraftRepository:
         statuses = [str(s).strip() for s in (statuses or []) if str(s).strip()]
         if not statuses:
             return []
-        stmt = (
-            select(AITaskDraftORM)
-            .where(AITaskDraftORM.status.in_(statuses))
-            .order_by(AITaskDraftORM.created_at.desc())
+        result = await self._session.execute(
+            text(
+                """
+                SELECT *
+                FROM ai_task_drafts
+                WHERE status = ANY(:statuses)
+                ORDER BY created_at DESC
+                """
+            ),
+            {"statuses": statuses},
         )
-        result = await self._session.execute(stmt)
         return [dict(r) for r in result.mappings().all()]
 
     async def get_by_id(self, draft_id: str) -> dict | None:
@@ -144,11 +153,10 @@ class TaskDraftRepository:
         return dict(row._mapping) if row else None
 
     async def count_pending(self) -> int:
-        stmt = select(func.count()).select_from(AITaskDraftORM).where(
-            AITaskDraftORM.status.in_(['pending', 'confirmed'])
+        result = await self._session.execute(
+            text("SELECT COUNT(*) FROM ai_task_drafts WHERE status IN ('pending', 'confirmed')")
         )
-        result = await self._session.execute(stmt)
-        return result.scalar() or 0
+        return int(result.scalar() or 0)
 
     # ─── Update ───────────────────────────────────────────────────────────────
 

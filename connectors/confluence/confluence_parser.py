@@ -1,10 +1,54 @@
 from bs4 import BeautifulSoup
+from bs4 import NavigableString
 import structlog
 
 log = structlog.get_logger()
 
 
 class ConfluenceParser:
+
+    @staticmethod
+    def _image_placeholder(tag) -> str:
+        """
+        Turn Confluence image nodes into stable placeholders so ingestion can later:
+        - download/capture the image
+        - run caption/OCR (vision)
+        - link the asset to the nearest paragraph/chunk
+        """
+        name = (getattr(tag, "name", "") or "").lower()
+        if name == "img":
+            src = str(tag.get("src") or "").strip()
+            alt = str(tag.get("alt") or "").strip()
+            if src and alt:
+                return f"[[IMAGE_URL:{src}|{alt}]]"
+            if src:
+                return f"[[IMAGE_URL:{src}]]"
+            return "[[IMAGE]]"
+
+        if name == "ac:image" or name.endswith(":image"):
+            att = tag.find(lambda t: str(getattr(t, "name", "") or "").lower().endswith(":attachment"))
+            if att:
+                filename = str(att.get("ri:filename") or att.get("filename") or "").strip()
+                if filename:
+                    return f"[[IMAGE:{filename}]]"
+            ri_url = tag.find(lambda t: str(getattr(t, "name", "") or "").lower().endswith(":url"))
+            if ri_url:
+                value = str(ri_url.get("ri:value") or ri_url.get("value") or "").strip()
+                if value:
+                    return f"[[IMAGE_URL:{value}]]"
+            return "[[IMAGE]]"
+
+        return "[[IMAGE]]"
+
+    def _inject_image_placeholders(self, tag) -> None:
+        if not tag or not hasattr(tag, "find_all"):
+            return
+        for img in list(tag.find_all(["ac:image", "img"])):
+            try:
+                placeholder = self._image_placeholder(img)
+                img.replace_with(NavigableString(f" {placeholder} "))
+            except Exception:
+                continue
 
     def parse(self, html_body: str) -> str:
         """Parse HTML thành plain text — dùng cho content chính."""
@@ -65,6 +109,12 @@ class ConfluenceParser:
 
         for tag in soup.find_all(tags):
             name = (tag.name or "").lower()
+
+            # Keep image placeholders inside the block where they appear.
+            try:
+                self._inject_image_placeholders(tag)
+            except Exception:
+                pass
 
             if name in {"h1", "h2", "h3", "h4"}:
                 _flush()

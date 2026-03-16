@@ -71,6 +71,7 @@ class JiraClient:
             "created",
             "updated",
             "comment",
+            "attachment",
         ]
 
     def get_projects(self) -> list[dict]:

@@ -173,6 +173,20 @@ class ConfluenceConnector(BaseConnector):
         if not content or len(content.strip()) < 20:
             return None
 
+        # Collect image placeholders so ingestion can fetch + caption the assets later.
+        img_files = re.findall(r"\[\[IMAGE:([^\]]+)\]\]", content or "")
+        img_urls_raw = re.findall(r"\[\[IMAGE_URL:([^\]]+)\]\]", content or "")
+        img_urls: list[dict] = []
+        for raw in img_urls_raw:
+            raw = str(raw or "").strip()
+            if not raw:
+                continue
+            if "|" in raw:
+                url, alt = raw.split("|", 1)
+                img_urls.append({"url": url.strip(), "alt": alt.strip()})
+            else:
+                img_urls.append({"url": raw.strip(), "alt": ""})
+
         author_info = page.get("history", {}).get("createdBy", {})
         author = author_info.get("displayName", "unknown")
         web_ui = page.get("_links", {}).get("webui", "")
@@ -210,6 +224,8 @@ class ConfluenceConnector(BaseConnector):
                 "stable_url": ui_url,
                 "webui": web_ui,
                 "raw_html": body_html,
+                "image_attachments": [{"filename": f.strip()} for f in img_files if str(f or "").strip()],
+                "image_urls": img_urls,
                 "author_name": author,
                 "author_username": author_info.get("username", "") or author_info.get("name", ""),
                 "author_email": author_info.get("email", "") or author_info.get("emailAddress", ""),

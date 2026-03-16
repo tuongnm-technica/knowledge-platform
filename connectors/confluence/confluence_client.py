@@ -2,6 +2,9 @@ from atlassian import Confluence
 from config.settings import settings
 from datetime import datetime
 import structlog
+from urllib.parse import urljoin
+
+import httpx
 
 log = structlog.get_logger()
 
@@ -19,6 +22,7 @@ class ConfluenceClient:
         url = (base_url or settings.CONFLUENCE_URL or "").strip()
         token = (api_token or settings.CONFLUENCE_API_TOKEN or "").strip()
         auth_type = (auth_type or "token").strip().lower()
+        username = (username or settings.CONFLUENCE_USERNAME or "").strip() or None
         cloud_flag = bool(getattr(settings, "CONFLUENCE_CLOUD", False))
         if cloud is not None:
             cloud_flag = bool(cloud)
@@ -26,6 +30,12 @@ class ConfluenceClient:
         if not url or not token:
             raise ValueError("CONFLUENCE_URL va CONFLUENCE_API_TOKEN chua duoc cau hinh")
             raise ValueError("CONFLUENCE_URL và CONFLUENCE_API_TOKEN chưa được cấu hình")
+
+        self._base_url = url.rstrip("/")
+        self._token = token
+        self._username = username
+        self._auth_type = auth_type
+        self._verify_tls = bool(getattr(settings, "CONFLUENCE_VERIFY_TLS", True))
 
         if auth_type == "basic":
             user = (username or "").strip()
@@ -45,6 +55,65 @@ class ConfluenceClient:
                 cloud=cloud_flag,
                 timeout=120,
             )
+
+    def _http(self) -> httpx.Client:
+        headers = {"Accept": "application/json"}
+        if self._auth_type == "basic" and self._username:
+            return httpx.Client(timeout=60, verify=self._verify_tls, auth=(self._username, self._token), headers=headers)
+        return httpx.Client(timeout=60, verify=self._verify_tls, headers={**headers, "Authorization": f"Bearer {self._token}"})
+
+    def list_attachments(self, page_id: str, limit: int = 200) -> list[dict]:
+        pid = str(page_id or "").strip()
+        if not pid:
+            return []
+        url = f"{self._base_url}/rest/api/content/{pid}/child/attachment"
+        try:
+            with self._http() as client:
+                resp = client.get(url, params={"limit": int(limit)})
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception as exc:
+            log.warning("confluence.attachments.list_failed", page_id=pid, error=str(exc))
+            return []
+
+        results = data.get("results", []) if isinstance(data, dict) else []
+        out: list[dict] = []
+        for item in results if isinstance(results, list) else []:
+            if not isinstance(item, dict):
+                continue
+            filename = str(item.get("title") or "").strip()
+            links = item.get("_links") or {}
+            download = str(links.get("download") or "").strip() if isinstance(links, dict) else ""
+            if not download:
+                continue
+            full = download if download.startswith("http") else urljoin(self._base_url + "/", download.lstrip("/"))
+
+            meta = item.get("metadata") or {}
+            mime_type = str(meta.get("mediaType") or meta.get("media_type") or "").strip() if isinstance(meta, dict) else ""
+
+            file_size = None
+            try:
+                extensions = item.get("extensions") or {}
+                if isinstance(extensions, dict):
+                    file_size = int(extensions.get("fileSize") or 0) or None
+            except Exception:
+                file_size = None
+
+            out.append({"filename": filename, "mime_type": mime_type, "download_url": full, "size": file_size})
+        return out
+
+    def download_attachment(self, download_url: str) -> bytes:
+        href = str(download_url or "").strip()
+        if not href:
+            return b""
+        try:
+            with self._http() as client:
+                resp = client.get(href, headers={"Accept": "*/*"})
+                resp.raise_for_status()
+                return resp.content or b""
+        except Exception as exc:
+            log.warning("confluence.attachments.download_failed", url=href, error=str(exc))
+            return b""
 
     def get_spaces(self) -> list[dict]:
         try:

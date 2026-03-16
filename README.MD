@@ -101,3 +101,19 @@ knowledge-platform
 ├ run.py                            -- Entry point chạy server (uvicorn)
 ├ requirements.txt                  -- Danh sách dependencies Python
 └ README.md                         -- Tài liệu mô tả project
+
+---
+
+## Vision / Image Context (Multiple Vision)
+
+Hệ thống hỗ trợ ingest ảnh (diagram/screenshot/chart/whiteboard) từ Confluence/Jira/Slack/File Server:
+
+- Connectors chèn placeholder `[[IMAGE:...]]`, `[[SLACK_FILE:...]]`, `[[JIRA_ATTACHMENT:...]]`, `[[IMPORTED_ASSET:...]]` vào text.
+- Ingestion sẽ tải ảnh về `ASSETS_DIR`, lưu metadata vào DB (`document_assets`, `chunk_assets`), (tuỳ chọn) chạy caption/OCR bằng Ollama vision model và chèn lại caption vào content để embedding/search match được.
+- Q&A có thể gửi kèm 1-2 ảnh liên quan nhất cho vision model (nếu bật).
+
+Biến môi trường chính (xem `config/settings.py`):
+
+- `ASSETS_DIR=assets`
+- `VISION_ENABLED=true`
+- `OLLAMA_VISION_MODEL=llava:13b` (cần model vision được cài trong Ollama)

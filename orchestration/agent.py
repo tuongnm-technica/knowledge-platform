@@ -5,6 +5,8 @@ Main agent orchestration.
 import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
+import re
 
 from config.settings import settings
 from graph.knowledge_graph import KnowledgeGraph
@@ -13,8 +15,10 @@ from orchestration.react_loop import ReActLoop, ReActResult
 from orchestration.tools import build_tool_registry
 from permissions.filter import PermissionFilter
 from persistence.document_repository import DocumentRepository
+from persistence.asset_repository import AssetRepository
 from ranking.scorer import RankingScorer
 from retrieval.hybrid.hybrid_search import HybridSearch
+from utils.vision_answer import answer_with_images
 
 
 log = structlog.get_logger()
@@ -76,6 +80,60 @@ class Agent:
                 pass
 
         sources = self._format_sources(result.sources)
+
+        # Optional: run a final vision-aware answer pass if we have image assets for the retrieved chunks.
+        # Captions are already injected into text, but vision can answer "explain this diagram/screenshot" more reliably.
+        if settings.VISION_ENABLED and str(settings.OLLAMA_VISION_MODEL or "").strip():
+            try:
+                chunk_ids = [str(s.get("chunk_id") or "").strip() for s in (result.sources or []) if str(s.get("chunk_id") or "").strip()]
+                chunk_ids = list(dict.fromkeys(chunk_ids))[:12]
+                assets_by_chunk = await AssetRepository(self._session).assets_for_chunks(chunk_ids)
+
+                picked: list[str] = []
+                for cid in chunk_ids:
+                    for a in (assets_by_chunk.get(cid) or []):
+                        aid = str(a.get("asset_id") or "").strip()
+                        if aid and aid not in picked:
+                            picked.append(aid)
+                        if len(picked) >= int(settings.VISION_MAX_IMAGES_PER_ANSWER or 2):
+                            break
+                    if len(picked) >= int(settings.VISION_MAX_IMAGES_PER_ANSWER or 2):
+                        break
+
+                images: list[bytes] = []
+                assets_dir = Path(settings.ASSETS_DIR or "assets")
+                for cid in chunk_ids:
+                    for a in (assets_by_chunk.get(cid) or []):
+                        aid = str(a.get("asset_id") or "").strip()
+                        if aid not in picked:
+                            continue
+                        rel = str(a.get("local_path") or "").strip().replace("\\", "/")
+                        if not rel:
+                            continue
+                        try:
+                            images.append((assets_dir / rel).read_bytes())
+                        except Exception:
+                            continue
+
+                # Build a compact text context for the vision pass.
+                blocks: list[str] = []
+                for s in (result.sources or [])[:6]:
+                    title = str(s.get("title") or "").strip()
+                    content = str(s.get("content") or "").strip()
+                    content = re.sub(r"\\[\\[ASSET_ID:[0-9a-fA-F-]{36}\\]\\]", "", content).strip()
+                    if not content:
+                        continue
+                    blocks.append(f"TITLE: {title}\n{content[:1800]}".strip())
+                vision_context = "\n\n---\n\n".join(blocks)[:12000]
+
+                if images:
+                    vision_out = await answer_with_images(question=question, context=vision_context, images=images)
+                    if vision_out:
+                        result.answer = vision_out
+                        if "vision_answer" not in (result.used_tools or []):
+                            result.used_tools.append("vision_answer")
+            except Exception:
+                pass
 
         log.info(
             "agent.ask.done",
@@ -181,6 +239,7 @@ class Agent:
                     "snippet": source.get("content", "")[:150],
                     "document_id": source.get("document_id", ""),
                     "chunk_id": source.get("chunk_id", ""),
+                    "assets": source.get("assets") or [],
                 }
         return list(seen.values())
 

@@ -4,12 +4,14 @@ Tools tìm kiếm tách biệt theo nguồn:
   search_confluence / search_jira / search_slack / search_files / search_all
 """
 import json
+import re
 
 from orchestration.tools.base import BaseTool, ToolSpec, ToolResult
 from retrieval.hybrid.hybrid_search import HybridSearch
 from permissions.filter import PermissionFilter
 from ranking.scorer import RankingScorer
 from persistence.document_repository import DocumentRepository
+from persistence.asset_repository import AssetRepository
 
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
@@ -30,6 +32,10 @@ def _jsonish(value) -> dict:
         except Exception:
             return {}
     return {}
+
+
+def _strip_asset_tokens(text: str) -> str:
+    return re.sub(r"\[\[ASSET_ID:[0-9a-fA-F-]{36}\]\]", "", str(text or "")).strip()
 
 
 # ─────────────────────────────────────────
@@ -137,6 +143,16 @@ class _BaseSearchTool(BaseTool):
 
             results = []
 
+            # Preload assets for the shortlisted chunks (so the caller can surface images when needed).
+            assets_by_chunk: dict[str, list[dict]] = {}
+            try:
+                chunk_ids = [str(item.get("chunk_id") or "").strip() for item in shortlist if str(item.get("chunk_id") or "").strip()]
+                chunk_ids = list(dict.fromkeys(chunk_ids))[:80]
+                if chunk_ids:
+                    assets_by_chunk = await AssetRepository(self._session).assets_for_chunks(chunk_ids)
+            except Exception:
+                assets_by_chunk = {}
+
             # ─────────────────────────────────────
             # build result objects
             # ─────────────────────────────────────
@@ -167,6 +183,8 @@ class _BaseSearchTool(BaseTool):
                 except Exception:
                     pass
 
+                context_text = _strip_asset_tokens(context_text)
+
                 url = meta.get("url", "")
                 if meta.get("source") == "slack" and context_text:
                     import re
@@ -185,6 +203,15 @@ class _BaseSearchTool(BaseTool):
                     "content": context_text,
                     "snippet": (context_text or "")[:350],
                     "score": round(item.get("rerank_score", item.get("final_score", 0)), 3),
+                    "assets": [
+                        {
+                            "asset_id": str(a.get("asset_id") or ""),
+                            "caption": str(a.get("caption") or ""),
+                            "url": f"/assets/{str(a.get('asset_id') or '')}".rstrip("/"),
+                        }
+                        for a in (assets_by_chunk.get(chunk_id) or [])
+                        if str(a.get("asset_id") or "").strip()
+                    ],
                 })
 
 

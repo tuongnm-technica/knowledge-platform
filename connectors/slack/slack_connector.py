@@ -62,6 +62,28 @@ class SlackConnector(BaseConnector):
                     first_ts = self._first_indexable_ts(msgs)
                     deep_link = self._slack_deep_link(channel_id, first_ts) if first_ts else f"https://slack.com/archives/{channel_id}"
 
+                    # Collect image files referenced in the day's messages (screenshots, diagrams).
+                    files_by_id: dict[str, dict] = {}
+                    for msg in msgs:
+                        for f in (msg.get("files") or []):
+                            try:
+                                mimetype = str(f.get("mimetype") or "").strip().lower()
+                                if not mimetype.startswith("image/"):
+                                    continue
+                                fid = str(f.get("id") or "").strip()
+                                if not fid:
+                                    continue
+                                files_by_id[fid] = {
+                                    "id": fid,
+                                    "name": str(f.get("name") or f.get("title") or "image").strip(),
+                                    "mimetype": mimetype,
+                                    "size": int(f.get("size") or 0) or None,
+                                    "url_private": str(f.get("url_private") or "").strip(),
+                                    "url_private_download": str(f.get("url_private_download") or "").strip(),
+                                }
+                            except Exception:
+                                continue
+
                     content = self._parser.extract_thread_content(
                         msgs,
                         user_cache=user_cache,
@@ -91,6 +113,7 @@ class SlackConnector(BaseConnector):
                                 "deep_link": deep_link,
                                 "members": members,
                                 "participants": participants,
+                                "slack_files": list(files_by_id.values()),
                             },
                             permissions=[f"group_slack_channel_{str(channel_id or '').strip().lower()}"],
                             workspace_id=get_slack_workspace(channel_name),

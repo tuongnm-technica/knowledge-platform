@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from pathlib import Path
 from models.document import Document, SourceType
 from connectors.base.base_connector import BaseConnector
 from connectors.fileserver.smb_client import SMBClient
@@ -11,6 +12,7 @@ import structlog
 log = structlog.get_logger()
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 
 
 class SMBConnector(BaseConnector):
@@ -53,6 +55,65 @@ class SMBConnector(BaseConnector):
                     continue
 
                 data    = self._client.read_file(file_info["path"])
+
+                ext = str(file_info.get("ext") or "").strip().lower()
+                if ext and not ext.startswith("."):
+                    ext = "." + ext
+
+                # If the file is an image, stage it so the ingestion pipeline can caption/OCR it.
+                # This avoids losing screenshots/diagrams which are common in office file shares.
+                if ext in _IMAGE_EXTS and data:
+                    import_id = str(uuid.uuid4())
+                    assets_root = Path(settings.ASSETS_DIR or "assets")
+                    import_dir = assets_root / "_imports"
+                    import_dir.mkdir(parents=True, exist_ok=True)
+                    safe_name = Path(file_info["name"]).name.replace(" ", "_")
+                    staged = import_dir / f"{import_id}-{safe_name}"
+                    with open(staged, "wb") as f:
+                        f.write(data)
+
+                    # Top-level folder làm permission key
+                    path_parts = file_info["path"].replace("/", "\\").split("\\")
+                    top_folder = path_parts[0] if path_parts else "General"
+                    if self._folders and top_folder not in self._folders:
+                        continue
+
+                    permissions  = [f"group_file_folder_{str(top_folder or '').strip().lower()}"]
+                    workspace_id = get_smb_workspace(top_folder)  # ← thêm
+
+                    doc = Document(
+                        id=str(uuid.uuid4()),
+                        source=SourceType.FILE_SERVER,
+                        source_id=file_info["path"],
+                        title=file_info["name"],
+                        content=f"[Image file] {file_info['name']}\n[[IMPORTED_ASSET:{import_id}]]",
+                        url=f"\\\\{self._host}\\{self._share}\\{file_info['path']}",
+                        author="file_server",
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.fromtimestamp(file_info["modified"]),
+                        metadata={
+                            "path":          file_info["path"],
+                            "extension":     ext,
+                            "size":          file_info["size"],
+                            "share":         self._share,
+                            "top_folder":    top_folder,
+                            "permission_id": f"group_file_folder_{str(top_folder or '').strip().lower()}",
+                            "import_assets": [
+                                {
+                                    "import_id": import_id,
+                                    "filename": file_info["name"],
+                                    "mime_type": f"image/{ext.lstrip('.')}",
+                                    "staged_path": str(staged).replace("\\", "/"),
+                                }
+                            ],
+                        },
+                        permissions=permissions,
+                        workspace_id=workspace_id,  # ← thêm
+                    )
+                    documents.append(doc)
+                    log.info("smb.image.ok", name=file_info["name"], folder=top_folder)
+                    continue
+
                 content = self._parser.parse(file_info["name"], data)
 
                 if not content or len(content.strip()) < 30:

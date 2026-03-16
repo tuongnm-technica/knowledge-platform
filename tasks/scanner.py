@@ -18,6 +18,7 @@ from connectors.slack.slack_client import SlackClient
 from connectors.slack.slack_parser import SlackParser
 from tasks.extractor import extract_tasks_from_content
 from tasks.repository import TaskDraftRepository
+from utils.vision import describe_images_batch
 
 
 log = structlog.get_logger()
@@ -355,6 +356,36 @@ async def _scan_confluence(
 
             if not clean or len(clean.strip()) < 120:
                 continue
+
+            # Vision enhancement (MVP): caption referenced images so extractor can create better tasks.
+            if settings.VISION_ENABLED and str(settings.OLLAMA_VISION_MODEL or "").strip():
+                try:
+                    import re
+
+                    wanted = re.findall(r"\[\[IMAGE:([^\]]+)\]\]", clean or "")
+                    wanted = [str(x or "").strip() for x in wanted if str(x or "").strip()]
+                    wanted = list(dict.fromkeys(wanted))[:2]
+                    if wanted:
+                        atts = await asyncio.to_thread(conf_client.list_attachments, page_id, 200)
+                        by_name = {str(a.get("filename") or "").strip().lower(): a for a in (atts or []) if isinstance(a, dict)}
+                        fetched = []
+                        for fn in wanted:
+                            it = by_name.get(fn.lower())
+                            if not it:
+                                continue
+                            dl = str(it.get("download_url") or "").strip()
+                            if not dl:
+                                continue
+                            data = await asyncio.to_thread(conf_client.download_attachment, dl)
+                            if data:
+                                fetched.append({"image_bytes": data, "hint": page_title})
+                        if fetched:
+                            caps = await describe_images_batch(fetched, concurrency=2)
+                            cap_lines = [c.strip() for c in caps if str(c or "").strip()]
+                            if cap_lines:
+                                clean = (clean + "\n\n## Images\n" + "\n".join([f"- {c}" for c in cap_lines])).strip()
+                except Exception:
+                    pass
 
             # Stable Confluence URL by pageId (avoid title-based webui links).
             base = (settings.CONFLUENCE_URL or "").rstrip("/")

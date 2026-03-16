@@ -15,6 +15,7 @@ from ingestion.cleaner import TextCleaner
 from ingestion.metadata_extractor import MetadataExtractor
 from models.document import Document, SourceType
 from persistence.document_repository import DocumentRepository
+from persistence.asset_repository import AssetRepository
 from persistence.sync_repository import SyncRepository
 
 
@@ -126,32 +127,56 @@ class IngestionPipeline:
         except Exception:
             pass
 
+        # First persist to get the canonical document id (upsert may keep an existing row id).
+        doc.id = await self._repo.upsert(doc)
+
+        # Enrich with image assets (download/stage + optional caption/OCR) before embeddings.
+        # This makes text queries match screenshots/diagrams via injected captions.
+        replacements: dict[str, str] = {}
+        try:
+            from ingestion.assets_ingestor import AssetIngestor
+
+            enriched = await AssetIngestor(self._session).enrich_document(doc)
+            if enriched.get("ingested", 0) > 0:
+                doc.content = str(enriched.get("content") or doc.content)
+                replacements = enriched.get("replacements") or {}
+                if isinstance(doc.metadata, dict):
+                    doc.metadata["asset_count"] = int(enriched.get("ingested") or 0)
+                    doc.metadata["assets_ingested"] = True
+        except Exception as exc:
+            log.warning("ingestion.assets.enrich_failed", doc_id=doc.id, error=str(exc))
+
+        # If we use Confluence semantic sections, also inject the same replacements there so chunking keeps the link.
+        if sections and replacements:
+            try:
+                for section in sections:
+                    text_value = str(section.get("content") or "")
+                    for raw, repl in replacements.items():
+                        text_value = text_value.replace(raw, repl)
+                    section["content"] = text_value
+            except Exception:
+                pass
+
         extracted_entities = self._entities.extract_typed(f"{doc.title}\n{doc.content}")
         resolved_identities = self._identities.resolve(doc)
         doc.entities = [entity.name for entity in extracted_entities]
 
         doc.metadata = self._metadata.extract(doc)
-        doc.metadata["entities"] = [
-            {"name": entity.name, "type": entity.entity_type}
-            for entity in extracted_entities
-        ]
+        doc.metadata["entities"] = [{"name": entity.name, "type": entity.entity_type} for entity in extracted_entities]
         doc.metadata["identities"] = [
             {
                 "name": identity.canonical_name,
                 "aliases": [
-                    {
-                        "value": alias.value,
-                        "type": alias.alias_type,
-                        "strength": alias.strength,
-                    }
+                    {"value": alias.value, "type": alias.alias_type, "strength": alias.strength}
                     for alias in identity.aliases
                 ],
             }
             for identity in resolved_identities
         ]
 
-        # Keep doc.id consistent with the actual DB row id (conflict keeps old id).
+        # Update document row with enriched content + extracted metadata.
         doc.id = await self._repo.upsert(doc)
+
         await self._graph.link_document_identities(doc.id, resolved_identities)
         await self._graph.link_document_entities(doc.id, extracted_entities)
         # Best-effort explicit cross-document links (URLs, Jira keys, SMB paths).
@@ -172,6 +197,19 @@ class IngestionPipeline:
             title=doc.title,
         )
         await self._keyword_index.index_chunks(chunks)
+
+        # Link chunk <-> asset ids for downstream vision context selection.
+        try:
+            from ingestion.assets_ingestor import AssetIngestor
+
+            repo = AssetRepository(self._session)
+            max_assets = max(1, int(settings.VISION_MAX_IMAGES_PER_CHUNK or 3))
+            for chunk in chunks:
+                asset_ids = AssetIngestor.extract_asset_ids(chunk.content)
+                if asset_ids:
+                    await repo.link_chunk_assets(chunk_id=chunk.id, asset_ids=list(dict.fromkeys(asset_ids))[:max_assets])
+        except Exception:
+            pass
 
         log.info("ingestion.doc.done", doc_id=doc.id, source=doc.source.value, chunks=len(chunks))
 

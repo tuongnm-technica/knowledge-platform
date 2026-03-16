@@ -46,6 +46,21 @@ class SlackParser:
                 if att_text:
                     parts.append(f"  → {att_text.strip()}")
 
+            # Image files (screenshots, diagrams) are key context for RAG/task extraction.
+            for f in (msg.get("files") or []):
+                try:
+                    mimetype = str(f.get("mimetype") or "").strip().lower()
+                    if not mimetype.startswith("image/"):
+                        continue
+                    fid = str(f.get("id") or "").strip()
+                    name = str(f.get("name") or f.get("title") or "image").strip()
+                    if fid:
+                        parts.append(f"  [image: {name}] [[SLACK_FILE:{fid}]]")
+                    else:
+                        parts.append(f"  [image: {name}] [[SLACK_FILE]]")
+                except Exception:
+                    continue
+
         return "\n".join(parts)
 
     def _clean_text(self, text: str) -> str:

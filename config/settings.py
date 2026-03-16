@@ -67,6 +67,18 @@ class Settings(BaseSettings):
 
     PUBLIC_API_BASE_URL: Optional[str] = None
 
+    # Local asset storage (images, extracted diagrams, screenshots, etc.)
+    ASSETS_DIR: str = "assets"
+    ASSETS_MAX_BYTES: int = 8_000_000  # 8MB per asset
+
+    # Vision pipeline (caption/OCR + multimodal context)
+    VISION_ENABLED: bool = False
+    OLLAMA_VISION_MODEL: Optional[str] = "llava-phi3"  # must be installed in Ollama
+    VISION_MAX_IMAGES_PER_DOC: int = 8
+    VISION_MAX_IMAGES_PER_CHUNK: int = 3
+    VISION_MAX_IMAGES_PER_ANSWER: int = 2
+    VISION_CAPTION_MAX_CHARS: int = 900
+
     AGENT_MAX_STEPS: int = 5
 
     AGENT_SELF_CORRECT_ENABLED: bool = True

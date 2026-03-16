@@ -62,6 +62,44 @@ class ChunkORM(Base):
     chunk_index = Column(Integer, nullable=False)
 
 
+class DocumentAssetORM(Base):
+    __tablename__ = "document_assets"
+    __table_args__ = (
+        Index("ix_document_assets_document_id", "document_id"),
+        Index("ix_document_assets_sha256", "sha256"),
+        {"comment": "Binary assets (images) attached to documents; stored on local disk"},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    source = Column(String(50), nullable=False, index=True)
+    source_ref = Column(Text)  # page_id / issue_key / slack file id / smb path ...
+    kind = Column(String(20), nullable=False, default="image")  # image (future: pdf_page, audio, ...)
+    filename = Column(Text)
+    mime_type = Column(String(100))
+    bytes = Column(Integer)
+    sha256 = Column(String(64))
+    local_path = Column(Text, nullable=False)  # relative to settings.ASSETS_DIR
+    caption = Column(Text)
+    ocr_text = Column(Text)
+    width = Column(Integer)
+    height = Column(Integer)
+    meta = Column(JSON, default={})
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class ChunkAssetORM(Base):
+    __tablename__ = "chunk_assets"
+    __table_args__ = (
+        Index("ix_chunk_assets_chunk_id", "chunk_id"),
+        Index("ix_chunk_assets_asset_id", "asset_id"),
+        {"comment": "Join table: which assets are referenced by which chunks"},
+    )
+
+    chunk_id = Column(UUID(as_uuid=True), ForeignKey("chunks.id", ondelete="CASCADE"), primary_key=True)
+    asset_id = Column(UUID(as_uuid=True), ForeignKey("document_assets.id", ondelete="CASCADE"), primary_key=True)
+
+
 class DocumentLinkORM(Base):
     __tablename__ = "document_links"
     __table_args__ = (
@@ -502,3 +540,46 @@ async def create_tables():
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_user_document_overrides_document_id ON user_document_overrides (document_id)"
         ))
+
+        # Assets: store images (and future media) linked to documents/chunks.
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS document_assets (
+                    id UUID PRIMARY KEY,
+                    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                    source VARCHAR(50) NOT NULL,
+                    source_ref TEXT,
+                    kind VARCHAR(20) NOT NULL DEFAULT 'image',
+                    filename TEXT,
+                    mime_type VARCHAR(100),
+                    bytes INTEGER,
+                    sha256 VARCHAR(64),
+                    local_path TEXT NOT NULL,
+                    caption TEXT,
+                    ocr_text TEXT,
+                    width INTEGER,
+                    height INTEGER,
+                    meta JSON NOT NULL DEFAULT '{}'::json,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_document_assets_document_id ON document_assets (document_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_document_assets_sha256 ON document_assets (sha256)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_document_assets_source ON document_assets (source)"))
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS chunk_assets (
+                    chunk_id UUID NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+                    asset_id UUID NOT NULL REFERENCES document_assets(id) ON DELETE CASCADE,
+                    PRIMARY KEY (chunk_id, asset_id)
+                )
+                """
+            )
+        )
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_chunk_assets_chunk_id ON chunk_assets (chunk_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_chunk_assets_asset_id ON chunk_assets (asset_id)"))

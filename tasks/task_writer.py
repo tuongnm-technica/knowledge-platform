@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
 from persistence.document_repository import DocumentRepository
+from persistence.asset_repository import AssetRepository
 from tasks.repository import TaskDraftRepository
 
 
@@ -116,6 +117,20 @@ async def build_task_from_answer(
     evidence: list[dict] = []
     context_blocks: list[str] = []
 
+    # Preload chunk->assets so we can include image evidence (screenshots/diagrams) into the task draft.
+    chunk_ids = [
+        str(s.get("chunk_id") or "").strip()
+        for s in (sources or [])
+        if str(s.get("chunk_id") or "").strip()
+    ]
+    chunk_ids = list(dict.fromkeys(chunk_ids))[:20]
+    assets_by_chunk: dict[str, list[dict[str, Any]]] = {}
+    if chunk_ids:
+        try:
+            assets_by_chunk = await AssetRepository(session).assets_for_chunks(chunk_ids)
+        except Exception:
+            assets_by_chunk = {}
+
     for s in (sources or [])[:6]:
         url = str(s.get("url") or "").strip()
         title = str(s.get("title") or "").strip()
@@ -136,6 +151,20 @@ async def build_task_from_answer(
                         quote = joined[:2200]
             except Exception:
                 pass
+
+        # Attach up to 2 image assets for this chunk as extra evidence.
+        assets = (assets_by_chunk.get(chunk_id) or [])[:2] if chunk_id else []
+        if assets:
+            base = (settings.PUBLIC_API_BASE_URL or "").rstrip("/")
+            for a in assets:
+                aid = str(a.get("asset_id") or "").strip()
+                if not aid:
+                    continue
+                url_asset = f"{base}/assets/{aid}" if base else f"/assets/{aid}"
+                cap = str(a.get("caption") or "").strip()
+                evidence.append({"source": "asset", "url": url_asset, "quote": cap[:200] if cap else ""})
+                if cap:
+                    quote = (quote + "\n\n" + f"[Image] {cap}").strip() if quote else f"[Image] {cap}"
 
         if url or quote:
             evidence.append(
@@ -184,15 +213,45 @@ async def build_task_from_answer(
     suggested_assignee: str | None = None
 
     try:
-        # Note: Consider passing a shared httpx.AsyncClient instance here as well.
-        async with httpx.AsyncClient(timeout=120) as client:
+        # If vision is enabled and we have image evidence, use the vision model and pass images directly.
+        vision_images: list[str] = []
+        if settings.VISION_ENABLED and str(settings.OLLAMA_VISION_MODEL or "").strip() and assets_by_chunk:
+            import base64
+            from pathlib import Path
+
+            assets_dir = Path(settings.ASSETS_DIR or "assets")
+            picked: set[str] = set()
+            for cid in chunk_ids[:10]:
+                for a in (assets_by_chunk.get(cid) or [])[:2]:
+                    aid = str(a.get("asset_id") or "").strip()
+                    rel = str(a.get("local_path") or "").strip().replace("\\", "/")
+                    if not aid or not rel or aid in picked:
+                        continue
+                    try:
+                        data = (assets_dir / rel).read_bytes()
+                        vision_images.append(base64.b64encode(data).decode("ascii"))
+                        picked.add(aid)
+                    except Exception:
+                        continue
+                    if len(vision_images) >= 2:
+                        break
+                if len(vision_images) >= 2:
+                    break
+
+        model = settings.OLLAMA_LLM_MODEL
+        user_msg: dict[str, Any] = {"role": "user", "content": user_prompt}
+        if vision_images:
+            model = str(settings.OLLAMA_VISION_MODEL or "").strip() or model
+            user_msg["images"] = vision_images
+
+        async with httpx.AsyncClient(timeout=180) as client:
             resp = await client.post(
                 f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
                 json={
-                    "model": settings.OLLAMA_LLM_MODEL,
+                    "model": model,
                     "messages": [
                         {"role": "system", "content": TASK_SYSTEM},
-                        {"role": "user", "content": user_prompt},
+                        user_msg,
                     ],
                     "stream": False,
                     "options": {"num_predict": 900, "temperature": 0.1},
