@@ -7,10 +7,10 @@ from __future__ import annotations
 import json
 import asyncio
 import re
-import httpx
 import structlog
 from tasks.models import ExtractedTask
 from config.settings import settings
+from utils.ollama_api import ollama_chat
 
 log = structlog.get_logger()
 
@@ -39,7 +39,7 @@ Nếu không có action item nào: {"tasks": []}
 async def extract_tasks_from_content(
     content: str,
     source_type: str,
-    client: httpx.AsyncClient,
+    client,
     source_ref: str = "",
 ) -> list[ExtractedTask]:
     """
@@ -61,20 +61,15 @@ async def extract_tasks_from_content(
     max_retries = 2
     for attempt in range(max_retries + 1):
         try:
-            resp = await client.post(
-                f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
-                json={
-                    "model":   settings.OLLAMA_LLM_MODEL,
-                    "messages": [
-                        {"role": "system", "content": EXTRACT_SYSTEM},
-                        {"role": "user",   "content": prompt},
-                    ],
-                    "stream":  False,
-                    "options": {"num_predict": 800, "temperature": 0.1},
-                },
+            raw = await ollama_chat(
+                model=settings.OLLAMA_LLM_MODEL,
+                messages=[
+                    {"role": "system", "content": EXTRACT_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                options={"num_predict": 800, "temperature": 0.1},
+                timeout=120,
             )
-            resp.raise_for_status()
-            raw = resp.json()["message"]["content"].strip()
 
             tasks = _parse_tasks(raw)
             log.info("extractor.done", source=source_type, ref=source_ref, found=len(tasks))

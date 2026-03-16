@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 import base64
 
-import httpx
 import structlog
 
 from config.settings import settings
+from utils.ollama_api import ollama_chat
 
 
 log = structlog.get_logger()
@@ -44,21 +44,16 @@ async def describe_image(
         prompt = f"{prompt}\nHint/context: {hint}".strip()
 
     b64 = base64.b64encode(image_bytes).decode("ascii")
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": VISION_SYSTEM},
-            {"role": "user", "content": prompt, "images": [b64]},
-        ],
-        "stream": False,
-        "options": {"num_predict": 350, "temperature": 0.1},
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=180) as client:
-            resp = await client.post(f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat", json=payload)
-            resp.raise_for_status()
-            text = str(resp.json().get("message", {}).get("content", "") or "").strip()
+        text = await ollama_chat(
+            model=model,
+            messages=[
+                {"role": "system", "content": VISION_SYSTEM},
+                {"role": "user", "content": prompt, "images": [b64]},
+            ],
+            options={"num_predict": 350, "temperature": 0.1},
+            timeout=180,
+        )
     except Exception as exc:
         log.warning("vision.describe.failed", error=str(exc))
         return ""
@@ -89,4 +84,3 @@ async def describe_images_batch(
             )
 
     return await asyncio.gather(*[_one(item) for item in items])
-

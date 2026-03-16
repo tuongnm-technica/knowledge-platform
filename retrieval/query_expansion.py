@@ -6,6 +6,7 @@ import re
 import httpx
 import structlog
 from config.settings import settings
+from utils.ollama_api import ollama_chat
 
 log = structlog.get_logger()
 
@@ -83,22 +84,16 @@ async def expand_query(query: str, use_llm: bool = True) -> list[str]:
 
         client = _get_http_client()
 
-        resp = await client.post(
-            f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
-            json={
-                "model": settings.OLLAMA_LLM_MODEL,
-                "messages": [
-                    {"role": "system", "content": EXPANSION_SYSTEM},
-                    {"role": "user", "content": f'Query: "{query}"'},
-                ],
-                "stream": False,
-                "options": {"num_predict": 120, "temperature": 0.3},
-            },
+        raw = await ollama_chat(
+            model=settings.OLLAMA_LLM_MODEL,
+            messages=[
+                {"role": "system", "content": EXPANSION_SYSTEM},
+                {"role": "user", "content": f'Query: "{query}"'},
+            ],
+            options={"num_predict": 120, "temperature": 0.3},
+            timeout=15,
+            client=client,
         )
-
-        resp.raise_for_status()
-
-        raw = resp.json()["message"]["content"]
 
         raw = re.sub(r"```(?:json)?|```", "", raw).strip()
 

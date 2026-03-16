@@ -18,6 +18,7 @@ from orchestration.tools import BaseTool, ToolResult
 from retrieval.context_compressor import compress_context
 from retrieval.semantic_cache import SemanticCache
 from config.settings import settings
+from utils.ollama_api import ollama_chat
 
 log = structlog.get_logger()
 
@@ -567,36 +568,17 @@ Trả lời câu hỏi dựa trên CONTEXT.
             return "Không thể tổng hợp kết quả."
 
     async def _call_llm(self, system: str, user: str, max_tokens: int = 400) -> str:
-
-        payload = {
-            "model": self._model,
-            "messages": [
+        out = await ollama_chat(
+            model=self._model,
+            messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "stream": False,
-            "options": {
-                "num_predict": max_tokens,
-                "temperature": 0.1,
-            },
-        }
-
-        resp = await self._client.post(
-            f"{self._base}/api/chat",
-            json=payload,
+            options={"num_predict": max_tokens, "temperature": 0.1},
             timeout=LLM_TIMEOUT,
+            client=self._client,
         )
-
-        resp.raise_for_status()
-
-        data = resp.json()
-
-        msg = data.get("message", {})
-
-        out = msg.get("content", "")
-
         out = re.sub(r"<think>.*?</think>", "", out, flags=re.DOTALL)
-
         return out.strip()
 
 

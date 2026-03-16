@@ -12,6 +12,7 @@ from config.settings import settings
 from persistence.document_repository import DocumentRepository
 from persistence.asset_repository import AssetRepository
 from tasks.repository import TaskDraftRepository
+from utils.ollama_api import ollama_chat
 
 
 log = structlog.get_logger()
@@ -244,21 +245,15 @@ async def build_task_from_answer(
             model = str(settings.OLLAMA_VISION_MODEL or "").strip() or model
             user_msg["images"] = vision_images
 
-        async with httpx.AsyncClient(timeout=180) as client:
-            resp = await client.post(
-                f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": TASK_SYSTEM},
-                        user_msg,
-                    ],
-                    "stream": False,
-                    "options": {"num_predict": 900, "temperature": 0.1},
-                },
-            )
-            resp.raise_for_status()
-            raw = resp.json().get("message", {}).get("content", "").strip()
+        raw = await ollama_chat(
+            model=model,
+            messages=[
+                {"role": "system", "content": TASK_SYSTEM},
+                user_msg,
+            ],
+            options={"num_predict": 900, "temperature": 0.1},
+            timeout=180,
+        )
 
         data = _parse_json_object(raw)
         if data:
@@ -276,15 +271,8 @@ async def build_task_from_answer(
             due_date = str(data.get("due_date") or "").strip() or None
             suggested_assignee = str(data.get("suggested_assignee") or "").strip() or None
 
-    except httpx.HTTPStatusError as exc:
-        log.warning(
-            "task_writer.llm_http_error",
-            status_code=exc.response.status_code,
-            response_text=exc.response.text[:200],
-            error=str(exc),
-        )
-    except (httpx.RequestError, json.JSONDecodeError, KeyError) as exc:
-        log.warning("task_writer.llm_parsing_failed", error=str(exc))
+    except Exception as exc:
+        log.warning("task_writer.llm_failed", error=str(exc))
 
     # Smart assignee suggestion (MVP): if LLM didn't propose, use historical patterns from previous drafts.
     if not suggested_assignee:

@@ -1000,6 +1000,9 @@ async def discover_connector_scopes(session: AsyncSession, connector_type: str, 
 
 
 async def clear_all_synced_data(session: AsyncSession) -> dict[str, Any]:
+    # Vision assets: clear join table first, then assets.
+    await session.execute(text("TRUNCATE TABLE chunk_assets RESTART IDENTITY CASCADE"))
+    await session.execute(text("TRUNCATE TABLE document_assets RESTART IDENTITY CASCADE"))
     await session.execute(text("TRUNCATE TABLE chunks RESTART IDENTITY CASCADE"))
     await session.execute(text("TRUNCATE TABLE document_permissions RESTART IDENTITY CASCADE"))
     await session.execute(text("TRUNCATE TABLE documents RESTART IDENTITY CASCADE"))

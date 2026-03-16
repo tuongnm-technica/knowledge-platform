@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import base64
 
-import httpx
 import structlog
 
 from config.settings import settings
+from utils.ollama_api import ollama_chat
 
 
 log = structlog.get_logger()
@@ -47,22 +47,16 @@ async def answer_with_images(*, question: str, context: str, images: list[bytes]
         ]
     ).strip()
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": VISION_QA_SYSTEM},
-            {"role": "user", "content": user_prompt, "images": imgs_b64},
-        ],
-        "stream": False,
-        "options": {"num_predict": 700, "temperature": 0.1},
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=240) as client:
-            resp = await client.post(f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat", json=payload)
-            resp.raise_for_status()
-            return str(resp.json().get("message", {}).get("content", "") or "").strip()
+        return await ollama_chat(
+            model=model,
+            messages=[
+                {"role": "system", "content": VISION_QA_SYSTEM},
+                {"role": "user", "content": user_prompt, "images": imgs_b64},
+            ],
+            options={"num_predict": 700, "temperature": 0.1},
+            timeout=240,
+        )
     except Exception as exc:
         log.warning("vision.qa.failed", error=str(exc))
         return ""
-

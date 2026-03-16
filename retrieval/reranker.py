@@ -25,6 +25,7 @@ import httpx
 import structlog
 
 from config.settings import settings
+from utils.ollama_api import ollama_chat
 
 log = structlog.get_logger()
 
@@ -219,26 +220,16 @@ async def _llm_score(
     }
 
     client = _get_http_client()
-
-    resp = await client.post(
-        f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
-        json={
-            "model": settings.OLLAMA_LLM_MODEL,
-            "messages": [
-                {"role": "system", "content": RERANK_SYSTEM},
-                {"role": "user", "content": prompt},
-            ],
-            "stream": False,
-            "options": {
-                "num_predict": 300,
-                "temperature": 0.0,
-            },
-        },
+    raw = await ollama_chat(
+        model=settings.OLLAMA_LLM_MODEL,
+        messages=[
+            {"role": "system", "content": RERANK_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        options={"num_predict": 300, "temperature": 0.0},
+        timeout=120,
+        client=client,
     )
-
-    resp.raise_for_status()
-
-    raw = resp.json()["message"]["content"].strip()
 
     raw = re.sub(r"```(?:json)?|```", "", raw).strip()
 
