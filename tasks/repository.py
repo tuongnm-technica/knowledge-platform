@@ -9,11 +9,11 @@ import uuid
 import hashlib
 import json
 import structlog
-from sqlalchemy import text
+from sqlalchemy import text, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
-from tasks.models import TaskDraftOut
+from tasks.models import AITaskDraftORM, TaskDraftOut
 
 log = structlog.get_logger()
 
@@ -154,9 +154,10 @@ class TaskDraftRepository:
         return dict(row._mapping) if row else None
 
     async def count_pending(self) -> int:
-        result = await self._session.execute(text(
-            "SELECT COUNT(*) FROM ai_task_drafts WHERE status IN ('pending', 'confirmed')"
-        ))
+        stmt = select(func.count()).select_from(AITaskDraftORM).where(
+            AITaskDraftORM.status.in_(['pending', 'confirmed'])
+        )
+        result = await self._session.execute(stmt)
         return result.scalar() or 0
 
     # ─── Update ───────────────────────────────────────────────────────────────

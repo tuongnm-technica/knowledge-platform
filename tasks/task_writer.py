@@ -58,7 +58,11 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
     try:
         data = json.loads(m.group(0))
         return data if isinstance(data, dict) else {}
-    except Exception:
+    except json.JSONDecodeError as exc:
+        log.warning("task_writer.parse_json_failed", raw=m.group(0), error=str(exc))
+        return {}
+    except Exception as exc:
+        log.warning("task_writer.parse_json_unexpected_error", raw=m.group(0), error=str(exc))
         return {}
 
 

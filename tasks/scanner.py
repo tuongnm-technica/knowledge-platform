@@ -102,6 +102,15 @@ def _detect_epic_key(text: str) -> str | None:
     m = _epic_re.search(text)
     return m.group(1) if m else None
 
+def _suggest_issue_type_from_labels(labels: list[str] | None) -> str:
+    """Basic issue type suggestion from labels (can be overridden by LLM)."""
+    lower_labels = {str(x).lower() for x in (labels or [])}
+    if "bug" in lower_labels:
+        return "Bug"
+    if "feature" in lower_labels:
+        return "Story"
+    return "Task"
+
 
 async def scan_and_create_drafts(
     session: AsyncSession,
@@ -262,7 +271,7 @@ async def _scan_slack(
                             break
 
                 # Basic issue type suggestion from labels (LLM can still propose via content, but we start safe).
-                issue_type = "Bug" if "bug" in [str(x).lower() for x in (task.labels or [])] else ("Story" if "feature" in [str(x).lower() for x in (task.labels or [])] else "Task")
+                issue_type = _suggest_issue_type_from_labels(task.labels)
                 epic_key = _detect_epic_key(f"{task.title}\n{task.description}")
 
                 draft_id = await repo.create_draft(
@@ -361,7 +370,7 @@ async def _scan_confluence(
                 if not suggested_assignee:
                     suggested_assignee = await repo.suggest_assignee_from_history(labels=task.labels or [])
 
-                issue_type = "Bug" if "bug" in [str(x).lower() for x in (task.labels or [])] else ("Story" if "feature" in [str(x).lower() for x in (task.labels or [])] else "Task")
+                issue_type = _suggest_issue_type_from_labels(task.labels)
                 epic_key = _detect_epic_key(f"{task.title}\n{task.description}\n{page_title}")
                 draft_id = await repo.create_draft(
                     title=task.title,
