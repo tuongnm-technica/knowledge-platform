@@ -121,25 +121,25 @@ async def scan_and_create_drafts(
 ) -> dict:
     repo = TaskDraftRepository(session)
     stats = {"slack_tasks": 0, "confluence_tasks": 0, "total": 0, "errors": []}
+    async with httpx.AsyncClient(timeout=30) as http_client:
+        try:
+            stats["slack_tasks"] = await _scan_slack(session, repo, triggered_by, created_by, http_client, days_back=slack_days)
+        except Exception as exc:
+            log.error("scanner.slack.error", error=str(exc))
+            stats["errors"].append(f"Slack: {exc}")
 
-    try:
-        stats["slack_tasks"] = await _scan_slack(session, repo, triggered_by, created_by, days_back=slack_days)
-    except Exception as exc:
-        log.error("scanner.slack.error", error=str(exc))
-        stats["errors"].append(f"Slack: {exc}")
-
-    try:
-        stats["confluence_tasks"] = await _scan_confluence(session, repo, triggered_by, created_by, days_back=confluence_days)
-    except Exception as exc:
-        log.error("scanner.confluence.error", error=str(exc))
-        stats["errors"].append(f"Confluence: {exc}")
+        try:
+            stats["confluence_tasks"] = await _scan_confluence(session, repo, triggered_by, created_by, http_client, days_back=confluence_days)
+        except Exception as exc:
+            log.error("scanner.confluence.error", error=str(exc))
+            stats["errors"].append(f"Confluence: {exc}")
 
     stats["total"] = stats["slack_tasks"] + stats["confluence_tasks"]
     log.info("scanner.done", **{key: value for key, value in stats.items() if key != "errors"})
     return stats
 
 
-async def _resolve_slack_users(text: str, headers: dict) -> str:
+async def _resolve_slack_users(text: str, client: httpx.AsyncClient, headers: dict) -> str:
     user_ids = re.findall(r"@(U[A-Z0-9]+)", text)
     if not user_ids:
         return text
@@ -174,6 +174,7 @@ async def _scan_slack(
     repo: TaskDraftRepository,
     triggered_by: str,
     created_by: str | None,
+    http_client: httpx.AsyncClient,
     days_back: int = 1,
 ) -> int:
     if not settings.SLACK_BOT_TOKEN:
@@ -247,13 +248,14 @@ async def _scan_slack(
             tasks = await extract_tasks_from_content(
                 content=content,
                 source_type="slack",
+                client=http_client,
                 source_ref=f"#{channel_name} | {date_key}",
             )
 
             for task in tasks:
                 suggested_assignee = task.suggested_assignee
                 if suggested_assignee:
-                    suggested_assignee = await _resolve_slack_users(suggested_assignee, headers)
+                    suggested_assignee = await _resolve_slack_users(suggested_assignee, http_client, headers)
                 else:
                     # Smart assignee suggestion (MVP): use history based on labels.
                     suggested_assignee = await repo.suggest_assignee_from_history(labels=task.labels or [])
@@ -316,6 +318,7 @@ async def _scan_confluence(
     repo: TaskDraftRepository,
     triggered_by: str,
     created_by: str | None,
+    http_client: httpx.AsyncClient,
     days_back: int = 1,
 ) -> int:
     if not settings.CONFLUENCE_URL or not settings.CONFLUENCE_API_TOKEN:
@@ -362,6 +365,7 @@ async def _scan_confluence(
             tasks = await extract_tasks_from_content(
                 content=clean,
                 source_type="confluence",
+                client=http_client,
                 source_ref=page_id,
             )
 

@@ -112,39 +112,29 @@ class TaskDraftRepository:
 
     async def get_open(self) -> list[dict]:
         """Lấy tất cả draft đang pending/confirmed (chưa submit)."""
-        result = await self._session.execute(text("""
-            SELECT id, title, description, source_type, source_ref, source_summary, source_url, source_meta, evidence, suggested_fields,
-                   issue_type, epic_key, suggested_assignee, priority, labels, components, due_date, status, triggered_by,
-                   created_by, jira_key, jira_project, scope_group_id, created_at
-            FROM ai_task_drafts
-            WHERE status IN ('pending', 'confirmed')
-            ORDER BY created_at DESC
-        """))
-        return [dict(r._mapping) for r in result.fetchall()]
+        stmt = (
+            select(AITaskDraftORM)
+            .where(AITaskDraftORM.status.in_(["pending", "confirmed"]))
+            .order_by(AITaskDraftORM.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [dict(r) for r in result.mappings().all()]
 
     async def get_by_status(self, statuses: list[str]) -> list[dict]:
         """
         Fetch drafts by a list of statuses.
-
         Used for: include_submitted in UI, and future task history views.
         """
         statuses = [str(s).strip() for s in (statuses or []) if str(s).strip()]
         if not statuses:
             return []
-        result = await self._session.execute(
-            text(
-                """
-                SELECT id, title, description, source_type, source_ref, source_summary, source_url, source_meta, evidence, suggested_fields,
-                       issue_type, epic_key, suggested_assignee, priority, labels, components, due_date, status, triggered_by,
-                       created_by, jira_key, jira_project, scope_group_id, created_at, confirmed_at, submitted_at
-                FROM ai_task_drafts
-                WHERE status = ANY(CAST(:statuses AS TEXT[]))
-                ORDER BY created_at DESC
-                """
-            ),
-            {"statuses": statuses},
+        stmt = (
+            select(AITaskDraftORM)
+            .where(AITaskDraftORM.status.in_(statuses))
+            .order_by(AITaskDraftORM.created_at.desc())
         )
-        return [dict(r._mapping) for r in result.fetchall()]
+        result = await self._session.execute(stmt)
+        return [dict(r) for r in result.mappings().all()]
 
     async def get_by_id(self, draft_id: str) -> dict | None:
         result = await self._session.execute(text("""

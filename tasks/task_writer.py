@@ -184,6 +184,7 @@ async def build_task_from_answer(
     suggested_assignee: str | None = None
 
     try:
+        # Note: Consider passing a shared httpx.AsyncClient instance here as well.
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(
                 f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat",
@@ -198,29 +199,33 @@ async def build_task_from_answer(
                 },
             )
             resp.raise_for_status()
-            raw = resp.json()["message"]["content"].strip()
+            raw = resp.json().get("message", {}).get("content", "").strip()
 
         data = _parse_json_object(raw)
-        if data.get("title"):
-            title = str(data["title"]).strip()
-        if data.get("description"):
-            description = str(data["description"]).strip()
-        if data.get("issue_type"):
+        if data:
+            title = str(data.get("title") or title).strip()
+            description = str(data.get("description") or description).strip()
             it = str(data.get("issue_type") or "").strip()
             if it in {"Task", "Story", "Bug", "Epic"}:
                 issue_type = it
-        epic_key = str(data.get("epic_key") or "").strip() or None
-        if data.get("priority"):
+            epic_key = str(data.get("epic_key") or "").strip() or None
             p = str(data.get("priority") or "").strip()
             if p in {"High", "Medium", "Low"}:
                 priority = p
-        labels = _safe_list(data.get("labels"))
-        components = _safe_list(data.get("components"))
-        due_date = str(data.get("due_date") or "").strip() or None
-        suggested_assignee = str(data.get("suggested_assignee") or "").strip() or None
+            labels = _safe_list(data.get("labels"))
+            components = _safe_list(data.get("components"))
+            due_date = str(data.get("due_date") or "").strip() or None
+            suggested_assignee = str(data.get("suggested_assignee") or "").strip() or None
 
-    except Exception as exc:
-        log.warning("task_writer.llm_failed", error=str(exc))
+    except httpx.HTTPStatusError as exc:
+        log.warning(
+            "task_writer.llm_http_error",
+            status_code=exc.response.status_code,
+            response_text=exc.response.text[:200],
+            error=str(exc),
+        )
+    except (httpx.RequestError, json.JSONDecodeError, KeyError) as exc:
+        log.warning("task_writer.llm_parsing_failed", error=str(exc))
 
     # Smart assignee suggestion (MVP): if LLM didn't propose, use historical patterns from previous drafts.
     if not suggested_assignee:

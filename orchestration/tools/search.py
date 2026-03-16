@@ -3,6 +3,7 @@ orchestration/tools/search.py
 Tools tìm kiếm tách biệt theo nguồn:
   search_confluence / search_jira / search_slack / search_files / search_all
 """
+import json
 
 from orchestration.tools.base import BaseTool, ToolSpec, ToolResult
 from retrieval.hybrid.hybrid_search import HybridSearch
@@ -16,11 +17,11 @@ from retrieval.query_router import route_query_advanced
 from retrieval.query_expansion import expand_query
 from retrieval.reranker import rerank
 from config.settings import settings
+from connectors.slack.utils import slack_deep_link
 log = structlog.get_logger()
 
 
-def _jsonish(value):
-    import json
+def _jsonish(value) -> dict:
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
@@ -29,19 +30,6 @@ def _jsonish(value):
         except Exception:
             return {}
     return {}
-
-
-def _slack_deep_link(channel_id: str, ts: str) -> str:
-    ts = str(ts or "").strip()
-    if not ts:
-        return f"https://slack.com/archives/{channel_id}"
-    if "." in ts:
-        sec, frac = ts.split(".", 1)
-        frac = (frac + "000000")[:6]
-        ts_digits = f"{sec}{frac}"
-    else:
-        ts_digits = "".join([c for c in ts if c.isdigit()])
-    return f"https://slack.com/archives/{channel_id}/p{ts_digits}"
 
 
 # ─────────────────────────────────────────
@@ -186,7 +174,7 @@ class _BaseSearchTool(BaseTool):
                     md = _jsonish(meta.get("metadata"))
                     channel_id = str(md.get("channel_id") or "").strip()
                     if channel_id and m:
-                        url = _slack_deep_link(channel_id, m.group(1))
+                        url = slack_deep_link(channel_id, m.group(1))
 
                 results.append({
                     "document_id": doc_id,
