@@ -109,6 +109,7 @@ function hideLoginScreen() {
   s.style.transition = 'opacity .3s';
   setTimeout(() => s.remove(), 300);
   applyUser(AUTH.user);
+  renderBasket();
   checkHealth();
   loadConnectorStats();
   if (document.getElementById('page-users')?.classList.contains('active') && AUTH.user.is_admin) {
@@ -188,6 +189,283 @@ let taskGroupCollapsed = {};
 let assistantMessageStore = {};
 let userEditorState = null;
 let groupEditorState = null;
+
+// ── Context Basket (Pin ngữ cảnh) ─────────────────────────────────────────────
+const BASKET_STORAGE_KEY = 'kp_context_basket_v1';
+const BASKET_TOKEN_LIMIT = 32000;
+let basketState = {
+  items: [], // { document_id, included, title, source, url, token_estimate, content_len, updated_at }
+};
+
+function _loadBasket() {
+  try {
+    const raw = localStorage.getItem(BASKET_STORAGE_KEY);
+    const data = raw ? JSON.parse(raw) : {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    basketState.items = items
+      .map(it => ({
+        document_id: String(it.document_id || '').trim(),
+        included: it.included !== false,
+        title: String(it.title || '').trim(),
+        source: String(it.source || '').trim(),
+        url: String(it.url || '').trim(),
+        token_estimate: Number(it.token_estimate || 0) || 0,
+        content_len: Number(it.content_len || 0) || 0,
+        updated_at: it.updated_at || null,
+      }))
+      .filter(it => !!it.document_id);
+  } catch {
+    basketState.items = [];
+  }
+}
+
+function _saveBasket() {
+  try {
+    localStorage.setItem(BASKET_STORAGE_KEY, JSON.stringify({ items: basketState.items || [] }));
+  } catch {}
+}
+
+function _basketIncludedIds() {
+  return (basketState.items || []).filter(i => i.included).map(i => i.document_id);
+}
+
+function _basketTokenUsed() {
+  return (basketState.items || []).filter(i => i.included).reduce((s, it) => s + (Number(it.token_estimate || 0) || 0), 0);
+}
+
+function toggleBasketDrawer() {
+  const drawer = document.getElementById('basketDrawer');
+  const overlay = document.getElementById('basketOverlay');
+  if (!drawer || !overlay) return;
+  const isOpen = drawer.style.display !== 'none';
+  if (isOpen) return closeBasketDrawer();
+  return openBasketDrawer();
+}
+
+function openBasketDrawer() {
+  const drawer = document.getElementById('basketDrawer');
+  const overlay = document.getElementById('basketOverlay');
+  if (!drawer || !overlay) return;
+  drawer.style.display = '';
+  overlay.style.display = '';
+  _loadBasket();
+  renderBasket();
+  refreshBasketDetails();
+}
+
+function closeBasketDrawer() {
+  const drawer = document.getElementById('basketDrawer');
+  const overlay = document.getElementById('basketOverlay');
+  if (drawer) drawer.style.display = 'none';
+  if (overlay) overlay.style.display = 'none';
+}
+
+function clearBasket() {
+  basketState.items = [];
+  _saveBasket();
+  renderBasket();
+  showToast('Đã xóa giỏ ngữ cảnh.', 'success');
+}
+
+async function refreshBasketDetails() {
+  const ids = (basketState.items || []).map(i => i.document_id);
+  if (!ids.length) return renderBasket();
+  try {
+    const r = await authFetch(`${API}/documents/batch`, {
+      method: 'POST',
+      body: JSON.stringify({ ids, include_content: false }),
+    });
+    if (!r.ok) throw new Error(await readApiError(r));
+    const data = await r.json();
+    const docs = (data && data.documents) ? data.documents : [];
+    const byId = {};
+    for (const d of docs) byId[String(d.id || '')] = d;
+    basketState.items = (basketState.items || []).map(it => {
+      const d = byId[it.document_id];
+      if (!d) return it;
+      return {
+        ...it,
+        title: String(d.title || it.title || ''),
+        source: String(d.source || it.source || ''),
+        url: String(d.url || it.url || ''),
+        token_estimate: Number(d.token_estimate || it.token_estimate || 0) || 0,
+        content_len: Number(d.content_len || it.content_len || 0) || 0,
+        updated_at: d.updated_at || it.updated_at || null,
+      };
+    });
+    _saveBasket();
+    renderBasket();
+  } catch (e) {
+    renderBasket();
+  }
+}
+
+async function basketAddDocument(documentId, { openDrawer = true, silent = false } = {}) {
+  const id = String(documentId || '').trim();
+  if (!id) return;
+  _loadBasket();
+  if ((basketState.items || []).some(i => i.document_id === id)) {
+    if (!silent) showToast('Item đã có trong giỏ.', 'info');
+    if (openDrawer) openBasketDrawer();
+    return;
+  }
+
+  basketState.items = [
+    ...(basketState.items || []),
+    { document_id: id, included: true, title: '', source: '', url: '', token_estimate: 0, content_len: 0, updated_at: null },
+  ];
+  _saveBasket();
+  renderBasket();
+  if (openDrawer) openBasketDrawer();
+  await refreshBasketDetails();
+  if (!silent) showToast('Đã ghim vào giỏ.', 'success');
+}
+
+async function basketAddDocuments(docIds, { openDrawer = true } = {}) {
+  const ids = Array.isArray(docIds) ? docIds : [];
+  let added = 0;
+  for (const id of ids) {
+    // best-effort, don't await sequentially
+    basketAddDocument(id, { openDrawer: false, silent: true });
+    added++;
+  }
+  if (openDrawer) openBasketDrawer();
+  if (added) showToast(`Đã ghim ${added} item vào giỏ.`, 'success');
+}
+
+function basketRemoveDocument(documentId) {
+  const id = String(documentId || '').trim();
+  if (!id) return;
+  _loadBasket();
+  basketState.items = (basketState.items || []).filter(i => i.document_id !== id);
+  _saveBasket();
+  renderBasket();
+}
+
+function basketSetIncluded(documentId, included) {
+  const id = String(documentId || '').trim();
+  if (!id) return;
+  _loadBasket();
+  basketState.items = (basketState.items || []).map(i => (i.document_id === id ? { ...i, included: !!included } : i));
+  _saveBasket();
+  renderBasket();
+}
+
+async function basketPreviewDocument(documentId) {
+  const id = String(documentId || '').trim();
+  if (!id) return;
+  try {
+    const r = await authFetch(`${API}/documents/${encodeURIComponent(id)}`);
+    if (!r.ok) throw new Error(await readApiError(r));
+    const data = await r.json();
+    const doc = data && data.document ? data.document : null;
+    if (!doc) throw new Error('No document.');
+
+    const body = document.createElement('div');
+    body.className = 'kp-modal-form-wrap';
+    const wrap = document.createElement('div');
+    wrap.className = 'kp-modal-form';
+
+    const meta = document.createElement('div');
+    meta.className = 'kp-modal-help';
+    meta.textContent = `${String(doc.source || '')} · ~${Number(doc.token_estimate || 0)} tokens`;
+
+    const content = document.createElement('textarea');
+    content.className = 'time-input kp-modal-input';
+    content.value = String(doc.content || '');
+    content.style.minHeight = '360px';
+
+    wrap.appendChild(meta);
+    wrap.appendChild(content);
+    body.appendChild(wrap);
+
+    await kpOpenModal({
+      title: String(doc.title || 'Preview'),
+      subtitle: String(doc.url || ''),
+      content: body,
+      okText: 'Đóng',
+      cancelText: '',
+      onOk: () => true,
+    });
+  } catch (e) {
+    showToast(e.message || 'Không thể preview tài liệu.', 'error');
+  }
+}
+
+function renderBasket() {
+  const list = document.getElementById('basketList');
+  const sub = document.getElementById('basketSub');
+  const tokenText = document.getElementById('basketTokenText');
+  const fill = document.getElementById('basketProgressFill');
+  const hint = document.getElementById('basketTokenHint');
+  if (!list) return;
+
+  _loadBasket();
+  const items = basketState.items || [];
+  const used = _basketTokenUsed();
+  const pct = Math.max(0, Math.min(100, (used / BASKET_TOKEN_LIMIT) * 100));
+
+  if (sub) sub.textContent = `${items.length} items · ${_basketIncludedIds().length} selected`;
+  if (tokenText) tokenText.textContent = `${used.toLocaleString('vi-VN')} / ${BASKET_TOKEN_LIMIT.toLocaleString('vi-VN')} tokens`;
+  if (fill) {
+    fill.style.width = pct.toFixed(1) + '%';
+    if (pct >= 90) fill.style.background = 'linear-gradient(90deg, var(--danger), var(--warn))';
+    else if (pct >= 75) fill.style.background = 'linear-gradient(90deg, var(--warn), var(--accent2))';
+    else fill.style.background = 'linear-gradient(90deg, var(--accent3), var(--accent))';
+  }
+  if (hint) {
+    if (pct >= 90) {
+      hint.style.display = '';
+      hint.style.color = 'var(--danger)';
+      hint.textContent = 'Giỏ đang quá đầy, AI có thể mất tập trung. Vui lòng bỏ bớt tài liệu phụ.';
+    } else if (pct >= 75) {
+      hint.style.display = '';
+      hint.style.color = 'var(--warn)';
+      hint.textContent = 'Giỏ khá đầy. Nên giữ lại các tài liệu “đinh” để tăng chất lượng đầu ra.';
+    } else {
+      hint.style.display = 'none';
+      hint.textContent = '';
+    }
+  }
+
+  if (!items.length) {
+    list.innerHTML = `<div class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>`;
+    return;
+  }
+
+  list.innerHTML = items.map(it => {
+    const badge = getBadgeClass(it.source);
+    const title = escapeHtml(it.title || 'Untitled');
+    const src = escapeHtml(it.source || 'doc');
+    const tok = Number(it.token_estimate || 0) || 0;
+    return `
+      <div class="basket-item">
+        <input class="basket-item-check" type="checkbox" ${it.included ? 'checked' : ''} onchange="basketSetIncluded('${escapeHtml(it.document_id)}', this.checked)">
+        <div class="basket-item-body">
+          <div class="basket-item-title" title="${title}">${title}</div>
+          <div class="basket-item-meta">
+            <span class="result-source-badge ${badge}">${src}</span>
+            <span>~${tok.toLocaleString('vi-VN')} tok</span>
+          </div>
+        </div>
+        <div class="basket-item-actions">
+          <button onclick="basketPreviewDocument('${escapeHtml(it.document_id)}')" title="Preview">👁</button>
+          <button onclick="basketRemoveDocument('${escapeHtml(it.document_id)}')" title="Remove">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function basketRunSkill() {
+  _loadBasket();
+  const ids = _basketIncludedIds();
+  if (!ids.length) {
+    showToast('Giỏ đang trống hoặc chưa chọn item nào.', 'info');
+    return;
+  }
+  return generateDocFromDocuments(ids);
+}
 
 // ── Navigation ──
 function navigate(page, el) {
@@ -429,6 +707,10 @@ function appendMessage(role, content, sources = [], agentSteps = [], usedTools =
       const title = s.title && s.title !== 'Unknown' ? s.title : (s.url ? s.url.split('/').pop() : 'Tài liệu');
       const score = s.score ? ((s.score || 0) * 100).toFixed(0) + '%' : '';
       const snippet = escapeHtml(String(s.snippet || s.quote || s.content || '').trim()).substring(0, 420);
+      const docId = String(s.document_id || '').trim();
+      const pinBtn = docId
+        ? `<button class="pin-mini" onclick="event.preventDefault(); event.stopPropagation(); basketAddDocument('${docId}')">📌</button>`
+        : '';
       return `<a class="source-item" ${href} data-snippet="${snippet}" onmouseenter="showCitationPeek(event)" onmouseleave="hideCitationPeek()">
         <span class="source-icon">${getSourceIcon(s.source)}</span>
         <div class="source-info">
@@ -436,6 +718,7 @@ function appendMessage(role, content, sources = [], agentSteps = [], usedTools =
           <div class="source-meta">${s.source || ''}</div>
         </div>
         ${score ? `<span class="source-score">${score}</span>` : ''}
+        ${pinBtn}
       </a>`;
     }).join('');
     sourcesPanelHTML = `
@@ -659,6 +942,128 @@ const DOC_DRAFT_TYPES = {
 function docDraftTypeLabel(docType) {
   const key = String(docType || '').trim().toLowerCase();
   return DOC_DRAFT_TYPES[key] || key || 'Draft';
+}
+
+async function generateDocFromDocuments(docIds, presetDocType = '') {
+  const raw = Array.isArray(docIds) ? docIds : [];
+  const ids = [];
+  const seen = new Set();
+  for (const v of raw) {
+    const s = String(v || '').trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    ids.push(s);
+  }
+  if (!ids.length) {
+    showToast('Chưa chọn tài liệu nào.', 'info');
+    return;
+  }
+  if (ids.length > 12) {
+    showToast('Đang chọn quá nhiều tài liệu (max 12). Vui lòng bỏ bớt trong giỏ/selection.', 'warning');
+    return;
+  }
+
+  let docType = String(presetDocType || '').trim().toLowerCase();
+  let title = '';
+  let goal = '';
+
+  const body = document.createElement('div');
+  body.className = 'kp-modal-form-wrap';
+  const form = document.createElement('div');
+  form.className = 'kp-modal-form';
+
+  const typeWrap = document.createElement('div');
+  typeWrap.className = 'kp-modal-field';
+  const typeLab = document.createElement('div');
+  typeLab.className = 'kp-modal-label';
+  typeLab.textContent = 'Loại tài liệu';
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'time-input kp-modal-input';
+  Object.entries(DOC_DRAFT_TYPES).forEach(([k, v]) => {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = v;
+    typeSelect.appendChild(opt);
+  });
+  typeSelect.value = docType || 'srs';
+  typeWrap.appendChild(typeLab);
+  typeWrap.appendChild(typeSelect);
+
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'kp-modal-field';
+  const titleLab = document.createElement('div');
+  titleLab.className = 'kp-modal-label';
+  titleLab.textContent = 'Tiêu đề (tuỳ chọn)';
+  const titleInput = document.createElement('input');
+  titleInput.className = 'time-input kp-modal-input';
+  titleInput.type = 'text';
+  titleInput.placeholder = 'Tự động';
+  titleWrap.appendChild(titleLab);
+  titleWrap.appendChild(titleInput);
+
+  const goalWrap = document.createElement('div');
+  goalWrap.className = 'kp-modal-field';
+  const goalLab = document.createElement('div');
+  goalLab.className = 'kp-modal-label';
+  goalLab.textContent = 'Mục tiêu / yêu cầu';
+  const goalInput = document.createElement('textarea');
+  goalInput.className = 'time-input kp-modal-input';
+  goalInput.placeholder = 'Ví dụ: Soạn thảo SRS cho luồng API đồng bộ dữ liệu Ecos - ATRS';
+  goalInput.style.minHeight = '120px';
+  goalWrap.appendChild(goalLab);
+  goalWrap.appendChild(goalInput);
+
+  const help = document.createElement('div');
+  help.className = 'kp-modal-help';
+  help.textContent = `Sẽ chạy skill dựa trên ${ids.length} tài liệu đã chọn.`;
+
+  form.appendChild(typeWrap);
+  form.appendChild(titleWrap);
+  form.appendChild(goalWrap);
+  form.appendChild(help);
+  body.appendChild(form);
+
+  const cfg = await kpOpenModal({
+    title: '🚀 Chạy Skill',
+    subtitle: 'Tạo bản nháp từ giỏ/graph selection',
+    content: body,
+    okText: 'Chạy',
+    cancelText: 'Hủy',
+    onOk: async () => {
+      const t = String(typeSelect.value || '').trim().toLowerCase();
+      if (!t) return { error: 'Vui lòng chọn loại tài liệu.' };
+      return {
+        docType: t,
+        title: String(titleInput.value || '').trim(),
+        goal: String(goalInput.value || '').trim(),
+      };
+    }
+  });
+  if (!cfg) return;
+  docType = String(cfg.docType || '').trim().toLowerCase();
+  title = String(cfg.title || '').trim();
+  goal = String(cfg.goal || '').trim();
+
+  try {
+    showToast('Đang đọc dữ liệu...', 'info');
+    const response = await authFetch(`${API}/docs/drafts/from-documents`, {
+      method: 'POST',
+      body: JSON.stringify({
+        doc_type: docType || 'srs',
+        doc_ids: ids,
+        goal,
+        title: title || '',
+      }),
+    });
+    if (!response.ok) throw new Error(await readApiError(response));
+    const data = await response.json();
+    const draft = data && data.draft ? data.draft : null;
+    if (!draft || !draft.id) throw new Error('Invalid draft response.');
+    showToast(`Đã tạo bản nháp ${docDraftTypeLabel(docType)}.`, 'success');
+    await openDocDraftEditor(draft.id);
+  } catch (e) {
+    showToast(e.message || 'Không thể chạy skill.', 'error');
+  }
 }
 
 async function generateDocFromAnswer(msgId, presetDocType = '') {
@@ -2089,6 +2494,7 @@ async function doSearch() {
           <span class="result-source-badge ${getBadgeClass(result.source)}">${result.source || 'doc'}</span>
           <span class="result-title">${result.title || 'Untitled'}</span>
           <span class="result-score">${((result.score || 0) * 100).toFixed(0)}%</span>
+          <button class="pin-mini" onclick="event.stopPropagation(); basketAddDocument('${String(result.document_id || '').trim()}')" title="Ghim ngữ cảnh">📌</button>
         </div>
         <div class="result-content">${result.content || ''}</div>
         <div class="result-url">Link: ${result.url || ''}</div>
@@ -3424,10 +3830,12 @@ let graphViz = {
   activeLayer: 'detail',
   highlightNodes: new Set(),
   highlightEdges: new Set(),
+  selectedNodes: new Set(),
+  selectRect: null, // { x0, y0, x1, y1 } in canvas screen coords
   running: false,
   q: '',
   transform: { x: 0, y: 0, k: 1 },
-  drag: { mode: null, node: null, ox: 0, oy: 0 },
+  drag: { mode: null, node: null, ox: 0, oy: 0, sx0: 0, sy0: 0 },
 };
 
 function _graphScreenToWorld(x, y) {
@@ -3450,6 +3858,95 @@ function resetGraphView() {
 
 function graphSearchChanged() {
   graphViz.q = String(document.getElementById('graphSearchInput')?.value || '').trim().toLowerCase();
+}
+
+function graphClearSelection() {
+  graphViz.selectedNodes = new Set();
+  graphViz.selectRect = null;
+}
+
+function graphSelectedDocumentIds(fallbackNode = null) {
+  const ids = [];
+  const seen = new Set();
+  const selected = graphViz.selectedNodes || new Set();
+
+  const addNodeId = (nid) => {
+    const id = String(nid || '');
+    if (!id.startsWith('doc:')) return;
+    const docId = id.split(':', 2)[1];
+    if (!docId || seen.has(docId)) return;
+    seen.add(docId);
+    ids.push(docId);
+  };
+
+  for (const nid of selected) addNodeId(nid);
+  if (!ids.length && fallbackNode && fallbackNode.id) addNodeId(fallbackNode.id);
+  return ids;
+}
+
+let _graphCtxMenuEl = null;
+let _graphCtxDocIds = [];
+
+function _graphEnsureContextMenu() {
+  if (_graphCtxMenuEl) return _graphCtxMenuEl;
+  const el = document.createElement('div');
+  el.id = 'graphContextMenu';
+  el.style.position = 'fixed';
+  el.style.zIndex = '9999';
+  el.style.display = 'none';
+  el.style.minWidth = '220px';
+  el.style.padding = '8px';
+  el.style.borderRadius = '14px';
+  el.style.border = '1px solid var(--border-strong)';
+  el.style.background = 'rgba(255,255,255,0.92)';
+  el.style.boxShadow = 'var(--shadow)';
+  el.style.backdropFilter = 'blur(18px)';
+  el.addEventListener('click', (ev) => ev.stopPropagation());
+  document.body.appendChild(el);
+  document.addEventListener('click', () => graphHideContextMenu());
+  _graphCtxMenuEl = el;
+  return el;
+}
+
+function graphHideContextMenu() {
+  if (_graphCtxMenuEl) _graphCtxMenuEl.style.display = 'none';
+}
+
+function graphShowContextMenu(clientX, clientY, node) {
+  const el = _graphEnsureContextMenu();
+  const docIds = graphSelectedDocumentIds(node);
+  if (!docIds.length) return;
+  _graphCtxDocIds = docIds.slice(0);
+
+  const count = docIds.length;
+  el.innerHTML = `
+    <div style="font-weight:900;font-family:'Syne',sans-serif;margin:2px 4px 8px">Lựa chọn</div>
+    <div style="color:var(--text-muted);font-size:12px;margin:0 4px 10px">${count} tài liệu</div>
+    <button class="secondary-btn" style="width:100%;margin-bottom:8px" onclick="graphCtxPin()">📌 Ghim vào giỏ</button>
+    <button class="primary-btn" style="width:100%;margin-bottom:8px" onclick="graphCtxDraft()">🚀 Tạo draft từ lựa chọn</button>
+    <button class="secondary-btn" style="width:100%" onclick="graphClearSelection(); graphHideContextMenu();">Bỏ chọn</button>
+  `;
+
+  const pad = 8;
+  const maxLeft = window.innerWidth - el.offsetWidth - pad;
+  const maxTop = window.innerHeight - el.offsetHeight - pad;
+  el.style.left = Math.max(pad, Math.min(clientX, maxLeft)) + 'px';
+  el.style.top = Math.max(pad, Math.min(clientY, maxTop)) + 'px';
+  el.style.display = 'block';
+}
+
+function graphCtxPin() {
+  const ids = Array.isArray(_graphCtxDocIds) ? _graphCtxDocIds.slice(0) : [];
+  graphHideContextMenu();
+  if (!ids.length) return;
+  basketAddDocuments(ids, { openDrawer: true });
+}
+
+function graphCtxDraft() {
+  const ids = Array.isArray(_graphCtxDocIds) ? _graphCtxDocIds.slice(0) : [];
+  graphHideContextMenu();
+  if (!ids.length) return;
+  generateDocFromDocuments(ids);
 }
 
 async function loadGraphDashboard(force = false) {
@@ -3643,10 +4140,21 @@ function initGraphCanvas(canvas, view) {
     canvas.__graphBound = true;
 
     canvas.addEventListener('mousedown', (ev) => {
+      graphHideContextMenu();
       const rect = canvas.getBoundingClientRect();
       const sx = ev.clientX - rect.left;
       const sy = ev.clientY - rect.top;
       const p = _graphScreenToWorld(sx, sy);
+
+      // Shift + drag: rectangle selection
+      if (ev.button === 0 && ev.shiftKey) {
+        graphViz.drag.mode = 'select';
+        graphViz.drag.sx0 = sx;
+        graphViz.drag.sy0 = sy;
+        graphViz.selectRect = { x0: sx, y0: sy, x1: sx, y1: sy };
+        graphViz.selectedNodes = new Set();
+        return;
+      }
 
       const hit = _graphPickNode(p.x, p.y);
       if (hit) {
@@ -3661,6 +4169,12 @@ function initGraphCanvas(canvas, view) {
     });
 
     window.addEventListener('mouseup', () => {
+      if (graphViz.drag.mode === 'select') {
+        graphViz.drag.mode = null;
+        graphViz.drag.node = null;
+        graphViz.selectRect = null;
+        return;
+      }
       graphViz.drag.mode = null;
       graphViz.drag.node = null;
     });
@@ -3686,6 +4200,42 @@ function initGraphCanvas(canvas, view) {
         graphViz.drag.node.vx = 0;
         graphViz.drag.node.vy = 0;
       }
+      if (graphViz.drag.mode === 'select' && graphViz.selectRect) {
+        const rect = canvas.getBoundingClientRect();
+        const sx = ev.clientX - rect.left;
+        const sy = ev.clientY - rect.top;
+        graphViz.selectRect.x1 = sx;
+        graphViz.selectRect.y1 = sy;
+
+        const p0 = _graphScreenToWorld(graphViz.selectRect.x0, graphViz.selectRect.y0);
+        const p1 = _graphScreenToWorld(graphViz.selectRect.x1, graphViz.selectRect.y1);
+        const minX = Math.min(p0.x, p1.x);
+        const maxX = Math.max(p0.x, p1.x);
+        const minY = Math.min(p0.y, p1.y);
+        const maxY = Math.max(p0.y, p1.y);
+
+        const ids = new Set();
+        for (const n of (graphViz.nodes || [])) {
+          if (n.x >= minX && n.x <= maxX && n.y >= minY && n.y <= maxY) {
+            ids.add(String(n.id || ''));
+          }
+        }
+        graphViz.selectedNodes = ids;
+      }
+    });
+
+    canvas.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const sx = ev.clientX - rect.left;
+      const sy = ev.clientY - rect.top;
+      const p = _graphScreenToWorld(sx, sy);
+      const hit = _graphPickNode(p.x, p.y);
+      // If no selection, let right-click on a node act as selection.
+      if ((!graphViz.selectedNodes || graphViz.selectedNodes.size === 0) && hit && hit.id) {
+        graphViz.selectedNodes = new Set([String(hit.id)]);
+      }
+      graphShowContextMenu(ev.clientX, ev.clientY, hit);
     });
 
     canvas.addEventListener('dblclick', (ev) => {
@@ -3730,6 +4280,9 @@ function _graphPickNode(x, y) {
 function renderGraphNodeDetail(node) {
   const panel = document.getElementById('graphNodeDetail');
   if (!panel) return;
+  const isDoc = String(node && node.id ? node.id : '').startsWith('doc:');
+  const pinBtn = isDoc ? `<button class="secondary-btn mini" onclick="graphPinNode('${escapeHtml(node.id)}')">📌 Pin</button>` : '';
+  const draftBtn = isDoc ? `<button class="secondary-btn mini" onclick="graphDraftNode('${escapeHtml(node.id)}')">🚀 Draft</button>` : '';
   panel.style.display = 'block';
   panel.innerHTML = `
     <div class="graph-detail-title">${escapeHtml(node.label)}</div>
@@ -3742,6 +4295,8 @@ function renderGraphNodeDetail(node) {
       <button class="secondary-btn mini" onclick="graphTraceNode('${escapeHtml(node.id)}')">Trace</button>
       <button class="secondary-btn mini" onclick="graphImpactNode('${escapeHtml(node.id)}')">Impact</button>
       <button class="secondary-btn mini" onclick="graphClearHighlight()">Clear</button>
+      ${pinBtn}
+      ${draftBtn}
     </div>
   `;
 }
@@ -3770,6 +4325,20 @@ function graphOpenNode(nodeId) {
   const url = n && n.url ? String(n.url) : '';
   if (!url) return showToast('No URL for this node.', 'info');
   try { window.open(url, '_blank'); } catch {}
+}
+
+function graphPinNode(nodeId) {
+  const id = String(nodeId || '');
+  const docId = id.startsWith('doc:') ? id.split(':', 2)[1] : '';
+  if (!docId) return showToast('Pin is available for document nodes only.', 'info');
+  basketAddDocument(docId, { openDrawer: true });
+}
+
+function graphDraftNode(nodeId) {
+  const id = String(nodeId || '');
+  const docId = id.startsWith('doc:') ? id.split(':', 2)[1] : '';
+  if (!docId) return showToast('Draft is available for document nodes only.', 'info');
+  return generateDocFromDocuments([docId]);
 }
 
 async function graphFocusNode(nodeId) {
@@ -3976,6 +4545,7 @@ function _graphDraw() {
     const label = String(n.label || '');
     const match = q && label.toLowerCase().includes(q);
     const isHL = hlNodes.has(String(n.id || ''));
+    const isSel = (graphViz.selectedNodes && graphViz.selectedNodes.has(String(n.id || '')));
     const r = Math.max(8, Number(n.size || 11.5));
 
     ctx.beginPath();
@@ -3983,9 +4553,11 @@ function _graphDraw() {
     ctx.fillStyle = String(n.color || 'rgba(148,163,184,0.85)');
     ctx.fill();
 
-    if (match || isHL || n.pinned) {
-      ctx.strokeStyle = isHL ? 'rgba(15,118,110,0.95)' : (match ? 'rgba(15,118,110,0.75)' : 'rgba(15,118,110,0.55)');
-      ctx.lineWidth = (isHL ? 2.4 : 2) / graphViz.transform.k;
+    if (match || isHL || n.pinned || isSel) {
+      if (isHL) ctx.strokeStyle = 'rgba(15,118,110,0.95)';
+      else if (isSel) ctx.strokeStyle = 'rgba(217,119,6,0.92)';
+      else ctx.strokeStyle = match ? 'rgba(15,118,110,0.75)' : 'rgba(15,118,110,0.55)';
+      ctx.lineWidth = (isHL ? 2.4 : (isSel ? 2.4 : 2)) / graphViz.transform.k;
       ctx.stroke();
     }
   }
@@ -4022,4 +4594,21 @@ function _graphDraw() {
   }
 
   ctx.restore();
+
+  // Selection rectangle (screen coords)
+  const sr = graphViz.selectRect;
+  if (sr) {
+    const x = Math.min(sr.x0, sr.x1);
+    const y = Math.min(sr.y0, sr.y1);
+    const w = Math.abs(sr.x1 - sr.x0);
+    const h = Math.abs(sr.y1 - sr.y0);
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = 'rgba(217,119,6,0.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = 'rgba(217,119,6,0.12)';
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
 }

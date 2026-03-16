@@ -355,6 +355,40 @@
   </div>
 
 </main>
+
+<!-- Context Basket (Pin ngữ cảnh) -->
+<div id="basketOverlay" class="basket-overlay" onclick="closeBasketDrawer()" style="display:none"></div>
+<div id="basketDrawer" class="basket-drawer" style="display:none" aria-label="Context basket">
+  <div class="basket-header">
+    <div>
+      <div class="basket-title">Giỏ Ngữ Cảnh</div>
+      <div class="basket-sub" id="basketSub">0 items</div>
+    </div>
+    <div class="basket-header-actions">
+      <button class="secondary-btn mini" onclick="clearBasket()">Xóa</button>
+      <button class="secondary-btn mini" onclick="closeBasketDrawer()">Đóng</button>
+    </div>
+  </div>
+  <div class="basket-token">
+    <div class="basket-token-row">
+      <div class="basket-token-label">Dung lượng não AI</div>
+      <div class="basket-token-value" id="basketTokenText">0 / 32000</div>
+    </div>
+    <div class="basket-progress">
+      <div class="basket-progress-fill" id="basketProgressFill" style="width:0%"></div>
+    </div>
+    <div class="basket-token-hint" id="basketTokenHint" style="display:none"></div>
+  </div>
+  <div id="basketList" class="basket-list">
+    <div class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
+  </div>
+  <div class="basket-actions">
+    <button class="secondary-btn" onclick="refreshBasketDetails()">Refresh</button>
+    <button class="primary-btn" onclick="basketRunSkill()">🚀 Chạy Skill</button>
+  </div>
+</div>
+<button id="basketFab" class="basket-fab" onclick="toggleBasketDrawer()" title="Giỏ ngữ cảnh">📌</button>
+
 <script src="/static/app.js"></script>
 </body>
 </html>

@@ -28,6 +28,13 @@ class FromAnswerRequest(BaseModel):
     title: str | None = Field(default=None, max_length=255)
 
 
+class FromDocumentsRequest(BaseModel):
+    doc_type: str = Field(default="srs", max_length=50)
+    doc_ids: list[str] = Field(default_factory=list)
+    goal: str = Field(default="", max_length=5000)
+    title: str | None = Field(default=None, max_length=255)
+
+
 class DraftUpdateRequest(BaseModel):
     title: str | None = Field(default=None, max_length=255)
     content: str | None = None
@@ -72,6 +79,37 @@ def _fallback_doc(*, doc_type: str, title: str, question: str, sources: list[dic
         lines.append(f"- [{s.get('source','')}] {s.get('title','')} {s.get('url','')}".strip())
     lines.append("")
     return "\n".join(lines).strip() + "\n"
+
+
+def _doc_sources_from_documents(docs: list[dict]) -> list[dict]:
+    sources: list[dict] = []
+    for d in docs or []:
+        doc_id = str(d.get("id") or "").strip()
+        if not doc_id:
+            continue
+        content = str(d.get("content") or "").strip()
+        sources.append(
+            {
+                "document_id": doc_id,
+                "title": str(d.get("title") or "").strip(),
+                "url": str(d.get("url") or "").strip(),
+                "source": str(d.get("source") or "").strip(),
+                "snippet": content[:320],
+            }
+        )
+    return sources
+
+
+def _dedupe_ids(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for v in values or []:
+        s = str(v or "").strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        out.append(s)
+    return out
 
 
 @router.post("/drafts/from-answer")
@@ -138,6 +176,74 @@ async def create_doc_draft_from_answer(
     return {"draft": draft, "supported_doc_types": SUPPORTED_DOC_TYPES}
 
 
+@router.post("/drafts/from-documents")
+async def create_doc_draft_from_documents(
+    req: FromDocumentsRequest,
+    session: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    doc_type = (req.doc_type or "srs").strip().lower()
+    if doc_type not in SUPPORTED_DOC_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported doc_type: {doc_type}")
+
+    doc_ids = _dedupe_ids(req.doc_ids)
+    if not doc_ids:
+        raise HTTPException(status_code=400, detail="No documents selected.")
+    if len(doc_ids) > 12:
+        raise HTTPException(status_code=400, detail="Too many documents selected (max 12).")
+
+    docs = await DocumentRepository(session).get_by_ids(doc_ids)
+    if not docs:
+        raise HTTPException(status_code=404, detail="Selected documents are not available in the database.")
+
+    sources = _doc_sources_from_documents(docs)
+    title = (req.title or "").strip() or _default_title(doc_type, req.goal)
+
+    system = build_doc_system_prompt(doc_type=doc_type)
+    user = build_doc_user_prompt(
+        doc_type=doc_type,
+        question=req.goal or "",
+        answer="",
+        sources=sources[:12],
+        documents=docs[:12],
+    )
+
+    content = ""
+    llm = OllamaLLM()
+    try:
+        ok = await llm.is_available()
+    except Exception:
+        ok = False
+
+    if ok:
+        try:
+            content = await llm.chat(system=system, user=user, max_tokens=1800)
+        except Exception as exc:
+            log.error("docs.draft.llm_failed", doc_type=doc_type, error=str(exc))
+            content = ""
+
+    if not content:
+        content = _fallback_doc(doc_type=doc_type, title=title, question=req.goal or "", sources=sources[:12])
+
+    snapshot = {
+        "created_at": datetime.utcnow().isoformat(),
+        "doc_type": doc_type,
+        "source_document_ids": doc_ids,
+        "sources": sources[:12],
+    }
+    draft = await DocDraftRepository(session).create(
+        doc_type=doc_type,
+        title=title,
+        content=content,
+        source_document_ids=doc_ids,
+        source_snapshot=snapshot,
+        created_by=current_user.user_id,
+        question=req.goal or "",
+        answer="",
+    )
+    return {"draft": draft, "supported_doc_types": SUPPORTED_DOC_TYPES}
+
+
 @router.get("/drafts/{draft_id}")
 async def get_doc_draft(
     draft_id: str,
@@ -165,4 +271,3 @@ async def update_doc_draft(
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found.")
     return {"draft": draft}
-

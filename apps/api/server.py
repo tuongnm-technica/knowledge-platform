@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
 from storage.db.db import create_tables
-from apps.api.routes import search, ask, ingest, health, connectors, auth, users, graph, srs, docs
+from apps.api.routes import search, ask, ingest, health, connectors, auth, users, graph, srs, docs, documents
 from apps.api.routes.auth import router as auth_router
 from config.settings import settings
 from utils.logging import configure_logging
@@ -66,6 +66,7 @@ app.include_router(tasks_router)
 app.include_router(graph.router)
 app.include_router(srs.router)
 app.include_router(docs.router)
+app.include_router(documents.router)
 
 @app.get("/", include_in_schema=False)
 async def serve_ui():
