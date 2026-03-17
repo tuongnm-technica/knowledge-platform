@@ -1,5 +1,7 @@
+const timeFormatter = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
 export function formatTime() {
-  return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return timeFormatter.format(new Date());
 }
 
 export function safeHostname(url) {
@@ -10,26 +12,38 @@ export function safeHostname(url) {
   }
 }
 
+const THINK_REGEX = /<think>([\s\S]*?)<\/think>/i;
+
 export function parseThinking(content) {
   const text = String(content || '');
-  const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
-  const thinking = thinkMatch ? thinkMatch[1].trim() : null;
-  const answer = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  return { thinking, answer };
+  const match = text.match(THINK_REGEX);
+  if (match) {
+    return {
+      thinking: match[1].trim(),
+      answer: text.replace(THINK_REGEX, '').trim()
+    };
+  }
+  return { thinking: null, answer: text.trim() };
 }
+
+const ICONS = {
+  confluence: '\u{1F4D8}',
+  jira: '\u{1F7E3}',
+  slack: '\u{1F4AC}'
+};
 
 export function getSourceIcon(source) {
-  if (source === 'confluence') return '\u{1F4D8}';
-  if (source === 'jira') return '\u{1F7E3}';
-  if (source === 'slack') return '\u{1F4AC}';
-  return '\u{1F4C4}';
+  return ICONS[source] || '\u{1F4C4}';
 }
 
+const BADGES = {
+  confluence: 'badge-confluence',
+  jira: 'badge-jira',
+  slack: 'badge-slack'
+};
+
 export function getBadgeClass(source) {
-  if (source === 'confluence') return 'badge-confluence';
-  if (source === 'jira') return 'badge-jira';
-  if (source === 'slack') return 'badge-slack';
-  return 'badge-confluence';
+  return BADGES[source] || 'badge-confluence';
 }
 
 export function formatRelevancePercent(score) {
@@ -43,6 +57,5 @@ export function formatRelevancePercent(score) {
   else if (n <= 100) pct = n;
   else pct = 100;
 
-  pct = Math.max(0, Math.min(100, pct));
-  return pct.toFixed(0) + '%';
+  return Math.max(0, Math.min(100, pct)).toFixed(0) + '%';
 }
