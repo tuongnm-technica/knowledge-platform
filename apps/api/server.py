@@ -44,11 +44,13 @@ async def lifespan(app: FastAPI):
 
         log.info("semantic_cache.collection_created")
 
-    start_scheduler()
+    if settings.RUN_WORKER:
+        start_scheduler()
 
     yield
 
-    stop_scheduler()
+    if settings.RUN_WORKER:
+        stop_scheduler()
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION,
               lifespan=lifespan, docs_url="/api/docs", redoc_url="/api/redoc")
 

@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: kp_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: knowledge_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d knowledge_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: kp_redis
+    ports:
+      - "6379:6379"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: kp_qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  api:
+    build: .
+    container_name: kp_api
+    ports:
+      - "8000:8000"
+    environment:
+      # Trỏ kết nối vào các container khác trong mạng nội bộ docker
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:postgres@postgres:5432/knowledge_platform
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - RUN_WORKER=False
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    command: python run.py
+
+  worker:
+    build: .
+    container_name: kp_worker
+    # Dùng chung environment với API, chỉ ghi đè RUN_WORKER
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:postgres@postgres:5432/knowledge_platform
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - RUN_WORKER=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    command: arq arq_worker.WorkerSettings
+
+volumes:
+  pgdata:
+  qdrant_data:

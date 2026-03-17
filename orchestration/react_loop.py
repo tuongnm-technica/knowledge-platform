@@ -10,6 +10,7 @@ import asyncio
 import json
 import re
 import structlog
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import httpx
@@ -131,31 +132,57 @@ class ReActResult:
     used_tools: list[str] = field(default_factory=list)
     rewritten_query: str = ""
 
+class ILLMClient(ABC):
+    @abstractmethod
+    async def chat(self, system: str, user: str, max_tokens: int = 400) -> str:
+        pass
+
+    @abstractmethod
+    async def close(self):
+        pass
+
+class OllamaLLMClient(ILLMClient):
+    def __init__(self, base_url: str, model: str):
+        self._model = model
+        self._client = httpx.AsyncClient(
+            timeout=REACT_TIMEOUT,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+
+    async def chat(self, system: str, user: str, max_tokens: int = 400) -> str:
+        out = await ollama_chat(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            options={"num_predict": max_tokens, "temperature": 0.1},
+            timeout=LLM_TIMEOUT,
+            client=self._client,
+        )
+        out = re.sub(r"<think>.*?</think>", "", out, flags=re.DOTALL)
+        return out.strip()
+
+    async def close(self):
+        await self._client.aclose()
 
 class ReActLoop:
 
-    def __init__(self, tools: dict[str, BaseTool], max_iterations: int = 5):
+    def __init__(self, tools: dict[str, BaseTool], max_iterations: int = 5, llm_client: ILLMClient = None):
 
         self._tools = tools
         self._max_iterations = max_iterations
-
-        self._base = settings.OLLAMA_BASE_URL.rstrip("/")
-        self._model = settings.OLLAMA_LLM_MODEL
-
         self._cache = SemanticCache()
 
-        self._client = httpx.AsyncClient(
-            timeout=REACT_TIMEOUT,
-            limits=httpx.Limits(
-                max_connections=20,
-                max_keepalive_connections=10,
-            ),
-        )
+        if llm_client is None:
+            self._llm = OllamaLLMClient(settings.OLLAMA_BASE_URL, settings.OLLAMA_LLM_MODEL)
+        else:
+            self._llm = llm_client
 
         log.info("tools.loaded", tools=list(self._tools.keys()))
 
     async def close(self):
-        await self._client.aclose()
+        await self._llm.close()
 
     async def run(self, question: str, user_id: str = "") -> ReActResult:
         # Fast path: semantic cache
@@ -363,7 +390,7 @@ class ReActLoop:
                 for i, s in enumerate(top)
             ]
         )
-        out = await self._call_llm(
+        out = await self._llm.chat(
             SELF_CORRECT_SYSTEM,
             f"Cau hoi: {question}\n\nTop ket qua hien tai:\n{obs}\n\nHay viet lai query de tim dung hon:",
             max_tokens=120,
@@ -397,7 +424,7 @@ class ReActLoop:
             + "\n\n".join(items)
         )
 
-        out = await self._call_llm(RELEVANCE_GRADE_SYSTEM, prompt, max_tokens=220)
+        out = await self._llm.chat(RELEVANCE_GRADE_SYSTEM, prompt, max_tokens=220)
         out = re.sub(r"```(?:json)?|```", "", out).strip()
         m = re.search(r"\{.*\}", out, re.DOTALL)
         if not m:
@@ -426,7 +453,7 @@ class ReActLoop:
         return reranked
 
     async def _logic_check(self, question: str, context: str) -> dict:
-        out = await self._call_llm(
+        out = await self._llm.chat(
             LOGIC_CHECK_SYSTEM,
             f"Cau hoi: {question}\n\nCONTEXT:\n{context[:8000]}",
             max_tokens=260,
@@ -447,7 +474,7 @@ class ReActLoop:
 
         try:
 
-            out = await self._call_llm(
+            out = await self._llm.chat(
                 PLAN_SYSTEM,
                 f"Câu hỏi: {question}",
                 max_tokens=200,
@@ -550,7 +577,7 @@ Trả lời câu hỏi dựa trên CONTEXT.
 
         try:
 
-            result = await self._call_llm(
+            result = await self._llm.chat(
                 SUMMARIZE_SYSTEM,
                 prompt,
                 max_tokens=400,
@@ -566,20 +593,6 @@ Trả lời câu hỏi dựa trên CONTEXT.
             log.error("summarizer.failed", error=str(e))
 
             return "Không thể tổng hợp kết quả."
-
-    async def _call_llm(self, system: str, user: str, max_tokens: int = 400) -> str:
-        out = await ollama_chat(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            options={"num_predict": max_tokens, "temperature": 0.1},
-            timeout=LLM_TIMEOUT,
-            client=self._client,
-        )
-        out = re.sub(r"<think>.*?</think>", "", out, flags=re.DOTALL)
-        return out.strip()
 
 
 def _group_parallel(plan: list[PlanStep]) -> list[list[PlanStep]]:

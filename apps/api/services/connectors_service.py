@@ -13,6 +13,7 @@ from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from utils.queue_client import get_redis_pool
 from config.settings import settings
 from connectors.confluence.confluence_client import ConfluenceClient
 from connectors.confluence.confluence_connector import ConfluenceConnector
@@ -840,14 +841,9 @@ async def start_connector_sync(
     selection = cfg.get("selection") or {}
     connector = _build_connector(connector_type, inst, selection)
 
-    async def _run() -> None:
-        async with AsyncSessionLocal() as bg_session:
-            pipeline = IngestionPipeline(bg_session)
-            start = perf_counter()
-            stats = await pipeline.run(connector, incremental=incremental, connector_key=connector_key)
-            log.info("connectors.sync.done", key=connector_key, elapsed=round(perf_counter() - start, 2), **stats)
-
-    background_tasks.add_task(_run)
+    redis = await get_redis_pool()
+    await redis.enqueue_job("sync_connector_job", connector_type, instance_id, incremental)
+    log.info("connectors.sync.queued", key=connector_key)
     return {"status": "started", "connector": connector_key, "incremental": incremental}
 
 
@@ -859,7 +855,10 @@ async def _run_sync_task(connector_type: str, instance_id: str, incremental: boo
         selection = cfg.get("selection") or {}
         connector = _build_connector(connector_type, inst, selection)
         pipeline = IngestionPipeline(session)
-        await pipeline.run(connector, incremental=incremental, connector_key=connector_key)
+        
+        start = perf_counter()
+        stats = await pipeline.run(connector, incremental=incremental, connector_key=connector_key)
+        log.info("connectors.sync.done", key=connector_key, elapsed=round(perf_counter() - start, 2), **stats)
 
 
 async def start_all_configured_syncs(
@@ -890,7 +889,9 @@ async def start_all_configured_syncs(
             if latest_run and latest_run.get("status") == "running" and latest_run.get("finished_at") is None:
                 skipped.append({"connector": connector_key, "reason": "Already syncing"})
                 continue
-            background_tasks.add_task(_run_sync_task, t, inst["id"], incremental)
+                
+            redis = await get_redis_pool()
+            await redis.enqueue_job("sync_connector_job", t, inst["id"], incremental)
             started.append(connector_key)
 
     return {"status": "started" if started else "skipped", "started": started, "skipped": skipped, "incremental": incremental}
