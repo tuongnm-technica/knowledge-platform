@@ -41,6 +41,91 @@ PROMPT_EXTENSIONS: dict[str, str] = {
     "srs": "Tạo SRS theo cấu trúc 10 mục (có Glossary + Traceability).\n",
 }
 
+OUTPUT_STRUCTURES: dict[str, str] = {
+    "srs": (
+        "Tạo SRS theo mục lục:\n"
+        "0) Glossary\n"
+        "1) Giới thiệu (Scope/Out of scope/Stakeholders/Assumptions)\n"
+        "2) Tổng quan giải pháp\n"
+        "3) Business Rules (BR-xx)\n"
+        "4) Functional Requirements (FR-xx)\n"
+        "5) Non-Functional Requirements (NFR-xx)\n"
+        "6) Data Model (high-level)\n"
+        "7) API Specification (high-level)\n"
+        "8) UI/UX Notes (nếu có)\n"
+        "9) Traceability Matrix (FR ↔ UC ↔ VR) + Open Questions\n"
+    ),
+    "api_spec": (
+        "API Spec structure:\n"
+        "- Overview + assumptions\n"
+        "- Authentication/Authorization\n"
+        "- Error model (RFC 7807) + common error codes\n"
+        "- Endpoints table\n"
+        "- Per-endpoint details: request/response JSON examples, validations, status codes, idempotency, pagination (nếu có)\n"
+    ),
+    "requirements_intake": (
+        "Xuất danh sách atomic:\n"
+        "- Business Rules (BR-xx)\n"
+        "- Functional Requirements (FR-xx)\n"
+        "- Non-Functional Requirements (NFR-xx)\n"
+        "- Assumptions/Constraints\n"
+        "- Open questions (TBD) + ai có thể trả lời\n"
+    ),
+    "requirement_review": (
+        "- Verdict: BLOCK/WARN/OK\n"
+        "- Issues table: conflict/gap/edge case/permission risk + fix recommendation\n"
+        "- Missing info / questions\n"
+    ),
+    "solution_design": (
+        "- Context + goals\n"
+        "- Architecture overview (modules + integrations)\n"
+        "- ADR list (Decision, Options, Rationale)\n"
+        "- Data model high-level (entities + relations)\n"
+        "- API contract overview (endpoints summary)\n"
+        "- NFR considerations + tradeoffs\n"
+    ),
+    "fe_spec": (
+        "- Component architecture + contracts\n"
+        "- UI state matrix (loading/success/empty/error/partial)\n"
+        "- Validation UX spec\n"
+        "- API integration spec (status-code handling)\n"
+        "- a11y requirements + focus management\n"
+        "- Error boundary + monitoring hooks\n"
+        "- Performance budget\n"
+    ),
+    "qa_test_spec": (
+        "- Consistency check table (CHK-xx) + verdict\n"
+        "- Test cases chia theo level (UT/IT/E2E/UAT) + owner + test data\n"
+        "- Security tests map OWASP 2021\n"
+        "- UAT plan + exit criteria + defect severity matrix\n"
+    ),
+    "deployment_spec": (
+        "- Environment specs (dev/staging/prod)\n"
+        "- CI/CD pipeline flow + gates + rollback\n"
+        "- Config/secrets management\n"
+        "- Monitoring & alerting thresholds\n"
+        "- Incident runbook + DR plan\n"
+        "- Go-live checklist\n"
+    ),
+    "change_request": (
+        "- CR template (current vs expected)\n"
+        "- Impact analysis 6 dimensions + breaking change flag\n"
+        "- Risk classification + recommended actions + rollback plan\n"
+    ),
+    "release_notes": (
+        "- Version/date\n"
+        "- What's new / Improvements / Bug fixes\n"
+        "- Known issues\n"
+        "- Rollback notes\n"
+    ),
+    "function_list": "- Bảng Function List: Module/Feature/Function, Description, Owner, Status, Related IDs (FR/UC/US)\n",
+    "risk_log": "- Bảng Risk Log: Risk-ID, Description, Likelihood, Impact, Mitigation, Owner, Due date, Status\n",
+    "brd": "BRD sections: Background, Problem, Goals, Scope, Stakeholders, Assumptions/Constraints, Risks, Success metrics.\n",
+    "use_cases": "Mỗi UC gồm: UC-ID, Actors, Preconditions, Trigger, Main flow, Alternate/Exception flows, Postconditions.\n",
+    "validation_rules": "Danh sách VR-xx: rule, trigger timing, UX behavior, FE rule, BE rule, error message.\n",
+    "user_stories": "US-xx theo format 'As a ... I want ... so that ...' + Gherkin AC + DoD.\n",
+}
+
 
 def build_doc_system_prompt(*, doc_type: str) -> str:
     doc_type = (doc_type or "srs").strip().lower()
@@ -97,6 +182,7 @@ def build_doc_user_prompt(
     lines.append("")
 
     lines.append("## Document details (condensed)")
+    lines.append("Dưới đây là nội dung chi tiết của các tài liệu (được bọc trong thẻ <document>):")
     for d in (documents or [])[:10]:
         title = str(d.get("title") or "").strip() or "Untitled"
         source = str(d.get("source") or "").strip()
@@ -110,136 +196,14 @@ def build_doc_user_prompt(
         if updated:
             lines.append(f"- updated_at: {updated}")
         if content:
-            lines.append("")
+            lines.append("<document>")
             lines.append(content)
-            lines.append("")
+            lines.append("</document>\n")
 
-    # Minimal output structure hints.
-    if doc_type == "srs":
-        lines.append(
-            "## Output requirements\n"
-            "Tạo SRS theo mục lục:\n"
-            "0) Glossary\n"
-            "1) Giới thiệu (Scope/Out of scope/Stakeholders/Assumptions)\n"
-            "2) Tổng quan giải pháp\n"
-            "3) Business Rules (BR-xx)\n"
-            "4) Functional Requirements (FR-xx)\n"
-            "5) Non-Functional Requirements (NFR-xx)\n"
-            "6) Data Model (high-level)\n"
-            "7) API Specification (high-level)\n"
-            "8) UI/UX Notes (nếu có)\n"
-            "9) Traceability Matrix (FR ↔ UC ↔ VR) + Open Questions\n"
-        )
-    elif doc_type == "api_spec":
-        lines.append(
-            "## Output requirements\n"
-            "API Spec structure:\n"
-            "- Overview + assumptions\n"
-            "- Authentication/Authorization\n"
-            "- Error model (RFC 7807) + common error codes\n"
-            "- Endpoints table\n"
-            "- Per-endpoint details: request/response JSON examples, validations, status codes, idempotency, pagination (nếu có)\n"
-        )
-    elif doc_type == "requirements_intake":
-        lines.append(
-            "## Output requirements\n"
-            "Xuất danh sách atomic:\n"
-            "- Business Rules (BR-xx)\n"
-            "- Functional Requirements (FR-xx)\n"
-            "- Non-Functional Requirements (NFR-xx)\n"
-            "- Assumptions/Constraints\n"
-            "- Open questions (TBD) + ai có thể trả lời\n"
-        )
-    elif doc_type == "requirement_review":
-        lines.append(
-            "## Output requirements\n"
-            "- Verdict: BLOCK/WARN/OK\n"
-            "- Issues table: conflict/gap/edge case/permission risk + fix recommendation\n"
-            "- Missing info / questions\n"
-        )
-    elif doc_type == "solution_design":
-        lines.append(
-            "## Output requirements\n"
-            "- Context + goals\n"
-            "- Architecture overview (modules + integrations)\n"
-            "- ADR list (Decision, Options, Rationale)\n"
-            "- Data model high-level (entities + relations)\n"
-            "- API contract overview (endpoints summary)\n"
-            "- NFR considerations + tradeoffs\n"
-        )
-    elif doc_type == "fe_spec":
-        lines.append(
-            "## Output requirements\n"
-            "- Component architecture + contracts\n"
-            "- UI state matrix (loading/success/empty/error/partial)\n"
-            "- Validation UX spec\n"
-            "- API integration spec (status-code handling)\n"
-            "- a11y requirements + focus management\n"
-            "- Error boundary + monitoring hooks\n"
-            "- Performance budget\n"
-        )
-    elif doc_type == "qa_test_spec":
-        lines.append(
-            "## Output requirements\n"
-            "- Consistency check table (CHK-xx) + verdict\n"
-            "- Test cases chia theo level (UT/IT/E2E/UAT) + owner + test data\n"
-            "- Security tests map OWASP 2021\n"
-            "- UAT plan + exit criteria + defect severity matrix\n"
-        )
-    elif doc_type == "deployment_spec":
-        lines.append(
-            "## Output requirements\n"
-            "- Environment specs (dev/staging/prod)\n"
-            "- CI/CD pipeline flow + gates + rollback\n"
-            "- Config/secrets management\n"
-            "- Monitoring & alerting thresholds\n"
-            "- Incident runbook + DR plan\n"
-            "- Go-live checklist\n"
-        )
-    elif doc_type == "change_request":
-        lines.append(
-            "## Output requirements\n"
-            "- CR template (current vs expected)\n"
-            "- Impact analysis 6 dimensions + breaking change flag\n"
-            "- Risk classification + recommended actions + rollback plan\n"
-        )
-    elif doc_type == "release_notes":
-        lines.append(
-            "## Output requirements\n"
-            "- Version/date\n"
-            "- What's new / Improvements / Bug fixes\n"
-            "- Known issues\n"
-            "- Rollback notes\n"
-        )
-    elif doc_type == "function_list":
-        lines.append(
-            "## Output requirements\n"
-            "- Bảng Function List: Module/Feature/Function, Description, Owner, Status, Related IDs (FR/UC/US)\n"
-        )
-    elif doc_type == "risk_log":
-        lines.append(
-            "## Output requirements\n"
-            "- Bảng Risk Log: Risk-ID, Description, Likelihood, Impact, Mitigation, Owner, Due date, Status\n"
-        )
-    elif doc_type == "brd":
-        lines.append(
-            "## Output requirements\n"
-            "BRD sections: Background, Problem, Goals, Scope, Stakeholders, Assumptions/Constraints, Risks, Success metrics.\n"
-        )
-    elif doc_type == "use_cases":
-        lines.append(
-            "## Output requirements\n"
-            "Mỗi UC gồm: UC-ID, Actors, Preconditions, Trigger, Main flow, Alternate/Exception flows, Postconditions.\n"
-        )
-    elif doc_type == "validation_rules":
-        lines.append(
-            "## Output requirements\n"
-            "Danh sách VR-xx: rule, trigger timing, UX behavior, FE rule, BE rule, error message.\n"
-        )
-    elif doc_type == "user_stories":
-        lines.append(
-            "## Output requirements\n"
-            "US-xx theo format 'As a ... I want ... so that ...' + Gherkin AC + DoD.\n"
-        )
+    # Load the specific output structure from the dictionary
+    structure_hint = OUTPUT_STRUCTURES.get(doc_type)
+    if structure_hint:
+        lines.append("## Output requirements\n")
+        lines.append(structure_hint)
 
     return "\n".join(lines).strip() + "\n"
