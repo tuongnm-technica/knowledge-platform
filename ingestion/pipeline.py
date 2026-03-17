@@ -11,7 +11,7 @@ from graph.document_linker import DocumentLinker
 from graph.knowledge_graph import KnowledgeGraph
 from indexing.keyword_index import KeywordIndex
 from indexing.vector_index import VectorIndex
-from ingestion.chunker import TextChunker
+from ingestion.chunker import chunk_document
 from ingestion.cleaner import TextCleaner
 from ingestion.metadata_extractor import MetadataExtractor
 from models.document import Document, SourceType
@@ -27,7 +27,6 @@ class IngestionPipeline:
     def __init__(self, session):
         self._session = session
         self._cleaner = TextCleaner()
-        self._chunker = TextChunker()
         self._metadata = MetadataExtractor()
         self._entities = EntityExtractor()
         self._identities = IdentityResolver()
@@ -223,26 +222,11 @@ class IngestionPipeline:
         log.info("ingestion.doc.done", doc_id=doc.id, source=doc.source.value, chunks=len(chunks))
 
     def _smart_chunk(self, doc: Document, sections=None) -> list:
+        kwargs = {"content": doc.content}
         if sections:
-            chunks = self._chunker.chunk_by_sections(doc.id, sections, doc_title=doc.title)
-            log.info("ingestion.chunk.semantic", doc_id=doc.id, chunks=len(chunks))
-            return chunks
-
-        if doc.source == SourceType.SLACK:
-            chunks = self._chunker.chunk_slack(doc.id, doc.content)
-            log.info("ingestion.chunk.slack", doc_id=doc.id, chunks=len(chunks))
-            return chunks
-
-        if doc.source == SourceType.JIRA:
-            chunks = self._chunker.chunk_jira(doc.id, doc.content)
-            log.info("ingestion.chunk.jira", doc_id=doc.id, chunks=len(chunks))
-            return chunks
-
-        if doc.source == SourceType.FILE_SERVER:
-            chunks = self._chunker.chunk_file(doc.id, doc.content)
-            log.info("ingestion.chunk.file", doc_id=doc.id, chunks=len(chunks))
-            return chunks
-
-        chunks = self._chunker.chunk(doc.id, doc.content)
-        log.info("ingestion.chunk.word", doc_id=doc.id, chunks=len(chunks))
+            kwargs["sections"] = sections
+            kwargs["doc_title"] = doc.title
+            
+        chunks = chunk_document(doc.source, doc.id, **kwargs)
+        log.info("ingestion.chunk.smart", doc_id=doc.id, chunks=len(chunks), source=str(doc.source))
         return chunks

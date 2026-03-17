@@ -1,0 +1,297 @@
+/* Modals Component */
+#kpModalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+  animation: fadeIn var(--transition-base);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    transform: translateY(20px); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
+}
+
+.kp-modal {
+  background: var(--bg);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-2xl);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp var(--transition-base);
+}
+
+.kp-modal-header {
+  padding: var(--spacing-xl);
+  border-bottom: 1px solid var(--border);
+}
+
+.kp-modal-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text);
+}
+
+.kp-modal-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: var(--spacing-sm);
+}
+
+.kp-modal-body {
+  padding: var(--spacing-xl);
+}
+
+.kp-modal-footer {
+  padding: var(--spacing-xl);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+}
+
+.kp-modal-form-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.kp-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.kp-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.kp-modal-label {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.kp-modal-input,
+.kp-modal-textarea {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-family-body);
+  font-size: var(--font-size-base);
+  color: var(--text);
+  background: var(--bg);
+  transition: all var(--transition-fast);
+}
+
+.kp-modal-input:focus,
+.kp-modal-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent1-light);
+}
+
+.kp-modal-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.kp-modal-help {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+/* ── Skill Selector Modal ─────────────────────────────────────────────── */
+
+.skill-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.18s ease;
+}
+
+.skill-modal {
+  background: var(--bg2, rgba(255,250,242,0.92));
+  border: 1px solid var(--border-strong, rgba(69,47,26,0.14));
+  border-radius: 24px;
+  box-shadow: var(--shadow, 0 24px 70px rgba(95,65,38,0.14));
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  width: min(600px, 92vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.2s ease;
+  overflow: hidden;
+}
+
+.skill-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--border, rgba(69,47,26,0.08));
+}
+
+.skill-modal-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.skill-modal-close {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.skill-modal-close:hover { background: var(--bg3); color: var(--text); }
+
+.skill-modal-subtitle {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  padding: 10px 24px 4px;
+}
+
+.skill-agent-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 360px;
+}
+
+.skill-agent-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.skill-agent-item:hover {
+  background: rgba(255,255,255,0.6);
+  border-color: var(--border);
+}
+.skill-agent-item:has(input:checked) {
+  background: linear-gradient(135deg, var(--glow, rgba(15,118,110,0.12)), rgba(255,255,255,0.55));
+  border-color: var(--border-active, rgba(15,118,110,0.35));
+}
+.skill-agent-item input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.skill-agent-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.skill-agent-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.skill-agent-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.skill-modal-goal {
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+}
+.skill-goal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.skill-goal-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(255,255,255,0.52);
+  resize: none;
+  transition: border-color 0.15s;
+}
+.skill-goal-textarea:focus {
+  outline: none;
+  border-color: var(--border-active);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+
+.skill-modal-actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  justify-content: flex-end;
+}
+.skill-cancel-btn {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+.skill-cancel-btn:hover { background: var(--bg3); color: var(--text); }
+

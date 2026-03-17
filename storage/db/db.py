@@ -583,3 +583,27 @@ async def create_tables():
         )
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_chunk_assets_chunk_id ON chunk_assets (chunk_id)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_chunk_assets_asset_id ON chunk_assets (asset_id)"))
+
+        # ── Skill Prompts: editable BA agent system instructions ──────────────
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS skill_prompts (
+                doc_type      VARCHAR(80)  PRIMARY KEY,
+                label         TEXT         NOT NULL DEFAULT '',
+                description   TEXT         NOT NULL DEFAULT '',
+                system_prompt TEXT         NOT NULL DEFAULT '',
+                updated_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+                updated_by    VARCHAR(255) NOT NULL DEFAULT 'system'
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_skill_prompts_doc_type ON skill_prompts (doc_type)"
+        ))
+
+    # Seed default prompts (only inserts rows that don't exist yet)
+    async with AsyncSessionLocal() as session:
+        from persistence.skill_prompt_repository import SkillPromptRepository
+        repo = SkillPromptRepository(session)
+        seeded = await repo.seed_defaults()
+        if seeded:
+            import structlog
+            structlog.get_logger().info("skill_prompts.seeded", count=seeded)

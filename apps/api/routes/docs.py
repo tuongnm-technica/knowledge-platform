@@ -113,6 +113,31 @@ def _dedupe_ids(values: list[str]) -> list[str]:
     return out
 
 
+@router.get("/supported-types")
+async def get_supported_doc_types(
+    _: CurrentUser = Depends(get_current_user),
+):
+    """Return list of supported document types for frontend."""
+    return {"supported_types": SUPPORTED_DOC_TYPES}
+
+
+@router.get("/skills")
+async def get_skill_agents(
+    _: CurrentUser = Depends(get_current_user),
+):
+    """Return mygpt-ba skill agents metadata for the Skill Selector UI."""
+    from prompts.doc_draft_prompt import SKILL_AGENT_LABELS, SKILL_DOC_TYPE_GROUPS
+    agents = [
+        {
+            "doc_type": doc_type,
+            "label": label,
+            "description": desc,
+        }
+        for doc_type, (label, desc) in SKILL_AGENT_LABELS.items()
+    ]
+    return {"agents": agents, "groups": SKILL_DOC_TYPE_GROUPS}
+
+
 @router.post("/drafts/from-answer")
 async def create_doc_draft_from_answer(
     req: FromAnswerRequest,
@@ -200,7 +225,12 @@ async def create_doc_draft_from_documents(
     sources = _doc_sources_from_documents(docs)
     title = (req.title or "").strip() or _default_title(doc_type, req.goal)
 
-    system = build_doc_system_prompt(doc_type=doc_type)
+    # Load possibly-customised prompt from DB; fall back to hardcoded default
+    from persistence.skill_prompt_repository import SkillPromptRepository
+    db_row = await SkillPromptRepository(session).get(doc_type)
+    db_prompt: str | None = db_row["system_prompt"] if db_row else None
+
+    system = build_doc_system_prompt(doc_type=doc_type, db_prompt=db_prompt)
     user = build_doc_user_prompt(
         doc_type=doc_type,
         question=req.goal or "",
@@ -243,6 +273,7 @@ async def create_doc_draft_from_documents(
         answer="",
     )
     return {"draft": draft, "supported_doc_types": SUPPORTED_DOC_TYPES}
+
 
 
 @router.get("/drafts/{draft_id}")

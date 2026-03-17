@@ -1,0 +1,179 @@
+  /* ── SEARCH PAGE ── */
+  .page-intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .intro-kicker {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .intro-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(24px, 3vw, 34px);
+    line-height: 1;
+    letter-spacing: -0.04em;
+    margin-bottom: 8px;
+  }
+
+  .intro-sub {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    max-width: 560px;
+  }
+
+  .count-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.68);
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .search-page-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px;
+  }
+
+  .search-bar-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .search-icon-pos {
+    position: absolute;
+    left: 16px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    color: var(--text-muted);
+  }
+
+  #searchInput {
+    width: 100%;
+    padding: 18px 18px 18px 50px;
+    background: rgba(255,255,255,0.74);
+    border: 1px solid var(--border-strong);
+    border-radius: 22px;
+    color: var(--text);
+    font-size: 15px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.18s ease;
+    box-shadow: 0 16px 30px rgba(95,65,38,0.06);
+  }
+
+  #searchInput:focus {
+    border-color: var(--border-active);
+    box-shadow: 0 0 0 4px var(--glow), 0 18px 32px rgba(15,118,110,0.08);
+    transform: translateY(-1px);
+  }
+  #searchInput::placeholder { color: var(--text-dim); }
+
+  .search-results { display: flex; flex-direction: column; gap: 12px; }
+
+  .result-card {
+    padding: 18px 20px;
+    background: rgba(255,255,255,0.68);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow);
+    border-radius: 22px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .result-card:hover {
+    border-color: var(--border-active);
+    background: linear-gradient(135deg, rgba(255,255,255,0.84), var(--glow));
+    transform: translateY(-2px);
+  }
+
+  .result-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+
+  .result-source-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+  }
+
+  .badge-confluence { background: rgba(99,179,237,0.15); color: var(--accent); }
+  .badge-jira { background: rgba(159,122,234,0.15); color: var(--accent2); }
+  .badge-slack { background: rgba(104,211,145,0.15); color: var(--accent3); }
+
+  .result-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
+  .result-score { font-size: 12px; font-family: 'Syne', sans-serif; font-weight: 700; color: var(--accent3); }
+  .result-content { font-size: 13px; color: var(--text-muted); line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; text-overflow: ellipsis;} 
+  .result-url { font-size: 11px; color: var(--text-dim); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .draft-card {
+    padding: 18px 20px;
+    background: rgba(255,255,255,0.68);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow);
+    border-radius: 22px;
+    transition: all 0.18s ease;
+    animation: fadeUp 0.3s ease;
+  }
+
+  [data-theme="dark"] .draft-card {
+    background: rgba(19,28,34,0.72);
+  }
+
+  .draft-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 12px;
+  }
+
+  .draft-sources {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .draft-source {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .draft-source a {
+    color: var(--accent);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .draft-source a:hover {
+    text-decoration: underline;
+  }
+

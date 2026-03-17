@@ -1,0 +1,222 @@
+  /* ── Context Basket (Pin ngữ cảnh) ───────────────────────────────────────── */
+  .basket-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 22px;
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: rgba(255,255,255,0.72);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    backdrop-filter: blur(16px);
+  }
+
+  [data-theme="dark"] .basket-fab {
+    background: rgba(19,28,34,0.72);
+  }
+
+  .basket-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.18);
+    z-index: 60;
+  }
+
+  .basket-drawer {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    bottom: 18px;
+    width: 360px;
+    max-width: calc(100vw - 36px);
+    border-radius: 22px;
+    border: 1px solid var(--border-strong);
+    background: rgba(255,255,255,0.74);
+    box-shadow: var(--shadow);
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    backdrop-filter: blur(22px);
+  }
+
+  [data-theme="dark"] .basket-drawer {
+    background: rgba(19,28,34,0.80);
+  }
+
+  .basket-header {
+    padding: 14px 14px 12px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .basket-title {
+    font-weight: 900;
+    font-family: 'Syne', sans-serif;
+    letter-spacing: 0.2px;
+  }
+
+  .basket-sub {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .basket-header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .basket-token {
+    padding: 12px 14px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .basket-token-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .basket-token-label {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .basket-token-value {
+    font-weight: 800;
+    font-size: 12px;
+  }
+
+  .basket-progress {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(100,116,139,0.18);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .basket-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent3), var(--accent));
+  }
+
+  .basket-token-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .basket-list {
+    padding: 12px 12px 12px;
+    overflow: auto;
+    flex: 1;
+  }
+
+  .basket-empty {
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 22px 12px;
+  }
+
+  .basket-item {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: rgba(255,255,255,0.70);
+    padding: 10px 10px;
+    margin-bottom: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  [data-theme="dark"] .basket-item {
+    background: rgba(19,28,34,0.64);
+  }
+
+  .basket-item-check {
+    margin-top: 2px;
+  }
+
+  .basket-item-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .basket-item-title {
+    font-weight: 800;
+    font-size: 13px;
+    margin-bottom: 4px;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .basket-item-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .basket-item-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .basket-item-actions button {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.7);
+    padding: 6px 9px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  [data-theme="dark"] .basket-item-actions button {
+    background: rgba(19,28,34,0.7);
+  }
+
+  .basket-actions {
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+  }
+
+  .pin-mini {
+    margin-left: auto;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 10px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.75);
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  [data-theme="dark"] .pin-mini {
+    background: rgba(19,28,34,0.72);
+  }
+

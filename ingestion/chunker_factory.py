@@ -9,14 +9,17 @@ from .chunkers.slack import SlackChunker
 from .chunkers.file import FileChunker
 
 
-# Registry mapping source types to their specific chunker classes
-_CHUNKERS: dict[SourceType, type[BaseChunker]] = {
-    SourceType.CONFLUENCE: ConfluenceChunker,
-    SourceType.JIRA: JiraChunker,
-    SourceType.SLACK: SlackChunker,
-    SourceType.FILE: FileChunker,
-    # Add other source types here as you create new chunker classes
-}
+# Tự động đăng ký chunker để tránh lỗi nếu một enum bị thiếu trong SourceType
+_CHUNKERS: dict[SourceType, type[BaseChunker]] = {}
+
+for source_name, chunker_cls in [
+    ("CONFLUENCE", ConfluenceChunker),
+    ("JIRA", JiraChunker),
+    ("SLACK", SlackChunker),
+    ("FILE", FileChunker),
+]:
+    if hasattr(SourceType, source_name):
+        _CHUNKERS[getattr(SourceType, source_name)] = chunker_cls
 
 
 def get_chunker_for_source(source_type: SourceType) -> BaseChunker:
