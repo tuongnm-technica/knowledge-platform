@@ -34,6 +34,11 @@ class Settings(BaseSettings):
 
     QUERY_EXPANSION_ENABLED: bool = True
     RERANKING_ENABLED: bool = True
+    # none | llm | cross_encoder
+    RERANKER_BACKEND: str = "llm"
+    # Used when RERANKER_BACKEND=cross_encoder (HuggingFace model id or local path).
+    CROSS_ENCODER_MODEL: str = "BAAI/bge-reranker-base"
+    CROSS_ENCODER_DEVICE: str = "cpu"
     SEMANTIC_CACHE_ENABLED: bool = True
 
     SLACK_BOT_TOKEN: Optional[str] = None

@@ -1,6 +1,25 @@
 // ═══════════════════════════════════════════════════════
 // AUTH MODULE — JWT + auto-refresh
 // ═══════════════════════════════════════════════════════
+import {
+  formatTime,
+  safeHostname,
+  parseThinking,
+  getSourceIcon,
+  getBadgeClass,
+  formatRelevancePercent,
+} from './utils/format.js';
+import {
+  API,
+  AUTH,
+  authFetch,
+  tryRefresh,
+  setAuthExpiredHandler,
+} from './api/client.js';
+
+setAuthExpiredHandler(showLoginScreen);
+
+/* moved to ./api/client.js
 const AUTH = {
   get token()        { return localStorage.getItem('kp_token'); },
   get refreshToken() { return localStorage.getItem('kp_refresh'); },
@@ -65,6 +84,7 @@ async function tryRefresh() {
     return true;
   } catch { AUTH.clear(); return false; }
 }
+*/
 
 async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
@@ -219,11 +239,13 @@ function doLogout() {
 })();
 
 
+/* moved to ./api/client.js
 const API = window.__KP_API_BASE__
   || localStorage.getItem('kp_api_base')
   || ((window.location.origin && window.location.origin !== 'null')
     ? window.location.origin
     : 'http://localhost:8000');
+*/
 let chatHistory = [];
 let currentUserId = '';
 let adminDirectory = { users: [], groups: [] };
@@ -637,6 +659,7 @@ function useSuggestion(el) {
   sendMessage();
 }
 
+/* moved to ./utils/format.js
 function formatTime() {
   return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
@@ -670,6 +693,23 @@ function safeHostname(url) {
     return '';
   }
 }
+
+function formatRelevancePercent(score) {
+  const n = Number(score);
+  if (!Number.isFinite(n) || n <= 0) return '';
+
+  // Heuristic: backend scores are often 0-3 (LLM relevance), sometimes 0-1.
+  let pct = 0;
+  if (n <= 1.00001) pct = n * 100;
+  else if (n <= 3.5) pct = (n / 3) * 100;
+  else if (n <= 100) pct = n;
+  else pct = 100;
+
+  pct = Math.max(0, Math.min(100, pct));
+  return pct.toFixed(0) + '%';
+}
+
+*/
 
 function buildAgentStepsHTML(steps, usedTools, plan) {
   if (!steps || steps.length === 0) return '';
@@ -780,7 +820,7 @@ function appendMessage(role, content, sources = [], agentSteps = [], usedTools =
             <div class="source-title">${s.title}</div>
             <div class="source-meta">${s.source || ''} · ${s.url ? safeHostname(s.url) : ''}</div>
           </div>
-          <span class="source-score">${((s.score || 0) * 100).toFixed(0)}%</span>
+          <span class="source-score">${formatRelevancePercent(s.score) || ''}</span>
         </a>`).join('');
 
     if (items) {
@@ -809,7 +849,7 @@ function appendMessage(role, content, sources = [], agentSteps = [], usedTools =
     const items = validSources.map(s => {
       const href = s.url ? `href="${s.url}" target="_blank"` : '';
       const title = s.title && s.title !== 'Unknown' ? s.title : (s.url ? s.url.split('/').pop() : 'Tài liệu');
-      const score = s.score ? ((s.score || 0) * 100).toFixed(0) + '%' : '';
+      const score = formatRelevancePercent(s.score);
       const snippet = escapeHtml(String(s.snippet || s.quote || s.content || '').trim()).substring(0, 420);
       const docId = String(s.document_id || '').trim();
       const pinBtn = docId
@@ -2850,7 +2890,7 @@ async function doSearch() {
         <div class="result-header">
           <span class="result-source-badge ${getBadgeClass(result.source)}">${result.source || 'doc'}</span>
           <span class="result-title">${result.title || 'Untitled'}</span>
-          <span class="result-score">${((result.score || 0) * 100).toFixed(0)}%</span>
+          <span class="result-score">${formatRelevancePercent(result.score) || ''}</span>
           <button class="pin-mini" onclick="event.stopPropagation(); basketAddDocument('${String(result.document_id || '').trim()}')" title="Ghim ngữ cảnh">📌</button>
         </div>
         <div class="result-content">${result.content || ''}</div>
@@ -4995,3 +5035,77 @@ function _graphDraw() {
     ctx.restore();
   }
 }
+
+// Expose handlers referenced from inline `onclick="..."` attributes.
+Object.assign(window, {
+  autoResize,
+  handleKey,
+  basketPreviewDocument,
+  basketRemoveDocument,
+  basketRunSkill,
+  bulkAssignTasks,
+  bulkConfirmTasks,
+  bulkRejectTasks,
+  bulkSetIssueType,
+  clearAllKnowledgeBase,
+  clearBasket,
+  clearCurrentConnectorTab,
+  clearTaskSelection,
+  closeBasketDrawer,
+  closeGraphDetail,
+  closeGroupEditor,
+  closeUserEditor,
+  confirmTask,
+  createTaskFromAnswer,
+  deleteConnectorInstance,
+  deleteDocDraft,
+  discoverConnectorScopes,
+  doLogin,
+  doLogout,
+  editConnectorInstance,
+  editGroup,
+  editUser,
+  generateDocFromAnswer,
+  graphClearHighlight,
+  graphClearSelection,
+  graphSearchChanged,
+  graphCtxDraft,
+  graphCtxPin,
+  graphDraftNode,
+  graphFocusNode,
+  graphImpactNode,
+  graphOpenNode,
+  graphPinNode,
+  graphTraceNode,
+  loadConnectorStats,
+  loadDraftsPage,
+  loadGraphDashboard,
+  loadHistory,
+  loadTasks,
+  navigate,
+  openCreateConnectorInstance,
+  openCreateGroup,
+  openCreateUser,
+  openDocDraftEditor,
+  refreshBasketDetails,
+  rejectTask,
+  resetGraphView,
+  saveConnectorConfig,
+  selectTaskGroup,
+  sendMessage,
+  setActiveConnectorTab,
+  submitTask,
+  syncConnector,
+  syncCurrentConnectorTab,
+  syncJiraStatuses,
+  testConnector,
+  toggleBasketDrawer,
+  toggleSources,
+  toggleTaskGroup,
+  toggleTheme,
+  toggleThinking,
+  toggleUserActive,
+  triggerScan,
+  unpinGraphNode,
+  useSuggestion,
+});

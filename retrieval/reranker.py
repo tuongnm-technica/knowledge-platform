@@ -18,6 +18,7 @@ Optimization:
 from __future__ import annotations
 
 import hashlib
+import asyncio
 import json
 import re
 import time
@@ -53,6 +54,26 @@ def _get_http_client() -> httpx.AsyncClient:
         _http_client = httpx.AsyncClient(timeout=120)
 
     return _http_client
+
+
+_cross_encoder = None
+_cross_encoder_lock: asyncio.Lock | None = None
+
+
+def _backend_name() -> str:
+    try:
+        return str(getattr(settings, "RERANKER_BACKEND", "llm") or "llm").strip().lower()
+    except Exception:
+        return "llm"
+
+
+def _should_skip_rerank(candidates: list[dict]) -> bool:
+    # Heuristic: skip rerank if score already very confident.
+    try:
+        best_score = float(candidates[0].get("rrf_score", 0) or 0)
+    except Exception:
+        best_score = 0.0
+    return best_score > 0.9
 
 
 # ─────────────────────────────────────────────
@@ -92,6 +113,42 @@ async def rerank(
     if len(candidates) <= top_k:
         return candidates
 
+    if not getattr(settings, "RERANKING_ENABLED", True):
+        return candidates[:top_k]
+
+    backend = _backend_name()
+
+    if backend in ("none", "off", "disabled", "false", "0"):
+        return candidates[:top_k]
+
+    if _should_skip_rerank(candidates):
+        log.debug("reranker.skip_high_confidence", backend=backend)
+        return candidates[:top_k]
+
+    if backend == "cross_encoder":
+        try:
+            return await _rerank_cross_encoder(query, candidates, top_k=top_k)
+        except Exception as e:
+            log.warning("reranker.cross_encoder.failed", error=str(e))
+            # Fallback to LLM reranker (best-effort).
+            return await _rerank_llm(query, candidates, top_k=top_k)
+
+    # default / "llm"
+    return await _rerank_llm(query, candidates, top_k=top_k)
+
+
+async def _rerank_llm(
+    query: str,
+    candidates: list[dict],
+    top_k: int = 5,
+) -> list[dict]:
+
+    if not candidates:
+        return []
+
+    if len(candidates) <= top_k:
+        return candidates
+
     # ─────────────────────────────
     # Skip rerank nếu score cao
     # ─────────────────────────────
@@ -106,14 +163,14 @@ async def rerank(
     # Cache key
     # ─────────────────────────────
 
-    cache_key = _make_cache_key(query, candidates[:MAX_RERANK])
+    cache_key = _make_cache_key("llm", settings.OLLAMA_LLM_MODEL, query, candidates[:MAX_RERANK])
 
     if cache_key in _rerank_cache:
 
         results, ts = _rerank_cache[cache_key]
 
         if time.time() - ts < _CACHE_TTL:
-            log.debug("reranker.cache_hit", query=query[:60])
+            log.debug("reranker.cache_hit", backend="llm", query=query[:60])
             return results
 
     to_rerank = candidates[:MAX_RERANK]
@@ -165,6 +222,7 @@ async def rerank(
 
         log.info(
             "reranker.done",
+            backend="llm",
             query=query[:60],
             candidates=len(to_rerank),
             top_k=top_k
@@ -180,6 +238,118 @@ async def rerank(
 
 
 # ─────────────────────────────────────────────
+# Cross-encoder reranker
+async def _get_cross_encoder():
+
+    global _cross_encoder, _cross_encoder_lock
+
+    if _cross_encoder is not None:
+        return _cross_encoder
+
+    if _cross_encoder_lock is None:
+        _cross_encoder_lock = asyncio.Lock()
+
+    async with _cross_encoder_lock:
+
+        if _cross_encoder is not None:
+            return _cross_encoder
+
+        model_id = str(getattr(settings, "CROSS_ENCODER_MODEL", "") or "").strip()
+
+        if not model_id:
+            raise ValueError("CROSS_ENCODER_MODEL is empty")
+
+        device = str(getattr(settings, "CROSS_ENCODER_DEVICE", "cpu") or "cpu").strip()
+
+        from sentence_transformers import CrossEncoder
+
+        log.info("reranker.cross_encoder.load", model=model_id, device=device)
+        _cross_encoder = CrossEncoder(model_id, device=device)
+
+        return _cross_encoder
+
+
+async def _rerank_cross_encoder(
+    query: str,
+    candidates: list[dict],
+    top_k: int = 5,
+) -> list[dict]:
+
+    if not candidates:
+        return []
+
+    if len(candidates) <= top_k:
+        return candidates
+
+    cache_key = _make_cache_key(
+        "cross_encoder",
+        getattr(settings, "CROSS_ENCODER_MODEL", ""),
+        query,
+        candidates[:MAX_RERANK],
+    )
+
+    if cache_key in _rerank_cache:
+
+        results, ts = _rerank_cache[cache_key]
+
+        if time.time() - ts < _CACHE_TTL:
+            log.debug("reranker.cache_hit", backend="cross_encoder", query=query[:60])
+            return results
+
+    to_rerank = candidates[:MAX_RERANK]
+    rest = candidates[MAX_RERANK:]
+
+    model = await _get_cross_encoder()
+
+    pairs = []
+
+    for c in to_rerank:
+        text = _clean_text((c.get("content") or "")[:MAX_CHARS])
+        pairs.append((str(query or ""), text))
+
+    scores = await asyncio.to_thread(
+        model.predict,
+        pairs,
+        show_progress_bar=False,
+    )
+
+    try:
+        scores_list = [float(s) for s in list(scores)]
+    except Exception:
+        scores_list = [float(s) for s in scores]
+
+    orig_scores = [
+        c.get("final_score", c.get("rrf_score", 0))
+        for c in to_rerank
+    ]
+    max_orig = max(orig_scores) or 1
+
+    for c, ce_score in zip(to_rerank, scores_list):
+        original = c.get("final_score", c.get("rrf_score", 0))
+        norm_orig = (original / max_orig) if max_orig else 0
+        c["cross_encoder_relevance"] = ce_score
+        c["rerank_score"] = float(ce_score) + (0.01 * float(norm_orig))
+
+    reranked = sorted(
+        to_rerank,
+        key=lambda x: x.get("rerank_score", 0),
+        reverse=True,
+    )
+
+    result = (reranked + rest)[:top_k]
+    _rerank_cache[cache_key] = (result, time.time())
+
+    log.info(
+        "reranker.done",
+        backend="cross_encoder",
+        query=query[:60],
+        candidates=len(to_rerank),
+        top_k=top_k,
+    )
+
+    return result
+
+
 # LLM scoring
 # ─────────────────────────────────────────────
 
@@ -275,6 +445,8 @@ def _clean_text(text: str) -> str:
 
 
 def _make_cache_key(
+    backend: str,
+    model_id: str,
     query: str,
     candidates: list[dict],
 ) -> str:
@@ -285,7 +457,8 @@ def _make_cache_key(
     )
 
     raw = (
-        f"{settings.OLLAMA_LLM_MODEL}|"
+        f"{str(backend or '').strip().lower()}|"
+        f"{str(model_id or '').strip()}|"
         f"{query.lower().strip()}|"
         f"{chunk_ids}"
     )
