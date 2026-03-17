@@ -58,17 +58,16 @@ class VectorSearch:
                 }
 
             # ─────────────────────────
-            # qdrant search
+            # qdrant query_points (v1.7+)
             # ─────────────────────────
 
-            results = self.qdrant.search(
+            results = self.qdrant.query_points(
                 collection_name=settings.QDRANT_COLLECTION,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=top_k,
                 query_filter=qfilter,
                 with_payload=True,
-                with_vectors=False,
-            )
+            ).points
 
             output = []
 

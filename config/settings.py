@@ -23,8 +23,12 @@ class Settings(BaseSettings):
     OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
     OLLAMA_EMBED_MODEL: str = "bge-m3"
     EMBEDDING_MODEL: str = OLLAMA_EMBED_MODEL
+    EMBEDDING_CONCURRENCY: int = 2  # Concurrency limit for embedding API calls
     LLM_TIMEOUT: int = 800
     VECTOR_DIM: int = 1024
+    
+    # Ingestion batch size: process documents in smaller batches to prevent timeout
+    INGESTION_BATCH_SIZE: int = 10
 
     HYBRID_ALPHA: float = 0.5
     BM25_WEIGHT: float = 0.3

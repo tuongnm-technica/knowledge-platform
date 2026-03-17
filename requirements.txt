@@ -17,7 +17,7 @@ arq
 APScheduler
 
 # AI, Vector DB & Data Processing
-qdrant-client
+qdrant-client>=1.7.0,<2.0.0
 sentence-transformers
 rank-bm25
 beautifulsoup4
@@ -32,7 +32,10 @@ pydantic
 pydantic-settings
 bcrypt
 PyJWT
+email-validator
 
 # Utilities
 structlog
 networkx
+
+aiohttp

@@ -1303,28 +1303,29 @@ async function deleteDocDraft(draftId) {
   }
 }
 
-const DOC_DRAFT_TYPES = {
-  srs: 'SRS',
-  brd: 'BRD',
-  api_spec: 'API Spec',
-  use_cases: 'Use Cases',
-  validation_rules: 'Validation Rules',
-  user_stories: 'User Stories',
-  requirements_intake: 'Requirements Intake',
-  requirement_review: 'Requirement Review',
-  solution_design: 'Solution Design',
-  fe_spec: 'FE Spec',
-  qa_test_spec: 'QA Test Spec',
-  deployment_spec: 'Deployment Spec',
-  change_request: 'Change Request',
-  release_notes: 'Release Notes',
-  function_list: 'Function List',
-  risk_log: 'Risk Log',
-};
-
 function docDraftTypeLabel(docType) {
   const key = String(docType || '').trim().toLowerCase();
-  return DOC_DRAFT_TYPES[key] || key || 'Draft';
+  // TODO: This should be fetched from an API to stay in sync with the backend.
+  // For now, we can create a simple mapping for display purposes.
+  const labels = {
+    srs: 'SRS',
+    brd: 'BRD',
+    api_spec: 'API Spec',
+    use_cases: 'Use Cases',
+    validation_rules: 'Validation Rules',
+    user_stories: 'User Stories',
+    requirements_intake: 'Requirements Intake',
+    requirement_review: 'Requirement Review',
+    solution_design: 'Solution Design',
+    fe_spec: 'FE Spec',
+    qa_test_spec: 'QA Test Spec',
+    deployment_spec: 'Deployment Spec',
+    change_request: 'Change Request',
+    release_notes: 'Release Notes',
+    function_list: 'Function List',
+    risk_log: 'Risk Log',
+  };
+  return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Draft';
 }
 
 async function generateDocFromDocuments(docIds, presetDocType = '') {
@@ -1362,10 +1363,12 @@ async function generateDocFromDocuments(docIds, presetDocType = '') {
   typeLab.textContent = 'Loại tài liệu';
   const typeSelect = document.createElement('select');
   typeSelect.className = 'time-input kp-modal-input';
-  Object.entries(DOC_DRAFT_TYPES).forEach(([k, v]) => {
+  // TODO: Fetch this from an API endpoint, e.g., GET /docs/supported-types
+  const supportedTypes = ['srs', 'brd', 'api_spec', 'use_cases', 'validation_rules', 'user_stories', 'requirements_intake', 'requirement_review', 'solution_design', 'fe_spec', 'qa_test_spec', 'deployment_spec', 'change_request', 'release_notes', 'function_list', 'risk_log'];
+  supportedTypes.forEach(k => {
     const opt = document.createElement('option');
     opt.value = k;
-    opt.textContent = v;
+    opt.textContent = docDraftTypeLabel(k);
     typeSelect.appendChild(opt);
   });
   typeSelect.value = docType || 'srs';
@@ -1472,10 +1475,12 @@ async function generateDocFromAnswer(msgId, presetDocType = '') {
     typeLab.textContent = 'Loại tài liệu';
     const typeSelect = document.createElement('select');
     typeSelect.className = 'time-input kp-modal-input';
-    Object.entries(DOC_DRAFT_TYPES).forEach(([k, v]) => {
+    // TODO: Fetch this from an API endpoint
+    const supportedTypes = ['srs', 'brd', 'api_spec', 'use_cases', 'validation_rules', 'user_stories', 'requirements_intake', 'requirement_review', 'solution_design', 'fe_spec', 'qa_test_spec', 'deployment_spec', 'change_request', 'release_notes', 'function_list', 'risk_log'];
+    supportedTypes.forEach(k => {
       const opt = document.createElement('option');
       opt.value = k;
-      opt.textContent = v;
+      opt.textContent = docDraftTypeLabel(k);
       typeSelect.appendChild(opt);
     });
     typeSelect.value = 'srs';
@@ -1634,80 +1639,6 @@ async function openDocDraftEditor(draftId) {
       });
       if (!response.ok) return { error: await readApiError(response) };
       showToast('Đã lưu draft.', 'success');
-      return true;
-    }
-  });
-}
-
-async function openSrsDraftEditor(draftId) {
-  const id = String(draftId || '').trim();
-  if (!id) return;
-
-  let draft = null;
-  try {
-    const r = await authFetch(`${API}/srs/drafts/${encodeURIComponent(id)}`);
-    if (!r.ok) throw new Error(await readApiError(r));
-    const data = await r.json();
-    draft = data && data.draft ? data.draft : null;
-  } catch (e) {
-    showToast(e.message || 'Cannot load SRS draft.', 'error');
-    return;
-  }
-
-  const body = document.createElement('div');
-  body.className = 'kp-modal-form-wrap';
-  const form = document.createElement('div');
-  form.className = 'kp-modal-form';
-
-  const titleWrap = document.createElement('div');
-  titleWrap.className = 'kp-modal-field';
-  const titleLab = document.createElement('div');
-  titleLab.className = 'kp-modal-label';
-  titleLab.textContent = 'Title';
-  const titleInput = document.createElement('input');
-  titleInput.className = 'time-input kp-modal-input';
-  titleInput.type = 'text';
-  titleInput.value = String(draft.title || 'SRS Draft');
-  titleWrap.appendChild(titleLab);
-  titleWrap.appendChild(titleInput);
-
-  const contentWrap = document.createElement('div');
-  contentWrap.className = 'kp-modal-field';
-  const contentLab = document.createElement('div');
-  contentLab.className = 'kp-modal-label';
-  contentLab.textContent = 'Content (Markdown)';
-  const contentInput = document.createElement('textarea');
-  contentInput.className = 'time-input kp-modal-input';
-  contentInput.value = String(draft.content || '');
-  contentInput.style.minHeight = '360px';
-  contentWrap.appendChild(contentLab);
-  contentWrap.appendChild(contentInput);
-
-  const help = document.createElement('div');
-  help.className = 'kp-modal-help';
-  help.textContent = 'MVP: chỉnh sửa bản nháp SRS dạng Markdown. (Push to Confluence sẽ làm ở bước sau.)';
-
-  form.appendChild(titleWrap);
-  form.appendChild(contentWrap);
-  form.appendChild(help);
-  body.appendChild(form);
-
-  await kpOpenModal({
-    title: 'SRS Draft',
-    subtitle: `Draft ID: ${id}`,
-    content: body,
-    okText: 'Save',
-    cancelText: 'Close',
-    onOk: async () => {
-      const response = await authFetch(`${API}/srs/drafts/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          title: titleInput.value,
-          content: contentInput.value,
-        }),
-      });
-      if (!response.ok) return { error: await readApiError(response) };
-      showToast('Draft saved.', 'success');
       return true;
     }
   });
@@ -4323,7 +4254,7 @@ function _graphEnsureContextMenu() {
   el.style.border = '1px solid var(--border-strong)';
   el.style.background = 'rgba(255,255,255,0.92)';
   el.style.boxShadow = 'var(--shadow)';
-  el.style.backdropFilter = 'blur(18px)';
+  el.style.backdropFilter = 'blur(8px)'; /* Giảm độ mờ */
   el.addEventListener('click', (ev) => ev.stopPropagation());
   document.body.appendChild(el);
   document.addEventListener('click', () => graphHideContextMenu());

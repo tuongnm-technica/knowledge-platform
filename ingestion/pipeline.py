@@ -3,6 +3,7 @@ import time
 
 import structlog
 
+from config.settings import settings
 from connectors.base.base_connector import BaseConnector
 from graph.entity_extractor import EntityExtractor
 from graph.identity_resolver import IdentityResolver
@@ -69,28 +70,36 @@ class IngestionPipeline:
         except Exception:
             pass
 
-        last_flush = time.monotonic()
-        flush_every = 10
-        for doc in documents:
-            try:
-                await self._process(doc, connector_key=connector_key or connector_name)
-                stats["indexed"] += 1
-            except Exception as e:
-                log.error("ingestion.doc.error", doc_id=doc.id, error=str(e))
-                stats["errors"] += 1
-
-            # Lightweight progress heartbeat for UI.
-            if (stats["indexed"] + stats["errors"]) % flush_every == 0 or (time.monotonic() - last_flush) > 2.0:
-                last_flush = time.monotonic()
+        # Process documents in smaller batches to avoid job timeout (ARQ default ~300s)
+        # Batch size configurable via INGESTION_BATCH_SIZE setting
+        batch_size = settings.INGESTION_BATCH_SIZE
+        for batch_start in range(0, len(documents), batch_size):
+            batch_end = min(batch_start + batch_size, len(documents))
+            batch_docs = documents[batch_start:batch_end]
+            
+            last_flush = time.monotonic()
+            flush_every = 3
+            
+            for doc in batch_docs:
                 try:
-                    await self._sync_repo.update_progress(
-                        log_id,
-                        fetched=stats["fetched"],
-                        indexed=stats["indexed"],
-                        errors=stats["errors"],
-                    )
-                except Exception:
-                    pass
+                    await self._process(doc, connector_key=connector_key or connector_name)
+                    stats["indexed"] += 1
+                except Exception as e:
+                    log.error("ingestion.doc.error", doc_id=doc.id, error=str(e))
+                    stats["errors"] += 1
+
+                # Lightweight progress heartbeat for UI.
+                if (stats["indexed"] + stats["errors"]) % flush_every == 0 or (time.monotonic() - last_flush) > 2.0:
+                    last_flush = time.monotonic()
+                    try:
+                        await self._sync_repo.update_progress(
+                            log_id,
+                            fetched=stats["fetched"],
+                            indexed=stats["indexed"],
+                            errors=stats["errors"],
+                        )
+                    except Exception:
+                        pass
 
         status = "success" if stats["errors"] == 0 else "partial"
         await self._sync_repo.finish_sync(

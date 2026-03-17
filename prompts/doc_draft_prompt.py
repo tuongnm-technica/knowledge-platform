@@ -22,6 +22,25 @@ SUPPORTED_DOC_TYPES: dict[str, str] = {
     "risk_log": "Risk Log",
 }
 
+PROMPT_EXTENSIONS: dict[str, str] = {
+    "api_spec": "Tạo API Specification: endpoints, params, request/response JSON examples, error model (RFC 7807), status codes.\n",
+    "requirements_intake": "Tạo Requirements Intake: danh sách BR/FR/NFR atomic & testable + assumptions/constraints + open questions.\n",
+    "requirement_review": "Review requirement: tìm gaps, conflicts BR/FR/UC/VR, edge cases, permission model, risks; nêu verdict (BLOCK/WARN/OK).\n",
+    "solution_design": "Tạo Solution Design: architecture overview, ADRs (decision + rationale), data model high-level, integration points, non-functional considerations.\n",
+    "fe_spec": "Tạo FE Technical Spec: component tree, component contracts, UI state matrix, validation UX behavior, error boundary, a11y (WCAG 2.1 AA), performance budget.\n",
+    "qa_test_spec": "Tạo QA Test Spec: consistency checks (BLOCK/WARN), test cases theo level (Unit/Integration/E2E/UAT) + owner + test data; security tests map OWASP Top 10 (2021); UAT exit criteria.\n",
+    "deployment_spec": "Tạo Deployment & Ops Spec: environments, CI/CD, config/secrets, monitoring & alerting thresholds, incident runbook, DR plan, go-live checklist.\n",
+    "change_request": "Tạo Change Request analysis + impact analysis 6 dimensions (Module/API/DB/UI/BR/Tests), risk classification, effort estimate, rollback plan.\n",
+    "release_notes": "Tạo Release Notes: What's new, improvements, bug fixes, known issues, rollback notes, version/date.\n",
+    "function_list": "Tạo Function List: danh sách chức năng module/feature/function + owner + status + link tới FR/UC.\n",
+    "risk_log": "Tạo Risk Log: risk id, description, likelihood/impact, mitigation, owner, due date, status.\n",
+    "brd": "Tạo BRD: problem statement, stakeholders, scope, assumptions, success metrics, risks.\n",
+    "use_cases": "Tạo Use Case chi tiết: main flow + exception flows + pre/post conditions.\n",
+    "validation_rules": "Tạo Validation Rules có UX behavior: khi nào validate, message, FE/BE rule.\n",
+    "user_stories": "Tạo User Stories theo INVEST + Gherkin AC + DoD.\n",
+    "srs": "Tạo SRS theo cấu trúc 10 mục (có Glossary + Traceability).\n",
+}
+
 
 def build_doc_system_prompt(*, doc_type: str) -> str:
     doc_type = (doc_type or "srs").strip().lower()
@@ -34,62 +53,8 @@ def build_doc_system_prompt(*, doc_type: str) -> str:
         "- Output là Markdown.\n"
     )
 
-    if doc_type == "api_spec":
-        return (
-            base
-            + "Tạo API Specification: endpoints, params, request/response JSON examples, error model (RFC 7807), status codes.\n"
-        )
-    if doc_type == "requirements_intake":
-        return (
-            base
-            + "Tạo Requirements Intake: danh sách BR/FR/NFR atomic & testable + assumptions/constraints + open questions.\n"
-        )
-    if doc_type == "requirement_review":
-        return (
-            base
-            + "Review requirement: tìm gaps, conflicts BR/FR/UC/VR, edge cases, permission model, risks; nêu verdict (BLOCK/WARN/OK).\n"
-        )
-    if doc_type == "solution_design":
-        return (
-            base
-            + "Tạo Solution Design: architecture overview, ADRs (decision + rationale), data model high-level, integration points, non-functional considerations.\n"
-        )
-    if doc_type == "fe_spec":
-        return (
-            base
-            + "Tạo FE Technical Spec: component tree, component contracts, UI state matrix, validation UX behavior, error boundary, a11y (WCAG 2.1 AA), performance budget.\n"
-        )
-    if doc_type == "qa_test_spec":
-        return (
-            base
-            + "Tạo QA Test Spec: consistency checks (BLOCK/WARN), test cases theo level (Unit/Integration/E2E/UAT) + owner + test data; security tests map OWASP Top 10 (2021); UAT exit criteria.\n"
-        )
-    if doc_type == "deployment_spec":
-        return (
-            base
-            + "Tạo Deployment & Ops Spec: environments, CI/CD, config/secrets, monitoring & alerting thresholds, incident runbook, DR plan, go-live checklist.\n"
-        )
-    if doc_type == "change_request":
-        return (
-            base
-            + "Tạo Change Request analysis + impact analysis 6 dimensions (Module/API/DB/UI/BR/Tests), risk classification, effort estimate, rollback plan.\n"
-        )
-    if doc_type == "release_notes":
-        return base + "Tạo Release Notes: What's new, improvements, bug fixes, known issues, rollback notes, version/date.\n"
-    if doc_type == "function_list":
-        return base + "Tạo Function List: danh sách chức năng module/feature/function + owner + status + link tới FR/UC.\n"
-    if doc_type == "risk_log":
-        return base + "Tạo Risk Log: risk id, description, likelihood/impact, mitigation, owner, due date, status.\n"
-    if doc_type == "brd":
-        return base + "Tạo BRD: problem statement, stakeholders, scope, assumptions, success metrics, risks.\n"
-    if doc_type == "use_cases":
-        return base + "Tạo Use Case chi tiết: main flow + exception flows + pre/post conditions.\n"
-    if doc_type == "validation_rules":
-        return base + "Tạo Validation Rules có UX behavior: khi nào validate, message, FE/BE rule.\n"
-    if doc_type == "user_stories":
-        return base + "Tạo User Stories theo INVEST + Gherkin AC + DoD.\n"
-    # default srs
-    return base + "Tạo SRS theo cấu trúc 10 mục (có Glossary + Traceability).\n"
+    extension = PROMPT_EXTENSIONS.get(doc_type, PROMPT_EXTENSIONS["srs"])
+    return base + extension
 
 
 def build_doc_user_prompt(

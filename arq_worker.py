@@ -22,7 +22,11 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     functions = [sync_connector_job]
     
-    # Tuỳ chọn: bạn có thể định nghĩa cron jobs của arq ở đây để chạy scheduler
-    # cron_jobs = [cron(run_scheduled_tasks, hour={2,3,4}, minute=0)]
+    # Job timeout: 20 minutes (1200 seconds) to handle large ingestion batches
+    job_timeout = 1200
     
-    max_jobs = 5 # Giới hạn concurrency để không ngốn sạch CPU
+    # Concurrency limit to avoid resource exhaustion
+    max_jobs = 5
+    
+    # Health check interval
+    health_check_interval = 60

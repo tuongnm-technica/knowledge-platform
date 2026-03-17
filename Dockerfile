@@ -13,8 +13,5 @@ COPY requirements.txt .
 # ❗ rồi mới pip install
 RUN pip install --no-cache-dir -r requirements.txt
 
-# (tuỳ chọn) nếu chưa có trong requirements
-RUN pip install arq redis
-
 # ❗ cuối cùng mới copy code
 COPY . .

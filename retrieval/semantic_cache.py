@@ -22,11 +22,11 @@ class SemanticCache:
 
         vector = await get_embedding(query)
 
-        res = self.qdrant.search(
+        res = self.qdrant.query_points(
             collection_name=COLLECTION,
-            query_vector=vector,
+            query=vector,
             limit=1,
-        )
+        ).points
 
         if not res:
             return None

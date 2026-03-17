@@ -99,13 +99,13 @@ class VectorStore:
                 must=[FieldCondition(key="document_id", match=MatchAny(any=allowed_document_ids))]
             )
 
-        hits = self._client.search(
+        hits = self._client.query_points(
             collection_name=settings.QDRANT_COLLECTION,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
             query_filter=query_filter,
             with_payload=True,
-        )
+        ).points
 
         results = []
         for hit in hits:

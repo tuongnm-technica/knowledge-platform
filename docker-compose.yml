@@ -42,6 +42,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - PYTHONPATH=/app
       - RUN_WORKER=False
     depends_on:
       postgres:
@@ -62,6 +63,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - PYTHONPATH=/app
       - RUN_WORKER=True
     depends_on:
       postgres:

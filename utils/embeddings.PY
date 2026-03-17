@@ -98,8 +98,9 @@ async def _call_ollama_embed(text: str) -> list[float]:
 async def _call_ollama_embed_batch(texts: list[str]) -> list[list[float]]:
     """Batch embedding — gọi từng text nhưng concurrent."""
     tasks = [_call_ollama_embed(t) for t in texts]
-    # Giới hạn concurrency để không quá tải Ollama
-    semaphore = asyncio.Semaphore(4)
+    # Limit concurrency to prevent overwhelming Ollama and causing timeouts.
+    # Uses EMBEDDING_CONCURRENCY setting to allow tuning based on infrastructure.
+    semaphore = asyncio.Semaphore(settings.EMBEDDING_CONCURRENCY)
 
     async def _limited(task):
         async with semaphore:
