@@ -2,11 +2,12 @@ from datetime import date, datetime, timedelta, timezone
 
 import httpx
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
+from arq.connections import ArqRedis
 
 from apps.api.auth.dependencies import CurrentUser, get_current_user, require_admin, require_task_manager
 from config.settings import settings
@@ -157,27 +158,22 @@ async def list_drafts(
 @router.post("/scan")
 async def trigger_scan(
     req: ScanRequest,
-    background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(require_task_manager),
 ):
-    async def _bg_scan():
-        engine = create_async_engine(settings.DATABASE_URL)
-        session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-        async with session_factory() as session:
-            stats = await scan_and_create_drafts(
-                session=session,
-                triggered_by="manual",
-                created_by=current_user.user_id,
-                slack_days=req.slack_days,
-                confluence_days=req.confluence_days,
-            )
-            log.info("tasks.scan.done", user=current_user.user_id, **stats)
-
-    background_tasks.add_task(_bg_scan)
+    arq_redis: ArqRedis = request.app.state.arq_redis
+    await arq_redis.enqueue_job(
+        "scan_sources_job",
+        req.slack_days,
+        req.confluence_days,
+        triggered_by="manual",
+        created_by=current_user.user_id,
+        _queue_name=settings.ARQ_INGESTION_QUEUE_NAME,
+    )
     return {
-        "message": f"Scanning Slack ({req.slack_days}d) and Confluence ({req.confluence_days}d).",
-        "status": "scanning",
+        "message": f"Scan job enqueued for Slack ({req.slack_days}d) and Confluence ({req.confluence_days}d).",
+        "status": "enqueued",
     }
 
 

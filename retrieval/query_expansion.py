@@ -7,6 +7,7 @@ import httpx
 import structlog
 from config.settings import settings
 from utils.ollama_api import ollama_chat
+from prompts.retrieval_prompt import EXPANSION_SYSTEM
 
 log = structlog.get_logger()
 
@@ -47,24 +48,6 @@ def _get_cached(query: str) -> list[str] | None:
 def _set_cache(query: str, variants: list[str]) -> None:
     _cache[_cache_key(query)] = (variants, time.time())
 
-
-EXPANSION_SYSTEM = """
-Bạn là expert search query optimizer cho hệ thống tài liệu kỹ thuật nội bộ.
-
-Giữ nguyên query gốc. 
-Và Sinh ra 2 query variants.
-=> tổng có 3 query (1 original + 2 variants).
-
-Rules:
-- giữ nguyên meaning
-- dùng synonyms
-- mix EN / VN
-- < 15 words
-
-Return JSON:
-
-{"variants":["variant1","variant2"]}
-"""
 
 
 async def expand_query(query: str, use_llm: bool = True) -> list[str]:

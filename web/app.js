@@ -24,6 +24,8 @@ import * as Basket from './modules/basket.js';
 import * as Graph from './modules/graph.js';
 import * as Admin from './modules/admin.js';
 import * as Connectors from './modules/connectors.js';
+import * as Tasks from './modules/tasks.js';
+import * as Chat from './modules/chat.js';
 
 setAuthExpiredHandler(showLoginScreen);
 
@@ -139,7 +141,7 @@ function hideLoginScreen() {
   applyUser(AUTH.user);
   Basket.renderBasket();
   Basket.updateBasketBadges();
-  loadDraftsCount();
+  Tasks.loadTasksCount();
   checkHealth();
   Connectors.loadConnectorStats();
   if (document.getElementById('page-users')?.classList.contains('active') && AUTH.user.is_admin) {
@@ -239,7 +241,7 @@ function navigate(page, el) {
   if (targetEl) targetEl.classList.add('active');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + targetPage).classList.add('active');
-  if (targetPage === 'tasks') loadTasks();
+  if (targetPage === 'tasks') Tasks.loadTasks();
   if (targetPage === 'connectors') Connectors.loadConnectorStats(true);
   if (targetPage === 'basket') Basket.loadBasketPage();
   if (targetPage === 'drafts') loadDraftsPage(true);
@@ -251,8 +253,7 @@ function navigate(page, el) {
   } else {
     document.getElementById('pageTitle').textContent = titles[targetPage] || targetPage;
   }
-  if (targetPage === 'history') renderHistory();
-}
+  if (targetPage === 'history') 
 
 // ── Health check ──
 async function checkHealth() {
@@ -693,9 +694,9 @@ async function createTaskFromAnswer(msgId) {
     });
     if (!response.ok) throw new Error(await readApiError(response));
     showToast('Task draft created from this answer.', 'success');
-    await loadTasksCount();
+    await Tasks.loadTasksCount();
     navigate('tasks', document.getElementById('nav-tasks'));
-    await loadTasks();
+    await Tasks.loadTasks();
   } catch (error) {
     showToast(error.message || 'Cannot create task draft.', 'error');
   }
@@ -1079,236 +1080,8 @@ async function generateDocFromDocuments(docIds, presetDocType = '') {
     await openDocDraftEditor(draft.id);
   } catch (e) {
     showToast(e.message || 'Không thể chạy skill.', 'error');
-  }
-}
-
-async function generateDocFromAnswer(msgId, presetDocType = '') {
-  const payload = assistantMessageStore[msgId];
-  if (!payload) {
-    showToast('Không tìm thấy message context.', 'error');
-    return;
-  }
-
-  let docType = String(presetDocType || '').trim().toLowerCase();
-  let title = '';
-
-  if (!docType) {
-    const body = document.createElement('div');
-    body.className = 'kp-modal-form-wrap';
-    const form = document.createElement('div');
-    form.className = 'kp-modal-form';
-
-    const typeWrap = document.createElement('div');
-    typeWrap.className = 'kp-modal-field';
-    const typeLab = document.createElement('div');
-    typeLab.className = 'kp-modal-label';
-    typeLab.textContent = 'Loại tài liệu';
-    const typeSelect = document.createElement('select');
-    typeSelect.className = 'time-input kp-modal-input';
-    // TODO: Fetch this from an API endpoint
-    const supportedTypes = ['srs', 'brd', 'api_spec', 'use_cases', 'validation_rules', 'user_stories', 'requirements_intake', 'requirement_review', 'solution_design', 'fe_spec', 'qa_test_spec', 'deployment_spec', 'change_request', 'release_notes', 'function_list', 'risk_log'];
-    supportedTypes.forEach(k => {
-      const opt = document.createElement('option');
-      opt.value = k;
-      opt.textContent = docDraftTypeLabel(k);
-      typeSelect.appendChild(opt);
-    });
-    typeSelect.value = 'srs';
-    typeWrap.appendChild(typeLab);
-    typeWrap.appendChild(typeSelect);
-
-    const titleWrap = document.createElement('div');
-    titleWrap.className = 'kp-modal-field';
-    const titleLab = document.createElement('div');
-    titleLab.className = 'kp-modal-label';
-    titleLab.textContent = 'Tiêu đề (tuỳ chọn)';
-    const titleInput = document.createElement('input');
-    titleInput.className = 'time-input kp-modal-input';
-    titleInput.type = 'text';
-    titleInput.placeholder = 'Tự động';
-    titleWrap.appendChild(titleLab);
-    titleWrap.appendChild(titleInput);
-
-    const help = document.createElement('div');
-    help.className = 'kp-modal-help';
-    help.textContent = 'Hệ thống sẽ dùng các sources (Confluence/Jira/Slack/File) trong câu trả lời này để tạo bản nháp (Markdown).';
-
-    form.appendChild(typeWrap);
-    form.appendChild(titleWrap);
-    form.appendChild(help);
-    body.appendChild(form);
-
-    const cfg = await kpOpenModal({
-      title: 'Tạo bản nháp',
-      subtitle: 'Chọn loại tài liệu cần tạo',
-      content: body,
-      okText: 'Tạo',
-      cancelText: 'Hủy',
-      onOk: async () => {
-        const t = String(typeSelect.value || '').trim().toLowerCase();
-        if (!t) return { error: 'Vui lòng chọn loại tài liệu.' };
-        return { docType: t, title: String(titleInput.value || '').trim() };
-      }
-    });
-    if (!cfg) return;
-    docType = String(cfg.docType || '').trim().toLowerCase();
-    title = String(cfg.title || '').trim();
-  }
-
-  try {
-    const response = await authFetch(`${API}/docs/drafts/from-answer`, {
-      method: 'POST',
-      body: JSON.stringify({
-        doc_type: docType || 'srs',
-        title: title || '',
-        question: payload.question,
-        answer: payload.answer,
-        sources: payload.sources || [],
-      }),
-    });
-    if (!response.ok) throw new Error(await readApiError(response));
-    const data = await response.json();
-    const draft = data && data.draft ? data.draft : null;
-    if (!draft || !draft.id) throw new Error('Invalid draft response.');
-    showToast(`Đã tạo bản nháp ${docDraftTypeLabel(docType)}.`, 'success');
-    await openDocDraftEditor(draft.id);
-  } catch (error) {
-    showToast(error.message || 'Không thể tạo draft.', 'error');
-  }
-}
-
-async function generateSrsFromAnswer(msgId) {
-  return generateDocFromAnswer(msgId, 'srs');
-}
-
-async function openDocDraftEditor(draftId) {
-  const id = String(draftId || '').trim();
-  if (!id) return;
-
-  let draft = null;
-  let supportedDocTypes = null;
-  try {
-    const r = await authFetch(`${API}/docs/drafts/${encodeURIComponent(id)}`);
-    if (!r.ok) throw new Error(await readApiError(r));
-    const data = await r.json();
-    draft = data && data.draft ? data.draft : null;
-    supportedDocTypes = (data && data.supported_doc_types) ? data.supported_doc_types : null;
-  } catch (e) {
-    showToast(e.message || 'Không thể tải draft.', 'error');
-    return;
-  }
-
-  const docType = String((draft && draft.doc_type) || '').trim().toLowerCase();
-  const docTypeLabel = (supportedDocTypes && docType && supportedDocTypes[docType])
-    ? String(supportedDocTypes[docType])
-    : docDraftTypeLabel(docType);
-
-  const body = document.createElement('div');
-  body.className = 'kp-modal-form-wrap';
-  const form = document.createElement('div');
-  form.className = 'kp-modal-form';
-
-  const typeWrap = document.createElement('div');
-  typeWrap.className = 'kp-modal-field';
-  const typeLab = document.createElement('div');
-  typeLab.className = 'kp-modal-label';
-  typeLab.textContent = 'Loại tài liệu';
-  const typeVal = document.createElement('div');
-  typeVal.className = 'kp-modal-help';
-  typeVal.textContent = docTypeLabel;
-  typeWrap.appendChild(typeLab);
-  typeWrap.appendChild(typeVal);
-
-  const titleWrap = document.createElement('div');
-  titleWrap.className = 'kp-modal-field';
-  const titleLab = document.createElement('div');
-  titleLab.className = 'kp-modal-label';
-  titleLab.textContent = 'Tiêu đề';
-  const titleInput = document.createElement('input');
-  titleInput.className = 'time-input kp-modal-input';
-  titleInput.type = 'text';
-  titleInput.value = String((draft && draft.title) || 'Draft');
-  titleWrap.appendChild(titleLab);
-  titleWrap.appendChild(titleInput);
-
-  const contentWrap = document.createElement('div');
-  contentWrap.className = 'kp-modal-field';
-  const contentLab = document.createElement('div');
-  contentLab.className = 'kp-modal-label';
-  contentLab.textContent = 'Nội dung (Markdown)';
-  const contentInput = document.createElement('textarea');
-  contentInput.className = 'time-input kp-modal-input';
-  contentInput.value = String((draft && draft.content) || '');
-  contentInput.style.minHeight = '360px';
-  contentWrap.appendChild(contentLab);
-  contentWrap.appendChild(contentInput);
-
-  const help = document.createElement('div');
-  help.className = 'kp-modal-help';
-  help.textContent = 'MVP: chỉnh sửa bản nháp dạng Markdown. (Push to Confluence/Jira sẽ làm ở bước sau.)';
-
-  form.appendChild(typeWrap);
-  form.appendChild(titleWrap);
-  form.appendChild(contentWrap);
-  form.appendChild(help);
-  body.appendChild(form);
-
-  await kpOpenModal({
-    title: docTypeLabel || 'Draft',
-    subtitle: `Draft ID: ${id}`,
-    content: body,
-    okText: 'Lưu',
-    cancelText: 'Đóng',
-    onOk: async () => {
-      const response = await authFetch(`${API}/docs/drafts/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          title: titleInput.value,
-          content: contentInput.value,
-        }),
-      });
-      if (!response.ok) return { error: await readApiError(response) };
-      showToast('Đã lưu draft.', 'success');
-      return true;
-    }
-  });
-}
-
-// ── History ──
-function renderHistory() {
-  const container = document.getElementById('historyList');
-  if (chatHistory.length === 0) {
-    container.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-muted)">
-      <div style="font-size:40px;opacity:0.3;margin-bottom:12px">🕘</div>
-      <div>Chưa có lịch sử chat</div></div>`;
-    return;
-  }
-
-  container.innerHTML = chatHistory.map((h, i) => `
-    <div class="history-item" onclick="loadHistory(${i})">
-      <span class="history-icon">💬</span>
-      <div class="history-body">
-        <div class="history-question">${h.question}</div>
-        <div class="history-meta">${h.time.toLocaleString('vi-VN')} · ${h.sources?.length || 0} nguồn</div>
-      </div>
-      <span class="history-arrow">›</span>
-    </div>`).join('');
-}
-
-function loadHistory(i) {
-  const h = chatHistory[i];
-  navigate('chat', document.querySelectorAll('.nav-item')[0]);
-  setTimeout(() => {
-    appendMessage('user', h.question);
-    appendMessage('assistant', h.answer, h.sources);
-  }, 100);
-}
-
-// ── Theme Toggle ──
-function toggleTheme() {
-  const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
-  if (isDark) {
+  } t. u
+//fe') === 'dark';
     html.removeAttribute('data-theme');
     document.getElementById('themeToggle').textContent = '🌙';
     localStorage.setItem('theme', 'light');
@@ -1335,7 +1108,7 @@ setInterval(checkHealth, 30000);
 Connectors.loadConnectorStats();
 setInterval(Connectors.loadConnectorStats, 450000);
 document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doSearch();
+  if (e.key === 'Enter') Chat.doSearch();
 });
 
 async function loadTasksCount() {
@@ -1404,37 +1177,7 @@ function selectedTaskIds() {
 }
 
 async function bulkConfirmTasks() {
-  const ids = selectedTaskIds();
-  if (!ids.length) return;
-  try {
-    const response = await authFetch(`${API}/tasks/batch/confirm`, {
-      method: 'POST',
-      body: JSON.stringify({ ids }),
-    });
-    if (!response.ok) throw new Error(await readApiError(response));
-    showToast(`Confirmed ${ids.length} tasks.`, 'success');
-    clearTaskSelection();
-    await loadTasks();
-    await loadTasksCount();
-  } catch (error) {
-    showToast(error.message || 'Bulk confirm failed.', 'error');
-  }
-}
-
-async function bulkRejectTasks() {
-  const ids = selectedTaskIds();
-  if (!ids.length) return;
-  const ok = await kpConfirm({
-    title: 'Dismiss tasks',
-    message: `Dismiss ${ids.length} selected tasks?`,
-    okText: 'Dismiss',
-    cancelText: 'Cancel',
-    danger: true,
-  });
-  if (!ok) return;
-  try {
-    const response = await authFetch(`${API}/tasks/batch/reject`, {
-      method: 'POST',
+  con ,;: 'POST',
       body: JSON.stringify({ ids }),
     });
     if (!response.ok) throw new Error(await readApiError(response));
@@ -1465,7 +1208,6 @@ async function bulkAssignTasks() {
     showToast(`Assigned ${ids.length} tasks.`, 'success');
     clearTaskSelection();
     await loadTasks();
-  } catch (error) {
     showToast(error.message || 'Bulk assign failed.', 'error');
   }
 }
@@ -2083,41 +1825,21 @@ async function syncJiraStatuses() {
 setInterval(loadTasksCount, 30000);
 
 // Expose handlers referenced from inline `onclick="..."` attributes.
+Chat.setChatCallbacks({ navigate, openDocDraftEditor });
 Graph.setGraphGenerateDocCallback(generateDocFromDocuments);
 Object.assign(window, {
   ...Basket,
   ...Graph,
   ...Admin,
   ...Connectors,
+  ...Tasks,
+  ...Chat,
   // Override import to inject app specific functionality preventing cyclic dependency
   basketRunSkill: () => Basket.basketRunSkill(generateDocFromDocuments),
-  autoResize,
-  handleKey,
-  bulkAssignTasks,
-  bulkConfirmTasks,
-  bulkRejectTasks,
-  bulkSetIssueType,
-  clearTaskSelection,
-  confirmTask,
-  createTaskFromAnswer,
   deleteDocDraft,
   doLogin,
   doLogout,
-  generateDocFromAnswer,
   loadDraftsPage,
-  loadHistory,
-  loadTasks,
   navigate,
-  refreshBasketDetails,
-  rejectTask,
-  selectTaskGroup,
-  sendMessage,
-  submitTask,
-  syncJiraStatuses,
-  toggleSources,
-  toggleTaskGroup,
   toggleTheme,
-  toggleThinking,
-  triggerScan,
-  useSuggestion,
 });

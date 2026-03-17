@@ -10,7 +10,6 @@ import asyncio
 import json
 import re
 import structlog
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import httpx
@@ -19,80 +18,21 @@ from orchestration.tools import BaseTool, ToolResult
 from retrieval.context_compressor import compress_context
 from retrieval.semantic_cache import SemanticCache
 from config.settings import settings
-from utils.ollama_api import ollama_chat
+from llm.base import ILLMClient
+from llm.ollama import OllamaLLMClient
+from prompts.agent_prompt import (
+    SELF_CORRECT_SYSTEM,
+    RELEVANCE_GRADE_SYSTEM,
+    LOGIC_CHECK_SYSTEM,
+    PLAN_SYSTEM,
+    SUMMARIZE_SYSTEM,
+)
 
 log = structlog.get_logger()
 
 REACT_TIMEOUT = 600
-LLM_TIMEOUT = 120
 
 MAX_PLAN_STEPS = 3
-
-SELF_CORRECT_SYSTEM = """
-Bạn là Search Agent. Nhiệm vụ: nếu kết quả truy xuất không khớp câu hỏi, hãy viết lại query tốt hơn để tìm lại.
-Quy tắc:
-- Giữ nguyên định dạng ngày/tháng dạng số (vd: 9/2, 11/3). Không dịch sang tiếng Anh.
-- Query mới phải bao gồm đủ thực thể quan trọng (tên người, dự án, hệ thống, mốc thời gian).
-- Trả về JSON thuần: {"query": "..."}
-"""
-
-RELEVANCE_GRADE_SYSTEM = """
-Bạn là Search Critic. Chấm điểm mức liên quan (0-3) của từng đoạn CONTEXT với câu hỏi.
-0: không liên quan
-1: liên quan chung chung/gián tiếp
-2: liên quan rõ nhưng thiếu chi tiết quan trọng
-3: trả lời trực tiếp câu hỏi
-Trả về JSON thuần: {"grades":[{"i":0,"score":2,"reason":"..."}, ...]}
-"""
-
-LOGIC_CHECK_SYSTEM = """
-Bạn là Logic Agent. Nhiệm vụ: phát hiện mâu thuẫn hoặc thông tin không nhất quán giữa các nguồn trong CONTEXT.
-Trả về JSON thuần:
-{"contradictions":[{"point":"...","sources":["Title A","Title B"]}],"confidence":0.0-1.0}
-Nếu không có mâu thuẫn: {"contradictions":[],"confidence":0.8}
-"""
-
-
-PLAN_SYSTEM = """
-Bạn là AI Dispatcher chuyên lập kế hoạch tìm kiếm thông tin kỹ thuật.
-
-QUY TẮC BẮT BUỘC:
-1. Luôn giữ nguyên định dạng ngày/tháng dạng số (ví dụ: 9/2, 11/3) trong query.
-2. TUYỆT ĐỐI KHÔNG dịch ngày tháng sang chữ tiếng Anh (vd: Không dịch 9/2 thành February hay September).
-3. Luôn lập kế hoạch bằng tiếng Việt.
-4. CHÚ Ý: Query tìm kiếm PHẢI BAO GỒM TẤT CẢ các từ khóa quan trọng mà người dùng nhắc đến (Tên người, Tên dự án, Hành động, Mốc thời gian).
-
-Return ONLY valid JSON. Ví dụ minh họa cách gom từ khóa:
-{
- "plan":[
-  {
-   "step":1,
-   "query":"{tên người nếu có} {tên dự án/chủ đề nếu có} {ngày tháng}",
-   "reason":"Tìm kiếm kết hợp các thực thể quan trọng để tăng độ chính xác",
-   "parallel":false
-  }
- ]
-}
-"""
-
-
-
-SUMMARIZE_SYSTEM = """
-Bạn là Business Analyst.
-
-Nhiệm vụ:
-Trả lời câu hỏi dựa trên dữ liệu CONTEXT.
-
-Quy tắc:
-
-1. Chỉ sử dụng thông tin trong CONTEXT
-2. Nếu có nhiều nguồn hãy tổng hợp
-3. Nếu CONTEXT không đủ hãy nói rõ
-4. Trích thông tin quan trọng
-
-Trả lời rõ ràng và có cấu trúc.
-"""
-
 
 @dataclass
 class PlanStep:
@@ -132,39 +72,6 @@ class ReActResult:
     used_tools: list[str] = field(default_factory=list)
     rewritten_query: str = ""
 
-class ILLMClient(ABC):
-    @abstractmethod
-    async def chat(self, system: str, user: str, max_tokens: int = 400) -> str:
-        pass
-
-    @abstractmethod
-    async def close(self):
-        pass
-
-class OllamaLLMClient(ILLMClient):
-    def __init__(self, base_url: str, model: str):
-        self._model = model
-        self._client = httpx.AsyncClient(
-            timeout=REACT_TIMEOUT,
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-        )
-
-    async def chat(self, system: str, user: str, max_tokens: int = 400) -> str:
-        out = await ollama_chat(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            options={"num_predict": max_tokens, "temperature": 0.1},
-            timeout=LLM_TIMEOUT,
-            client=self._client,
-        )
-        out = re.sub(r"<think>.*?</think>", "", out, flags=re.DOTALL)
-        return out.strip()
-
-    async def close(self):
-        await self._client.aclose()
 
 class ReActLoop:
 
@@ -175,14 +82,19 @@ class ReActLoop:
         self._cache = SemanticCache()
 
         if llm_client is None:
-            self._llm = OllamaLLMClient(settings.OLLAMA_BASE_URL, settings.OLLAMA_LLM_MODEL)
+            self._llm = OllamaLLMClient(
+                base_url=settings.OLLAMA_BASE_URL, 
+                model=settings.OLLAMA_LLM_MODEL,
+                timeout=REACT_TIMEOUT
+            )
         else:
             self._llm = llm_client
 
         log.info("tools.loaded", tools=list(self._tools.keys()))
 
     async def close(self):
-        await self._llm.close()
+        if hasattr(self._llm, "_client") and self._llm._managed_client:
+            await self._llm._client.aclose()
 
     async def run(self, question: str, user_id: str = "") -> ReActResult:
         # Fast path: semantic cache

@@ -12,44 +12,12 @@ from config.settings import settings
 from persistence.document_repository import DocumentRepository
 from persistence.asset_repository import AssetRepository
 from tasks.repository import TaskDraftRepository
-from utils.ollama_api import ollama_chat
+from llm.base import ILLMClient
+from llm.ollama import OllamaLLMClient
+from prompts.task_prompt import TASK_SYSTEM
 
 
 log = structlog.get_logger()
-
-
-TASK_SYSTEM = """\
-Bạn là PM/Tech Lead. Nhiệm vụ: tạo 1 Jira task draft từ câu hỏi, câu trả lời và bằng chứng (evidence).
-
-Yêu cầu:
-- Trả về JSON THUẦN, không markdown.
-- Không bịa thông tin ngoài CONTEXT. Nếu không đủ dữ liệu, hãy ghi rõ giả định trong description.
-- title: ngắn, bắt đầu bằng động từ (Fix/Update/Investigate/Implement/Review...).
-- description: Jira-ready, có sections:
-  - Context
-  - Proposed work
-  - Acceptance criteria (bullet)
-  - Evidence (links)
-- labels: chọn từ [bug, feature, docs, review, deploy, meeting, followup] khi phù hợp, có thể rỗng.
-- issue_type: chọn 1 trong [Task, Story, Bug, Epic]. Nếu không chắc, dùng Task.
-- epic_key: nếu issue_type != Epic và context có nhắc tới epic (ví dụ "EPIC-123"), có thể set epic_key, không chắc thì null.
-- components: mảng tên component nếu suy ra rõ ràng, không chắc thì để rỗng.
-- due_date: YYYY-MM-DD nếu trong context có deadline rõ ràng, không chắc thì null.
-- suggested_assignee: nếu có người phù hợp trong context, không chắc thì null.
-
-Output JSON schema:
-{
-  "title": "...",
-  "description": "...",
-  "issue_type": "Task",
-  "epic_key": null,
-  "priority": "High|Medium|Low",
-  "labels": ["bug"],
-  "components": [],
-  "due_date": null,
-  "suggested_assignee": null
-}
-"""
 
 
 def _parse_json_object(raw: str) -> dict[str, Any]:
@@ -83,6 +51,7 @@ async def build_task_from_answer(
     answer: str,
     sources: list[dict],
     created_by: str | None = None,
+    llm_client: ILLMClient | None = None,
 ) -> dict:
     repo = TaskDraftRepository(session)
     doc_repo = DocumentRepository(session)
@@ -245,14 +214,15 @@ async def build_task_from_answer(
             model = str(settings.OLLAMA_VISION_MODEL or "").strip() or model
             user_msg["images"] = vision_images
 
-        raw = await ollama_chat(
-            model=model,
-            messages=[
-                {"role": "system", "content": TASK_SYSTEM},
-                user_msg,
-            ],
-            options={"num_predict": 900, "temperature": 0.1},
-            timeout=180,
+        client = llm_client or OllamaLLMClient(
+            model=model, 
+            timeout=180
+        )
+        raw = await client.chat(
+            system=TASK_SYSTEM,
+            user=user_prompt,
+            max_tokens=900,
+            images=vision_images,
         )
 
         data = _parse_json_object(raw)

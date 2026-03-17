@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     RUN_WORKER: bool = False
 
+    # ── ARQ Queue & Worker Settings ──
+    ARQ_DEFAULT_QUEUE_NAME: str = "arq:default"
+    ARQ_DEFAULT_MAX_JOBS: int = 10
+    ARQ_DEFAULT_JOB_TIMEOUT: int = 120
+
+    ARQ_INGESTION_QUEUE_NAME: str = "arq:ingestion"
+    ARQ_INGESTION_MAX_JOBS: int = 2
+    ARQ_INGESTION_JOB_TIMEOUT: int = 1200
+
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
     QDRANT_COLLECTION: str = "knowledge_chunks"
