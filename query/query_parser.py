@@ -7,7 +7,7 @@ class QueryParser:
     def __init__(self):
         self._entities = EntityExtractor()
 
-    def parse(self, raw: str, user_id: str = "", limit: int = 10) -> SearchQuery:
+    def parse(self, raw: str, user_id: str = "", limit: int = 10, offset: int = 0) -> SearchQuery:
         raw = normalize_query(raw)
         if not raw:
             raise ValueError("Query khong duoc de trong")
@@ -20,5 +20,6 @@ class QueryParser:
             raw=query_text,
             user_id=user_id,
             limit=min(limit, 50),
+            offset=max(offset, 0),
             entities=entities,
         )

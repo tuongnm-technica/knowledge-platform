@@ -114,12 +114,16 @@
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, var(--accent3), var(--accent));
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  .basket-progress-fill.warn { background: linear-gradient(90deg, #f59e0b, #d97706); }
+  .basket-progress-fill.danger { background: linear-gradient(90deg, #ef4444, #dc2626); }
 
   .basket-token-hint {
     margin-top: 8px;
     font-size: 12px;
     color: var(--text-muted);
+    line-height: 1.4;
   }
 
   .basket-list {
@@ -132,56 +136,73 @@
     color: var(--text-muted);
     font-size: 13px;
     text-align: center;
-    padding: 22px 12px;
+    padding: 40px 12px;
+    opacity: 0.7;
   }
 
   .basket-item {
     border: 1px solid var(--border);
     border-radius: 16px;
     background: rgba(255,255,255,0.70);
-    padding: 10px 10px;
+    padding: 12px;
     margin-bottom: 10px;
     display: flex;
-    gap: 10px;
-    align-items: flex-start;
+    gap: 12px;
+    align-items: center;
+    transition: transform 0.2s;
+  }
+
+  .basket-item:hover {
+    transform: translateX(4px);
+    border-color: var(--accent1);
   }
 
   [data-theme="dark"] .basket-item {
     background: rgba(19,28,34,0.64);
   }
 
-  .basket-item-check {
-    margin-top: 2px;
-  }
-
-  .basket-item-body {
+  .basket-item-info {
     flex: 1;
     min-width: 0;
   }
 
   .basket-item-title {
     font-weight: 800;
-    font-size: 13px;
-    margin-bottom: 4px;
-    line-height: 1.25;
+    font-size: 13.5px;
+    margin-bottom: 2px;
+    line-height: 1.3;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .basket-item-meta {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-    color: var(--text-muted);
-    font-size: 12px;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: monospace;
+    opacity: 0.8;
   }
 
-  .basket-item-actions {
+  .basket-item-remove {
+    width: 28px;
+    height: 28px;
     display: flex;
-    gap: 8px;
     align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .basket-item-remove:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: #ef4444;
   }
 
   .basket-item-actions button {

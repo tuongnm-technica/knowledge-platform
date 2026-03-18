@@ -3,8 +3,9 @@
  * List / search / view / edit skill prompts
  */
 import { showToast } from '../utils/ui.js';
+import { authFetch } from '../api/client.js';
 
-const API = '/api/prompts';
+const PROMPTS_API = '/api/prompts';
 
 let _prompts = [];           // [{doc_type, label, description, system_prompt, updated_at, updated_by}]
 let _selected = null;        // currently selected doc_type
@@ -14,28 +15,22 @@ let _defaultPrompt = '';     // hardcoded default from server
 
 // ── Fetch helpers ──────────────────────────────────────────────────────────
 
-function authHeaders() {
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-  return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-}
-
 async function fetchList() {
-  const res = await fetch(API, { headers: authHeaders() });
+  const res = await authFetch(PROMPTS_API);
   if (!res.ok) throw new Error('Không thể tải danh sách prompt');
   const data = await res.json();
   return data.prompts || [];
 }
 
 async function fetchOne(docType) {
-  const res = await fetch(`${API}/${docType}`, { headers: authHeaders() });
+  const res = await authFetch(`${PROMPTS_API}/${docType}`);
   if (!res.ok) throw new Error(`Không thể tải prompt: ${docType}`);
   return res.json();
 }
 
 async function savePrompt(docType, systemPrompt) {
-  const res = await fetch(`${API}/${docType}`, {
+  const res = await authFetch(`${PROMPTS_API}/${docType}`, {
     method: 'PUT',
-    headers: authHeaders(),
     body: JSON.stringify({ system_prompt: systemPrompt }),
   });
   if (!res.ok) {
@@ -46,13 +41,14 @@ async function savePrompt(docType, systemPrompt) {
 }
 
 async function resetPrompt(docType) {
-  const res = await fetch(`${API}/${docType}/reset`, { method: 'POST', headers: authHeaders() });
+  const res = await authFetch(`${PROMPTS_API}/${docType}/reset`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Reset thất bại');
   }
   return res.json();
 }
+
 
 // ── Render ─────────────────────────────────────────────────────────────────
 

@@ -1,75 +1,66 @@
-// Admin Module - Quản trị
+// admin.js
 import { authFetch, API } from '../api/client.js';
-
-export function normalizeUserRole(role, isAdmin) {
-  if (isAdmin) return 'admin';
-  return role || 'standard';
-}
-
-export function getUserRoleLabel(roleCode) {
-  const labels = {
-    admin: '👤 Admin',
-    manager: '👥 Manager',
-    standard: '👤 User',
-    'system_admin': '🔐 System Admin',
-    'knowledge_architect': '🏗️ Knowledge Architect',
-    'pm_po': '📋 PM/PO',
-    'ba_sa': '📊 BA/SA',
-    'dev_qa': '🧪 Dev/QA'
-  };
-  return labels[roleCode] || roleCode;
-}
+import { escapeHtml } from '../utils/ui.js';
 
 export async function loadUsersAdmin() {
+  console.log('[Admin] loadUsersAdmin');
+  const uCont = document.getElementById('usersTableContainer');
+  const gCont = document.getElementById('groupsTableContainer');
+  
   try {
-    const response = await authFetch(`${API}/users`);
-    if (!response.ok) throw new Error('Failed to load users');
+    const res = await authFetch(`${API}/users`);
+    if (!res.ok) throw new Error('Users API failed');
+    const data = await res.json();
     
-    const data = await response.json();
-    renderUsersTable(data.users || []);
+    if (uCont) renderUsersTable(uCont, data.users || []);
+    if (gCont) renderGroupsTable(gCont, data.groups || []);
   } catch (e) {
-    console.error('Error loading users:', e);
+    console.error('[Admin] fail:', e);
   }
 }
 
-function renderUsersTable(users) {
-  const container = document.getElementById('usersTableContainer');
-  if (!container) return;
-  
-  container.innerHTML = '';
-  if (!users || users.length === 0) {
-    container.innerHTML = '<div>No users found</div>';
+function renderUsersTable(container, users) {
+  if (!users.length) {
+    container.innerHTML = '<div class="connectors-empty">No users.</div>';
     return;
   }
-
-  const table = document.createElement('table');
-  table.className = 'users-table';
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>Email</th>
-        <th>Display Name</th>
-        <th>Role</th>
-        <th>Active</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${users.map(u => `
-        <tr>
-          <td>${escapeHtml(u.email)}</td>
-          <td>${escapeHtml(u.display_name)}</td>
-          <td><span class="user-role-badge ${u.is_admin ? 'admin' : 'standard'}">${getUserRoleLabel(u.role)}</span></td>
-          <td>${u.is_active ? '✓' : '✗'}</td>
-          <td><button onclick="editUser('${u.user_id}')">Edit</button></td>
-        </tr>
-      `).join('')}
-    </tbody>
+  container.innerHTML = `
+    <table class="admin-table">
+      <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${users.map(u => `
+          <tr>
+            <td>${escapeHtml(u.display_name || 'N/A')}</td>
+            <td>${escapeHtml(u.email)}</td>
+            <td>${u.is_admin ? 'Admin' : 'Standard'}</td>
+            <td><button class="secondary-btn mini">Edit</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
   `;
-  container.appendChild(table);
 }
 
-function escapeHtml(text) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return String(text).replace(/[&<>"']/g, m => map[m]);
+function renderGroupsTable(container, groups) {
+  if (!groups.length) {
+    container.innerHTML = '<div class="connectors-empty">No groups.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <table class="admin-table">
+      <thead><tr><th>Group Name</th><th>Members</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${groups.map(g => `
+          <tr>
+            <td><strong>${escapeHtml(g.name)}</strong></td>
+            <td>${g.members_count || 0} users</td>
+            <td><button class="secondary-btn mini">Manage</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
 }
+
+export function openCreateUser() { showToast('Coming soon'); }
+export function openCreateGroup() { showToast('Coming soon'); }

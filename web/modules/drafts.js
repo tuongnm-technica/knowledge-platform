@@ -1,4 +1,5 @@
 // Drafts Module - Bản nháp tài liệu
+console.log('[Drafts] Loading module...');
 import { authFetch, API } from '../api/client.js';
 
 export async function loadDraftsPage(refresh = false) {

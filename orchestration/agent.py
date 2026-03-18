@@ -149,6 +149,7 @@ class Agent:
         }
 
     async def search(self, query: SearchQuery) -> list[SearchResult]:
+        log.info("agent.search.start", q=query.raw, limit=query.limit, offset=query.offset)
         allowed_ids = await self._permissions.allowed_docs(query.user_id)
         # If the user is not admin and has no ACL matches, return no results (permission-aware retrieval).
         if allowed_ids is not None and len(allowed_ids) == 0:
@@ -163,7 +164,7 @@ class Agent:
 
         raw = await self._search.search(
             query.effective,
-            top_k=max(query.limit * 3, 20),
+            top_k=max(query.offset + query.limit + 40, 100),
             allowed_document_ids=allowed_ids,
         )
         raw = self._apply_graph_boost(raw, query, graph_doc_ids)
@@ -174,7 +175,20 @@ class Agent:
         raw.extend(self._supplement_graph_results(graph_doc_ids, raw, doc_meta, query))
 
         scored = self._scorer.score(raw, doc_meta)
-        return self._to_results(scored[:query.limit], doc_meta)
+
+        # De-duplicate by document_id: only keep the best ranked chunk for each document
+        unique_results = []
+        seen_docs = set()
+        for item in scored:
+            doc_id = str(item.get("document_id", ""))
+            if not doc_id or doc_id not in seen_docs:
+                unique_results.append(item)
+                if doc_id:
+                    seen_docs.add(doc_id)
+
+        start = query.offset
+        end = start + query.limit
+        return self._to_results(unique_results[start:end], doc_meta)
 
     async def health(self) -> dict:
         ollama_ok = await self._llm.is_available()

@@ -8,6 +8,7 @@ class SearchQuery:
     rewritten: Optional[str] = None
     user_id: str = ""
     limit: int = 10
+    offset: int = 0
     entities: list[str] = field(default_factory=list)
     filters: dict = field(default_factory=dict)
 

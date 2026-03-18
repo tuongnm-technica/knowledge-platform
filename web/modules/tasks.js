@@ -1,4 +1,5 @@
 // Tasks Module - Công việc AI
+console.log('[Tasks] Loading module...');
 import { authFetch, API } from '../api/client.js';
 
 export async function loadTasks() {

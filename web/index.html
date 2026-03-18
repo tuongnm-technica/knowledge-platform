@@ -408,44 +408,19 @@
     <div class="users-content">
       <div class="section-header">
         <div class="section-title">Danh sách Users</div>
-        <button class="add-btn" onclick="openCreateUser()">+ Thêm user</button>
+        <button class="add-btn" onclick="window.openCreateUser()">+ Thêm user</button>
       </div>
-      <div class="admin-editor" id="userEditorPanel"></div>
-      <table class="users-table">
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Email</th>
-            <th>Groups</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Role</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="usersTableBody">
-          <tr><td colspan="6" style="color:var(--text-muted)">Đang tải users...</td></tr>
-        </tbody>
-      </table>
+      <div id="usersTableContainer">
+        <div class="loading-state">Đang tải users...</div>
+      </div>
 
-      <div class="section-header">
+      <div class="section-header" style="margin-top:30px">
         <div class="section-title">Groups & Permissions</div>
-        <button class="add-btn" onclick="openCreateGroup()">+ Thêm group</button>
+        <button class="add-btn" onclick="window.openCreateGroup()">+ Thêm group</button>
       </div>
-      <div class="admin-editor" id="groupEditorPanel"></div>
-      <table class="users-table">
-        <thead>
-          <tr>
-            <th>Group</th>
-            <th>Members</th>
-            <th>Count</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="groupsTableBody">
-          <tr><td colspan="4" style="color:var(--text-muted)">Loading groups...</td></tr>
-        </tbody>
-      </table>
+      <div id="groupsTableContainer">
+        <div class="loading-state">Loading groups...</div>
+      </div>
     </div>
   </div>
 
@@ -487,6 +462,6 @@
 </div>
 <button id="basketFab" class="basket-fab" onclick="toggleBasketDrawer()" title="Giỏ ngữ cảnh">📌</button>
 
-<script type="module" src="/static/app.js"></script>
+<script type="module" src="/static/app.js?v=trace_flex"></script>
 </body>
 </html>
