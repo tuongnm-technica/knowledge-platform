@@ -45,6 +45,10 @@ export async function sendMessage() {
 
   const question = input.value.trim();
   if (!question) return;
+  if (question.length < 3) {
+    showToast('Câu hỏi phải có ít nhất 3 ký tự', 'warning');
+    return;
+  }
 
   // Clear input immediately
   input.value = '';
@@ -68,19 +72,47 @@ export async function sendMessage() {
       method: 'POST',
       body: JSON.stringify({ question }),
     });
+    
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${resp.status}`);
+      const errData = await resp.json().catch(() => ({}));
+      let msg = errData.detail || `Lỗi hệ thống (${resp.status})`;
+      if (Array.isArray(msg)) {
+        msg = msg.map(m => (typeof m === 'string' ? m : (m.msg || JSON.stringify(m)))).join(', ');
+      } else if (typeof msg === 'object') {
+        msg = msg.message || JSON.stringify(msg);
+      }
+      throw new Error(String(msg));
     }
+    
     const data = await resp.json();
     removeThinking(thinkId);
     appendBubble('ai', formatAnswer(data), data);
     scrollChatBottom();
   } catch (e) {
     removeThinking(thinkId);
-    appendBubble('ai', `<span class="chat-error">⚠️ Lỗi: ${escapeHtml(e.message)}</span>`);
+    console.error('Chat error:', e);
+    let errorMsg = 'Unknown error';
+    if (typeof e === 'string') {
+      errorMsg = e;
+    } else if (e instanceof Error) {
+      errorMsg = e.message;
+    } else {
+      try {
+        errorMsg = JSON.stringify(e);
+      } catch (jsonErr) {
+        errorMsg = String(e);
+      }
+    }
+    // Final check for [object Object]
+    if (errorMsg === '[object Object]') {
+       errorMsg = 'Lỗi không xác định (hãy kiểm tra console)';
+    }
+    appendBubble('ai', `<div class="chat-error">⚠️ Lỗi: ${escapeHtml(errorMsg)}</div>`);
     scrollChatBottom();
   } finally {
+
+
+
     if (sendBtn) sendBtn.disabled = false;
     input.focus();
   }
@@ -283,28 +315,35 @@ function renderSearchResults(results) {
   const grid = document.createElement('div');
   grid.className = 'search-results-grid';
   
-  results.forEach(result => {
-    const item = document.createElement('div');
-    item.className = 'kp-result-card';
-    const score = result.score != null ? Math.round(result.score * 100) : null;
-    const docId = result.document_id || result.id || result.source_id || '';
-    const docTitle = result.title || 'Untitled';
+    results.forEach(result => {
+      const item = document.createElement('div');
+      item.className = 'kp-result-card';
+      const score = result.score != null ? Math.round(result.score * 100) : null;
+      const docId = result.document_id || result.id || result.source_id || '';
+      const docTitle = result.title || result.filename || 'Untitled Document';
+      
+      // Clean snippet from technical markers like [[IMAGE_URL:...]] or mermaid tags
+      let snippet = (result.content || result.snippet || '').substring(0, 300);
+      snippet = snippet.replace(/\[\[IMAGE_URL:[^\]]+\]\]/g, '[Image]')
+                        .replace(/```mermaid[\s\S]*?```/g, '[Diagram]')
+                        .trim();
 
-    item.innerHTML = `
-      <div class="kp-result-header">
-        <span class="kp-result-title">${escapeHtml(docTitle)}</span>
-        <div class="kp-result-actions">
-          ${score != null ? `<span class="kp-result-score">${score}%</span>` : ''}
-          <button class="kp-pin-btn" onclick="addToBasket('${escapeHtml(docId)}', '${escapeHtml(docTitle)}')" title="Thêm vào giỏ">📌</button>
+      item.innerHTML = `
+        <div class="kp-result-header">
+          <span class="kp-result-title">${escapeHtml(docTitle)}</span>
+          <div class="kp-result-actions">
+            ${score != null ? `<span class="kp-result-score">${score}%</span>` : ''}
+            <button class="kp-pin-btn" onclick="addToBasket('${escapeHtml(docId)}', '${escapeHtml(docTitle)}')" title="Thêm vào giỏ">📌</button>
+          </div>
         </div>
-      </div>
-      <div class="kp-result-snippet">${escapeHtml((result.content || result.snippet || '').substring(0, 300))}</div>
-      <div class="kp-result-meta">
-        <span class="kp-result-badge">${escapeHtml(result.source || 'Unknown')}</span>
-        ${result.url ? `<a class="kp-result-url" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Mở ↗</a>` : ''}
-      </div>`;
-    grid.appendChild(item);
-  });
+        <div class="kp-result-snippet">${escapeHtml(snippet)}</div>
+        <div class="kp-result-meta">
+          <span class="kp-result-badge">${escapeHtml(result.source || result.source_type || 'Internal source')}</span>
+          ${result.url ? `<a class="kp-result-url" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Mở ↗</a>` : ''}
+        </div>`;
+      grid.appendChild(item);
+    });
+
   
   container.appendChild(grid);
 

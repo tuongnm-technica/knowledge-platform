@@ -272,7 +272,15 @@ export function _kpBuildModalField({ id, label, type = 'text', value = '', place
 
   input.id = id;
   input.name = id;
-  input.className = 'time-input kp-modal-input';
+  
+  if (type === 'select') {
+    input.className = 'form-select kp-modal-input';
+  } else if (type === 'textarea') {
+    input.className = 'form-textarea kp-modal-input';
+  } else {
+    input.className = type === 'time' ? 'time-input kp-modal-input' : 'form-input kp-modal-input';
+  }
+
   if (placeholder) input.placeholder = placeholder;
   if (required) input.required = true;
 

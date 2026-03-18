@@ -69,8 +69,10 @@ export function renderBasket() {
       } else {
         list.innerHTML = basketItems.map(i => `
           <div class="basket-item">
-            <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(i.title || i.id)}</div>
-            <button class="basket-item-remove" onclick="window.removeFromBasket('${i.id}')" title="Xoa">✕</button>
+            <div class="basket-item-info">
+              <div class="basket-item-title" title="${escapeHtml(i.title || i.id)}">${escapeHtml(i.title || i.id)}</div>
+            </div>
+            <button class="secondary-btn mini" style="padding:4px 8px; font-size:12px; height:auto; min-width:unset" onclick="window.removeFromBasket('${i.id}')" title="Xóa khỏi giỏ">✕</button>
           </div>
         `).join('');
       }

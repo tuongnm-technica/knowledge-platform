@@ -222,7 +222,6 @@ function getOrCreateResultPanel() {
   if (!panel) {
     panel = document.createElement('div');
     panel.id = 'graphResultPanel';
-    panel.style.cssText = 'margin-top:16px;padding:16px;background:var(--surface-alt,rgba(255,255,255,0.05));border-radius:8px;max-height:400px;overflow-y:auto;';
     const canvas = document.getElementById('graphCanvas');
     if (canvas && canvas.parentElement) canvas.parentElement.appendChild(panel);
     else document.body.appendChild(panel);
@@ -234,14 +233,13 @@ function renderGraphResult(panel, title, data) {
   const nodes = data.nodes || [];
   const edges = data.edges || [];
   panel.innerHTML = `
-    <h4 style="margin:0 0 12px;color:var(--text-primary)">${title}</h4>
-    <p style="color:var(--text-secondary);margin:0 0 12px">${nodes.length} nodes · ${edges.length} edges</p>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    <h4>${title}</h4>
+    <p>${nodes.length} nodes · ${edges.length} edges</p>
+    <div class="graph-nodes-list">
       ${nodes.slice(0, 40).map(n => `
-        <span style="padding:3px 10px;border-radius:20px;background:rgba(74,144,226,0.2);color:#4a90e2;font-size:12px;cursor:pointer"
-              onclick="window.graphSwitchView('focus')" title="${n.type || 'entity'}">${n.label || n.id}</span>
+        <span class="graph-node-chip" title="${n.type || 'entity'}">${n.label || n.id}</span>
       `).join('')}
-      ${nodes.length > 40 ? `<span style="color:var(--text-muted)">+${nodes.length - 40} more...</span>` : ''}
+      ${nodes.length > 40 ? `<span style="color:var(--text-muted);font-size:12px;align-self:center">+${nodes.length - 40} more...</span>` : ''}
     </div>
   `;
 }
@@ -250,18 +248,19 @@ function renderGapsResult(panel, data) {
   const gaps = data.gaps || data.missing_connections || [];
   const stale = data.stale_sources_30d || [];
   panel.innerHTML = `
-    <h4 style="margin:0 0 12px;color:var(--text-primary)">🔍 Gap Insights</h4>
+    <h4>🔍 Gap Insights</h4>
     ${stale.length ? `
-      <p style="color:var(--warning,#f59e0b);margin:0 0 8px"><strong>⚠️ Stale sources (> 30 ngày):</strong></p>
-      <ul style="margin:0 0 12px;padding-left:20px;color:var(--text-secondary)">
+      <p style="color:var(--warn);margin:0 0 8px"><strong>⚠️ Stale sources (> 30 ngày):</strong></p>
+      <ul class="gap-stale-list">
         ${stale.slice(0, 10).map(s => `<li>${s.source}: ${s.days} ngày</li>`).join('')}
       </ul>
-    ` : '<p style="color:var(--text-secondary)">✅ Không có stale sources trong 30 ngày qua</p>'}
+    ` : '<p>✅ Không có stale sources trong 30 ngày qua</p>'}
     ${gaps.length ? `
-      <p style="color:var(--text-secondary);margin:0 0 8px"><strong>Gaps phát hiện:</strong></p>
-      <ul style="margin:0;padding-left:20px;color:var(--text-secondary)">
+      <p><strong>Gaps phát hiện:</strong></p>
+      <ul class="gap-stale-list">
         ${gaps.slice(0, 15).map(g => `<li>${JSON.stringify(g)}</li>`).join('')}
       </ul>
     ` : ''}
   `;
 }
+

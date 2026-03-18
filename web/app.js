@@ -1,17 +1,17 @@
 // app.js - Optimized Main entry
-import { formatTime, safeHostname, parseThinking, getSourceIcon, getBadgeClass, formatRelevancePercent } from './utils/format.js';
-import { API, AUTH, authFetch, tryRefresh, setAuthExpiredHandler } from './api/client.js';
-import { readApiError, escapeHtml, formatDateTime, formatNumber, showToast, kpOpenModal, kpConfirm, kpPrompt, _kpBuildModalField } from './utils/ui.js';
+import { formatTime, safeHostname, parseThinking, getSourceIcon, getBadgeClass, formatRelevancePercent } from './utils/format.js?v=3';
+import { API, AUTH, authFetch, tryRefresh, setAuthExpiredHandler } from './api/client.js?v=3';
+import { readApiError, escapeHtml, formatDateTime, formatNumber, showToast, kpOpenModal, kpConfirm, kpPrompt, _kpBuildModalField } from './utils/ui.js?v=3';
 
-import * as Basket from './modules/basket.js';
-import * as Graph from './modules/graph.js';
-import * as Admin from './modules/admin.js';
-import * as Connectors from './modules/connectors.js';
-import * as Tasks from './modules/tasks.js';
-import * as Chat from './modules/chat.js';
-import * as Drafts from './modules/drafts.js';
-import * as PromptsModule from './modules/prompts.js';
-import * as Memory from './modules/memory.js';
+import * as Basket from './modules/basket.js?v=3';
+import * as Graph from './modules/graph.js?v=3';
+import * as Admin from './modules/admin.js?v=3';
+import * as Connectors from './modules/connectors.js?v=3';
+import * as Tasks from './modules/tasks.js?v=3';
+import * as Chat from './modules/chat.js?v=3';
+import * as Drafts from './modules/drafts.js?v=3';
+import * as PromptsModule from './modules/prompts.js?v=3';
+import * as Memory from './modules/memory.js?v=3';
 
 console.log('[App] Starting v3.2');
 

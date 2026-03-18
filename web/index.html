@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="/static/css/modules/admin.css">
 <link rel="stylesheet" href="/static/css/modules/basket.css">
 <link rel="stylesheet" href="/static/css/modules/chat.css">
-<link rel="stylesheet" href="/static/css/modules/connectors.css">
+<link rel="stylesheet" href="/static/css/modules/connectors.css?v=2">
 <link rel="stylesheet" href="/static/css/modules/drafts.css">
 <link rel="stylesheet" href="/static/css/modules/graph.css">
 <link rel="stylesheet" href="/static/css/modules/history.css">
@@ -95,7 +95,7 @@
     </div>
 
     <div class="nav-section">Quản trị</div>
-    <div class="nav-item" onclick="navigate('connectors', this)">
+    <div class="nav-item" id="nav-connectors" onclick="navigate('connectors', this)">
       <span class="nav-icon">🔗</span> Connectors
     </div>
     <div class="nav-item" id="nav-graph" onclick="navigate('graph', this)">
@@ -204,7 +204,7 @@
       </div>
       <div class="search-bar-wrapper">
         <span class="search-icon-pos">🔍</span>
-        <input id="searchInput" type="text" placeholder="Tìm kiếm tài liệu..."
+        <input id="searchInput" type="text" placeholder="Tìm kiếm tài liệu..." autocomplete="off"
           onkeydown="if(event.key==='Enter') doSearch()">
       </div>
       <div class="search-results" id="searchResults"></div>
@@ -483,6 +483,6 @@
 </div>
 <button id="basketFab" class="basket-fab" onclick="toggleBasketDrawer()" title="Giỏ ngữ cảnh">📌</button>
 
-<script type="module" src="/static/app.js?v=trace_flex"></script>
+<script type="module" src="/static/app.js?v=4"></script>
 </body>
 </html>
