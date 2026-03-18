@@ -1,11 +1,10 @@
-// tasks.js — Redirect to /docs/drafts (Phương án B: không có /api/tasks endpoint)
-// tasks.js hiển thị drafts từ /api/docs/drafts thay vì /api/tasks không tồn tại
+// tasks.js — Task drafts panel
 console.log('[Tasks] Loading module...');
 import { authFetch, API } from '../api/client.js';
-import { showToast, escapeHtml } from '../utils/ui.js';
+import { showToast, escapeHtml, kpConfirm } from '../utils/ui.js';
 
 export async function loadTasks() {
-  const container = document.getElementById('tasksContainer');
+  const container = document.getElementById('tasksList');
   if (container) container.innerHTML = '<div class="tasks-loading">Đang tải...</div>';
 
   try {
@@ -17,12 +16,13 @@ export async function loadTasks() {
     renderTasksList(data.drafts || []);
   } catch (e) {
     console.error('Error loading tasks:', e);
+    const container = document.getElementById('tasksList');
     if (container) container.innerHTML = '<div class="tasks-empty">Không tải được dữ liệu</div>';
   }
 }
 
 function renderTasksList(drafts) {
-  const container = document.getElementById('tasksContainer');
+  const container = document.getElementById('tasksList');
   if (!container) return;
 
   container.innerHTML = '';
@@ -62,7 +62,14 @@ function renderTasksList(drafts) {
 }
 
 window.deleteTaskDraft = async function (draftId) {
-  if (!confirm('Xóa bản nháp này?')) return;
+  const confirmed = await kpConfirm({
+    title: '🗑 Xóa bản nháp',
+    message: 'Xóa bản nháp này?',
+    okText: 'Xóa',
+    cancelText: 'Huỷ',
+    danger: true,
+  });
+  if (!confirmed) return;
   try {
     const res = await authFetch(`${API}/docs/drafts/${draftId}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Xóa thất bại');
@@ -80,7 +87,7 @@ export async function loadTasksCount() {
     if (!response.ok) return;
     const data = await response.json();
     const pending = (data.drafts || []).filter(d => !d.status || d.status === 'draft').length;
-    const badge = document.querySelector('[data-badge="tasks"]');
+    const badge = document.getElementById('tasksBadge');
     if (badge) {
       badge.textContent = pending;
       badge.style.display = pending > 0 ? 'inline-block' : 'none';

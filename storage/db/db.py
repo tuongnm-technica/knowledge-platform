@@ -248,34 +248,6 @@ class SRSDraftORM(Base):
     question = Column(Text)
     answer = Column(Text)
     created_by = Column(String(255), index=True)
-    status = Column(String(30), nullable=False, default="draft")  # draft|published|archived
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-
-
-class DocDraftORM(Base):
-    __tablename__ = "doc_drafts"
-    __table_args__ = {"comment": "AI-generated BA/tech drafts created from selected sources"}
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    doc_type = Column(String(50), nullable=False, default="srs")  # srs|brd|use_cases|validation_rules|user_stories|...
-    title = Column(Text, nullable=False)
-    content = Column(Text, nullable=False)
-    source_document_ids = Column(JSON, default=list)
-    source_snapshot = Column(JSON, default=dict)
-    question = Column(Text)
-    answer = Column(Text)
-    created_by = Column(String(255), index=True)
-    status = Column(String(30), nullable=False, default="draft")
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-
-
-class AITaskDraftORM(Base):
-    __tablename__ = "ai_task_drafts"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title = Column(Text, nullable=False)
     description = Column(Text)
     source_type = Column(String(50), nullable=False)
     source_ref = Column(Text)

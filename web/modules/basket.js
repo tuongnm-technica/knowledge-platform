@@ -1,5 +1,5 @@
 // basket.js
-import { showToast, escapeHtml } from '../utils/ui.js';
+import { showToast, escapeHtml, kpConfirm } from '../utils/ui.js';
 
 let basketItems = [];
 
@@ -98,13 +98,19 @@ export function renderBasket() {
 
 export function loadBasketPage() { renderBasket(); }
 
-export function clearBasket() {
-    if (confirm('Xoa toan bo gio?')) {
-        basketItems = [];
-        localStorage.setItem('kpBasket', '[]');
-        updateBasketBadges();
-        renderBasket();
-    }
+export async function clearBasket() {
+    const confirmed = await kpConfirm({
+      title: '🗑 Xóa giỏ ngữ cảnh',
+      message: 'Xóa toàn bộ giỏ ngữ cảnh?',
+      okText: 'Xóa tất cả',
+      cancelText: 'Huỷ',
+      danger: true,
+    });
+    if (!confirmed) return;
+    basketItems = [];
+    localStorage.setItem('kpBasket', '[]');
+    updateBasketBadges();
+    renderBasket();
 }
 
 export function refreshBasketDetails() { renderBasket(); }

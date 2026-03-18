@@ -90,6 +90,9 @@
       <span class="nav-icon">🕘</span> Lịch sử
       <span class="nav-badge" id="historyBadge">0</span>
     </div>
+    <div class="nav-item" id="nav-memory" onclick="navigate('memory', this)">
+      <span class="nav-icon">🧠</span> Project Memory
+    </div>
 
     <div class="nav-section">Quản trị</div>
     <div class="nav-item" onclick="navigate('connectors', this)">
@@ -349,6 +352,7 @@
         </div>
       </div>
 
+      <div id="connectorsToolbar" style="margin-bottom:14px"></div>
       <div class="connectors-grid connectors-grid-rich" id="connectorsGrid">
         <div class="connectors-empty">Loading connector catalog...</div>
       </div>
@@ -426,6 +430,23 @@
 
   <!-- ── PROMPTS PAGE ── -->
   <div class="page" id="page-prompts"></div>
+
+  <!-- ── PROJECT MEMORY PAGE ── -->
+  <div class="page" id="page-memory">
+    <div class="connectors-content">
+      <div class="page-intro">
+        <div>
+          <div class="intro-kicker">AI Context Manager</div>
+          <div class="intro-title">🧠 Project Memory</div>
+          <div class="intro-sub">Dưới đây là những <strong>Actors</strong>, <strong>Thuật ngữ</strong> và <strong>Quy tắc</strong> mà AI đã tự động học được từ các tài liệu đã sinh. Chúng sẽ được bơm vào mọi lần sinh tài liệu tiếp theo.</div>
+        </div>
+        <div class="connectors-toolbar-actions">
+          <button class="secondary-btn" onclick="window._memRefresh && window._memRefresh()">Refresh</button>
+        </div>
+      </div>
+      <div id="memoryContent" style="padding:0 20px 24px"></div>
+    </div>
+  </div>
 
 </main>
 

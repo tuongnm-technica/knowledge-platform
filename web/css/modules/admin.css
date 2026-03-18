@@ -1,142 +1,151 @@
-  /* ── USERS PAGE ── */
-  .users-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 32px;
-  }
+/* ── Admin Module (Users & Groups) ── */
 
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
-    gap: 16px;
-  }
+.users-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  overflow-y: auto;
+  background: var(--bg);
+}
 
-  .section-title { 
-    font-family: var(--font-family-title); 
-    font-weight: 800; 
-    font-size: 20px; 
-    color: var(--text);
-    letter-spacing: -0.02em;
-  }
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-strong);
+}
 
-  /* ── Admin Table (generic) ── */
-  .admin-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 14px;
-    margin-bottom: 32px;
-  }
+.section-title {
+  font-family: var(--font-family-title);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
 
-  .admin-table th {
-    text-align: left;
-    padding: 12px 16px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    border-bottom: 2px solid var(--border);
-    background: var(--bg2);
-  }
+/* ── Admin Table ── */
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--bg2);
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+}
 
-  .admin-table td {
-    padding: 16px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    vertical-align: middle;
-    background: var(--panel);
-  }
+.admin-table th {
+  background: var(--bg3);
+  padding: 14px 20px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-strong);
+}
 
-  .admin-table tr:hover td {
-    background: var(--bg3);
-  }
+.admin-table td {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
 
-  .admin-table tr:last-child td:first-child { border-bottom-left-radius: var(--radius); }
-  .admin-table tr:last-child td:last-child { border-bottom-right-radius: var(--radius); }
-  .admin-table tr:first-child th:first-child { border-top-left-radius: var(--radius); }
-  .admin-table tr:first-child th:last-child { border-top-right-radius: var(--radius); }
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
 
-  /* ── Avatar Sm ── */
-  .avatar-sm {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 800; color: white;
-    font-family: var(--font-family-title);
-    flex-shrink: 0;
-  }
+.admin-table tr:hover td {
+  background: var(--bg);
+}
 
-  /* ── Role badges ── */
-  .role-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-  }
+/* ── Badges ── */
+.role-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--bg4);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
 
-  /* Contrast-optimized badge colors */
-  [data-theme="dark"] .role-system_admin       { background: rgba(239, 68, 68, 0.2);  color: #fca5a5; }
-  [data-theme="dark"] .role-knowledge_architect{ background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
-  [data-theme="dark"] .role-pm_po              { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
-  [data-theme="dark"] .role-ba_sa              { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
-  [data-theme="dark"] .role-dev_qa             { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
-  [data-theme="dark"] .role-standard           { background: rgba(148, 163, 184, 0.2);color: #cbd5e1; }
+.role-system_admin { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+.role-knowledge_architect { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.2); }
+.role-pm_po { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-color: rgba(59, 130, 246, 0.2); }
+.role-ba_sa { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2); }
+.role-dev_qa { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2); }
 
-  .role-system_admin       { background: #fee2e2; color: #991b1b; }
-  .role-knowledge_architect{ background: #f3e8ff; color: #6b21a8; }
-  .role-pm_po              { background: #dbeafe; color: #1e40af; }
-  .role-ba_sa              { background: #d1fae5; color: #065f46; }
-  .role-dev_qa             { background: #fef3c7; color: #92400e; }
-  .role-standard           { background: #f1f5f9; color: #334155; }
+.badge-ok {
+  color: var(--success);
+  font-weight: 800;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 
-  /* ── Status badges ── */
-  .badge-ok  { display:inline-flex; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700; background:rgba(34, 197, 94, 0.15); color: #16a34a; }
-  .badge-err { display:inline-flex; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700; background:rgba(239, 68, 68, 0.15); color: #dc2626; }
-  
-  [data-theme="dark"] .badge-ok { color: #4ade80; }
-  [data-theme="dark"] .badge-err { color: #f87171; }
+.badge-ok::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
 
-  /* ── Admin input (used in modals) ── */
-  .admin-input {
-    width: 100%;
-    padding: 12px 16px;
-    border-radius: 10px;
-    border: 1px solid var(--border-strong);
-    background: var(--bg2);
-    color: var(--text);
-    font-family: var(--font-family-body);
-    font-size: 14px;
-    outline: none;
-    transition: all 0.2s;
-    box-sizing: border-box;
-  }
+.badge-err {
+  color: var(--danger);
+  font-weight: 800;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 
-  .admin-input:focus {
-    border-color: var(--accent);
-    background: var(--bg);
-    box-shadow: 0 0 0 4px var(--glow);
-  }
+.badge-err::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
 
-  select.admin-input {
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    background-size: 16px;
-    padding-right: 40px;
-  }
+/* ── Form Elements (Admin Input) ── */
+.admin-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--font-family-body);
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
 
-  .muted-cell {
-    color: var(--text-dim);
-    font-size: 13px;
-    font-weight: 500;
-  }
+.admin-input:focus {
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: 0 0 0 3px var(--glow);
+}
 
+select.admin-input {
+  cursor: pointer;
+}
+
+.admin-loading {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}

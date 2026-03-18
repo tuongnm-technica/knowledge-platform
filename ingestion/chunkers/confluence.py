@@ -1,11 +1,11 @@
-from typing import List, Any, Dict
+from typing import List
+from models.document import Chunk
 from .base import BaseChunker
 
 class ConfluenceChunker(BaseChunker):
-    def chunk(self, text: str, **kwargs) -> List[Dict[str, Any]]:
+    def chunk(self, document_id: str, **kwargs) -> List[Chunk]:
         """
         Chia nhỏ văn bản từ Confluence thành các chunk.
         """
-        # TODO: Cập nhật logic chia tách (chunking) thực tế cho Confluence ở đây.
-        # Trả về dữ liệu mẫu để tránh lỗi
-        return [{"text": text, "metadata": {"source": "confluence"}}]
+        text = kwargs.get("content", "")
+        return self._word_count_chunk(document_id, text)

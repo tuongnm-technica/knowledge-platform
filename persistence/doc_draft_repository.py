@@ -19,6 +19,7 @@ class DocDraftRepository:
         doc_type: str,
         title: str,
         content: str,
+        structured_data: dict[str, Any] | None = None,
         source_document_ids: list[str],
         source_snapshot: dict[str, Any],
         created_by: str | None,
@@ -31,9 +32,9 @@ class DocDraftRepository:
             text(
                 """
                 INSERT INTO doc_drafts
-                  (id, doc_type, title, content, source_document_ids, source_snapshot, question, answer, created_by, status, created_at, updated_at)
+                  (id, doc_type, title, content, structured_data, source_document_ids, source_snapshot, question, answer, created_by, status, created_at, updated_at)
                 VALUES
-                  (CAST(:id AS UUID), :doc_type, :title, :content, CAST(:doc_ids AS JSON), CAST(:snapshot AS JSON), :question, :answer, :created_by, 'draft', :created_at, :updated_at)
+                  (CAST(:id AS UUID), :doc_type, :title, :content, CAST(:structured_data AS JSON), CAST(:doc_ids AS JSON), CAST(:snapshot AS JSON), :question, :answer, :created_by, 'draft', :created_at, :updated_at)
                 """
             ),
             {
@@ -41,6 +42,7 @@ class DocDraftRepository:
                 "doc_type": (doc_type or "srs").strip().lower(),
                 "title": (title or "").strip() or "Draft",
                 "content": content or "",
+                "structured_data": json.dumps(structured_data or {}),
                 "doc_ids": json.dumps(source_document_ids or []),
                 "snapshot": json.dumps(source_snapshot or {}),
                 "question": question,
@@ -66,6 +68,7 @@ class DocDraftRepository:
                       doc_type,
                       title,
                       content,
+                      structured_data,
                       source_document_ids,
                       source_snapshot,
                       question,
@@ -85,7 +88,7 @@ class DocDraftRepository:
         if not row:
             return None
         out = dict(row)
-        for k in ("source_document_ids", "source_snapshot"):
+        for k in ("structured_data", "source_document_ids", "source_snapshot"):
             if isinstance(out.get(k), str):
                 try:
                     out[k] = json.loads(out[k]) if out[k] else ([] if k == "source_document_ids" else {})
@@ -99,6 +102,7 @@ class DocDraftRepository:
         *,
         title: str | None = None,
         content: str | None = None,
+        structured_data: dict[str, Any] | None = None,
         status: str | None = None,
     ) -> dict[str, Any] | None:
         draft_id = str(draft_id or "").strip()
@@ -113,6 +117,9 @@ class DocDraftRepository:
         if content is not None:
             updates["content"] = content or ""
             sets.append("content = :content")
+        if structured_data is not None:
+            updates["structured_data"] = json.dumps(structured_data)
+            sets.append("structured_data = CAST(:structured_data AS JSON)")
         if status is not None:
             updates["status"] = (status or "").strip().lower()
             sets.append("status = :status")
@@ -168,6 +175,7 @@ class DocDraftRepository:
                       status,
                       created_at,
                       updated_at,
+                      structured_data,
                       source_document_ids,
                       source_snapshot
                     FROM doc_drafts
@@ -182,7 +190,7 @@ class DocDraftRepository:
         out: list[dict[str, Any]] = []
         for r in rows:
             item = dict(r)
-            for k in ("source_document_ids", "source_snapshot"):
+            for k in ("structured_data", "source_document_ids", "source_snapshot"):
                 if isinstance(item.get(k), str):
                     try:
                         item[k] = json.loads(item[k]) if item[k] else ([] if k == "source_document_ids" else {})

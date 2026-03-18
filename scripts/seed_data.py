@@ -14,7 +14,7 @@ from indexing.vector_index import VectorIndex
 from indexing.keyword_index import KeywordIndex
 from persistence.document_repository import DocumentRepository
 from ingestion.cleaner import TextCleaner
-from ingestion.chunker import TextChunker
+from ingestion.chunkers.default import WordCountChunker
 
 try:
     import bcrypt
@@ -205,7 +205,7 @@ async def seed():
     print("="*55)
 
     cleaner = TextCleaner()
-    chunker = TextChunker()
+    chunker = WordCountChunker()
 
     async with AsyncSessionLocal() as session:
         repo = DocumentRepository(session)
@@ -236,7 +236,7 @@ async def seed():
             print(f"   ✅ Saved document: {doc.id}")
 
             # Chunking
-            chunks = chunker.chunk(doc.id, doc.content)
+            chunks = chunker.chunk(doc.id, content=doc.content)
             print(f"   📄 Chunks: {len(chunks)}")
 
             # Index vector (Qdrant) + keyword (PostgreSQL)

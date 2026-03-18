@@ -1,6 +1,6 @@
 // graph.js — Knowledge Graph with snapshot, health, and advanced views
 import { authFetch, API } from '../api/client.js';
-import { showToast } from '../utils/ui.js';
+import { showToast, kpPrompt } from '../utils/ui.js';
 
 let _canvas, _ctx;
 let _nodes = [], _edges = [];
@@ -43,21 +43,21 @@ function renderViewToolbar() {
 
 window.graphSwitchView = async function (viewId) {
   if (viewId === 'focus') {
-    const nodeId = prompt('Nhập node ID để xem focus:');
+    const nodeId = await kpPrompt({ title: '🎯 Focus Node', message: 'Nhập node ID để xem focus:', placeholder: 'vd: entity_123' });
     if (!nodeId) return;
     _activeView = viewId;
     renderViewToolbar();
     return loadGraphFocus(nodeId);
   }
   if (viewId === 'impact') {
-    const docId = prompt('Nhập document ID để xem impact:');
+    const docId = await kpPrompt({ title: '💥 Impact Analysis', message: 'Nhập document ID để xem impact:', placeholder: 'vd: doc_abc' });
     if (!docId) return;
     _activeView = viewId;
     renderViewToolbar();
     return loadGraphImpact(docId);
   }
   if (viewId === 'trace') {
-    const docId = prompt('Nhập document ID hoặc Jira key để trace:');
+    const docId = await kpPrompt({ title: '🔗 Trace Root Cause', message: 'Nhập document ID hoặc Jira key để trace:', placeholder: 'vd: PROJ-123 hoặc doc_id' });
     if (!docId) return;
     _activeView = viewId;
     renderViewToolbar();

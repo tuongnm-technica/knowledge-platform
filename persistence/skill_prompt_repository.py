@@ -134,19 +134,26 @@ class SkillPromptRepository:
     # ─── Seeder ───────────────────────────────────────────────────────────────
 
     async def seed_defaults(self) -> int:
-        """Populate skill_prompts from hardcoded defaults (INSERT IF NOT EXISTS). Returns rows inserted."""
+        """Populate skill_prompts from hardcoded defaults (INSERT OR UPDATE). Returns rows affected."""
         count = 0
         for doc_type, system_prompt in SKILL_SYSTEM_PROMPTS.items():
             label_tuple = SKILL_AGENT_LABELS.get(doc_type, ("", ""))
             label = label_tuple[0] if label_tuple else doc_type
             description = label_tuple[1] if label_tuple else ""
+            
+            # Use EXCLUDED to update existing items with latest full prompts from filesystem
             result = await self._session.execute(
                 text("""
                     INSERT INTO skill_prompts
                         (doc_type, label, description, system_prompt, updated_at, updated_by)
                     VALUES
                         (:doc_type, :label, :description, :system_prompt, :updated_at, 'system')
-                    ON CONFLICT (doc_type) DO NOTHING
+                    ON CONFLICT (doc_type) DO UPDATE SET
+                        label         = EXCLUDED.label,
+                        description   = EXCLUDED.description,
+                        system_prompt = EXCLUDED.system_prompt,
+                        updated_at    = EXCLUDED.updated_at,
+                        updated_by    = 'system'
                     RETURNING doc_type
                 """),
                 {

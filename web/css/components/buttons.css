@@ -1,115 +1,157 @@
-/* Buttons Component */
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: var(--font-family-body);
+/* ── Buttons Component ── */
+
+/* Base button reset and shared styles */
+.primary-btn, 
+.secondary-btn, 
+.danger-btn, 
+.add-btn, 
+.login-btn, 
+.logout-btn, 
+.send-btn, 
+.pager-btn,
+.chat-action-btn,
+.kp-pin-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-family: var(--font-family-body);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid transparent;
   white-space: nowrap;
   outline: none;
+  user-select: none;
+  text-decoration: none;
 }
 
-.btn-primary {
+/* Primary style (Vibrant Sky Blue) */
+.primary-btn, 
+.add-btn, 
+.login-btn, 
+.send-btn {
   background: var(--accent);
   color: white;
   box-shadow: 0 4px 12px var(--glow);
 }
 
-.btn-primary:hover {
+.primary-btn:hover, 
+.add-btn:hover, 
+.login-btn:hover, 
+.send-btn:hover:not(:disabled) {
   background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px var(--glow);
+  box-shadow: 0 8px 20px var(--glow);
 }
 
-.btn:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.btn-secondary {
+/* Secondary style (Clean & Crisp) */
+.secondary-btn, 
+.pager-btn,
+.chat-action-btn {
   background: var(--bg3);
   color: var(--text);
-  border: 1px solid var(--border);
-}
-
-.btn-secondary:hover {
-  background: var(--bg4);
   border-color: var(--border-strong);
 }
 
-.btn-danger {
+.secondary-btn:hover, 
+.pager-btn:hover:not(:disabled),
+.chat-action-btn:hover {
+  background: var(--bg4);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Danger style */
+.danger-btn {
   background: var(--danger);
   color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
 }
 
-.btn-danger:hover {
+.danger-btn:hover {
   opacity: 0.9;
   transform: translateY(-2px);
 }
 
-.btn-success {
-  background: var(--success);
-  color: white;
-}
-
-.btn-success:hover {
-  opacity: 0.9;
-  transform: translateY(-2px);
-}
-
-.btn-sm {
+/* Special button cases */
+.mini {
   padding: 6px 12px;
   font-size: 12px;
   border-radius: 8px;
 }
 
-.btn-lg {
-  padding: 14px 28px;
-  font-size: 16px;
-  border-radius: 12px;
+.logout-btn {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  padding: 8px;
+  width: 40px;
+  height: 40px;
 }
 
-.btn:disabled {
+.logout-btn:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+  transform: scale(1.1);
+}
+
+.send-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: 20px;
+}
+
+.kp-pin-btn, .chat-source-pin {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.kp-pin-btn:hover, .chat-source-pin:hover {
+  border-color: var(--accent);
+  background: var(--glow);
+  transform: scale(1.1);
+}
+
+/* Shared States */
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none !important;
+  box-shadow: none !important;
 }
 
-/* Loading State (Spinner) */
-.btn.is-loading {
+/* Loading state for original code compatibility if used */
+.is-loading {
   position: relative;
   color: transparent !important;
   pointer-events: none;
 }
 
-.btn.is-loading > * {
-  opacity: 0;
-}
-
-.btn.is-loading::after {
+.is-loading::after {
   content: "";
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 1.25rem;
-  height: 1.25rem;
-  margin-left: -0.625rem;
-  margin-top: -0.625rem;
+  left: 50%; top: 50%;
+  width: 1.25rem; height: 1.25rem;
+  margin-left: -0.625rem; margin-top: -0.625rem;
   border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: #ffffff;
   border-radius: 50%;
   animation: btn-spin 0.8s linear infinite;
-}
-
-.btn-secondary.is-loading::after {
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
 }
 
 @keyframes btn-spin {

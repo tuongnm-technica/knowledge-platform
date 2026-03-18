@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 
@@ -12,6 +13,7 @@ from apps.api.auth.dependencies import CurrentUser, get_current_user
 from orchestration.agent import OllamaLLM
 from persistence.doc_draft_repository import DocDraftRepository
 from persistence.document_repository import DocumentRepository
+from persistence.project_memory_repository import ProjectMemoryRepository
 from prompts.doc_draft_prompt import SUPPORTED_DOC_TYPES, build_doc_system_prompt, build_doc_user_prompt
 from storage.db.db import get_db
 
@@ -39,6 +41,11 @@ class DraftUpdateRequest(BaseModel):
     title: str | None = Field(default=None, max_length=255)
     content: str | None = None
     status: str | None = Field(default=None, max_length=30)
+
+
+class DraftRefineRequest(BaseModel):
+    selected_text: str = Field(..., max_length=15000)
+    instruction: str = Field(..., max_length=1000)
 
 
 def _extract_doc_ids(sources: list[dict]) -> list[str]:
@@ -113,6 +120,27 @@ def _dedupe_ids(values: list[str]) -> list[str]:
     return out
 
 
+def _parse_llm_response(text: str) -> tuple[str, dict]:
+    """Parse the LLM response to separate Markdown content and JSON structured data."""
+    text = text or ""
+    structured_data = {}
+    
+    match = re.search(r"<json>\s*(.*?)\s*</json>", text, re.DOTALL | re.IGNORECASE)
+    if match:
+        json_str = match.group(1)
+        try:
+            structured_data = json.loads(json_str)
+        except Exception as e:
+            log.warning("docs.draft.parse_json_error", error=str(e), snippet=json_str[:100])
+        
+        content = text[:match.start()] + text[match.end():]
+        content = content.strip()
+    else:
+        content = text.strip()
+        
+    return content, structured_data
+
+
 @router.get("/supported-types")
 async def get_supported_doc_types(
     _: CurrentUser = Depends(get_current_user),
@@ -159,6 +187,17 @@ async def create_doc_draft_from_answer(
     title = (req.title or "").strip() or _default_title(doc_type, req.question)
 
     system = build_doc_system_prompt(doc_type=doc_type)
+    system += "\n\nCRITICAL REQUIREMENT: You MUST output a structured JSON representing the core data of your response. Place this JSON anywhere in your response wrapped exactly in <json> and </json> tags."
+
+    memory_grouped = await ProjectMemoryRepository(session).get_all_grouped()
+    if memory_grouped:
+        system += "\n\n--- PROJECT MEMORY ---\nYou MUST adhere to these previously defined concepts and roles. Do not redefine them differently.\n"
+        for mtype, items in memory_grouped.items():
+            system += f"\n## {mtype.upper()}:\n"
+            for item in items:
+                system += f"- {item['key']}: {item['content']}\n"
+        system += "------------------------\n"
+
     user = build_doc_user_prompt(
         doc_type=doc_type,
         question=req.question or "",
@@ -174,12 +213,30 @@ async def create_doc_draft_from_answer(
     except Exception:
         ok = False
 
+    structured_data = {}
     if ok:
         try:
-            content = await llm.chat(system=system, user=user, max_tokens=1800)
+            from orchestration.doc_orchestrator import DocOrchestrator
+            orchestrator = DocOrchestrator(llm)
+            raw_content = await orchestrator.generate_document_pipeline(system=system, user=user, max_tokens=1800)
+            content, structured_data = _parse_llm_response(raw_content)
+            if structured_data:
+                repo = ProjectMemoryRepository(session)
+                for mtype in ["actor", "actors", "glossary", "terms", "rule", "rules"]:
+                    if mtype in structured_data:
+                        items = structured_data[mtype]
+                        if isinstance(items, list):
+                            for item in items:
+                                if isinstance(item, dict):
+                                    k = item.get("name") or item.get("term") or item.get("actor")
+                                    v = item.get("description") or item.get("definition") or item.get("desc")
+                                    if k and v:
+                                        ntype = "actor" if "actor" in mtype else ("rule" if "rule" in mtype else "glossary")
+                                        await repo.upsert(memory_type=ntype, key=k, content=v, created_by=current_user.user_id)
         except Exception as exc:
             log.error("docs.draft.llm_failed", doc_type=doc_type, error=str(exc))
             content = ""
+            structured_data = {}
 
     if not content:
         content = _fallback_doc(doc_type=doc_type, title=title, question=req.question or "", sources=req.sources or [])
@@ -193,6 +250,7 @@ async def create_doc_draft_from_answer(
         doc_type=doc_type,
         title=title,
         content=content,
+        structured_data=structured_data,
         source_document_ids=doc_ids[:12],
         source_snapshot=snapshot,
         created_by=current_user.user_id,
@@ -231,6 +289,17 @@ async def create_doc_draft_from_documents(
     db_prompt: str | None = db_row["system_prompt"] if db_row else None
 
     system = build_doc_system_prompt(doc_type=doc_type, db_prompt=db_prompt)
+    system += "\n\nCRITICAL REQUIREMENT: You MUST output a structured JSON representing the core data of your response. Place this JSON anywhere in your response wrapped exactly in <json> and </json> tags."
+
+    memory_grouped = await ProjectMemoryRepository(session).get_all_grouped()
+    if memory_grouped:
+        system += "\n\n--- PROJECT MEMORY ---\nYou MUST adhere to these previously defined concepts and roles. Do not redefine them differently.\n"
+        for mtype, items in memory_grouped.items():
+            system += f"\n## {mtype.upper()}:\n"
+            for item in items:
+                system += f"- {item['key']}: {item['content']}\n"
+        system += "------------------------\n"
+
     user = build_doc_user_prompt(
         doc_type=doc_type,
         question=req.goal or "",
@@ -246,12 +315,30 @@ async def create_doc_draft_from_documents(
     except Exception:
         ok = False
 
+    structured_data = {}
     if ok:
         try:
-            content = await llm.chat(system=system, user=user, max_tokens=1800)
+            from orchestration.doc_orchestrator import DocOrchestrator
+            orchestrator = DocOrchestrator(llm)
+            raw_content = await orchestrator.generate_document_pipeline(system=system, user=user, max_tokens=1800)
+            content, structured_data = _parse_llm_response(raw_content)
+            if structured_data:
+                repo = ProjectMemoryRepository(session)
+                for mtype in ["actor", "actors", "glossary", "terms", "rule", "rules"]:
+                    if mtype in structured_data:
+                        items = structured_data[mtype]
+                        if isinstance(items, list):
+                            for item in items:
+                                if isinstance(item, dict):
+                                    k = item.get("name") or item.get("term") or item.get("actor")
+                                    v = item.get("description") or item.get("definition") or item.get("desc")
+                                    if k and v:
+                                        ntype = "actor" if "actor" in mtype else ("rule" if "rule" in mtype else "glossary")
+                                        await repo.upsert(memory_type=ntype, key=k, content=v, created_by=current_user.user_id)
         except Exception as exc:
             log.error("docs.draft.llm_failed", doc_type=doc_type, error=str(exc))
             content = ""
+            structured_data = {}
 
     if not content:
         content = _fallback_doc(doc_type=doc_type, title=title, question=req.goal or "", sources=sources[:12])
@@ -266,6 +353,7 @@ async def create_doc_draft_from_documents(
         doc_type=doc_type,
         title=title,
         content=content,
+        structured_data=structured_data,
         source_document_ids=doc_ids,
         source_snapshot=snapshot,
         created_by=current_user.user_id,
@@ -338,3 +426,60 @@ async def delete_doc_draft(
     if not ok:
         raise HTTPException(status_code=404, detail="Draft not found (or not allowed).")
     return {"status": "deleted", "id": str(draft_id)}
+
+
+@router.post("/drafts/{draft_id}/refine")
+async def refine_draft_section(
+    draft_id: str,
+    req: DraftRefineRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    draft = await DocDraftRepository(session).get(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bản nháp")
+
+    system = """You are an AI Editing Assistant for a Business Analyst.
+You are given a text snippet from a larger document, and an instruction from the user.
+Your task is to rewrite ONLY the text snippet exactly according to the instruction.
+Reply with the raw Markdown replacement text only. Do not add conversational padding like "Here is the rewritten text" or markdown block quotes if they aren't part of the text."""
+
+    user_prompt = f"INSTRUCTION FROM USER: {req.instruction}\n\nORIGINAL SNIPPET TO REPLACE:\n{req.selected_text}"
+    
+    llm = OllamaLLM()
+    try:
+        ok = await llm.is_available()
+        if not ok:
+            raise HTTPException(status_code=503, detail="LLM hiện không khả dụng")
+        new_text = await llm.chat(system=system, user=user_prompt, max_tokens=1500)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("docs.refine_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Lỗi khi chạy AI Rewrite")
+        
+    return {"refined_text": new_text.strip()}
+
+
+# ── Project Memory API ────────────────────────────────────────────────────────
+
+@router.get("/memory")
+async def list_project_memory(
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(get_current_user),
+):
+    grouped = await ProjectMemoryRepository(session).get_all_grouped()
+    return {"memory": grouped}
+
+
+@router.delete("/memory/{memory_id}")
+async def delete_project_memory(
+    memory_id: str,
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(get_current_user),
+):
+    ok = await ProjectMemoryRepository(session).delete(memory_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Không tìm thấy memory entry.")
+    return {"status": "deleted", "id": memory_id}
+

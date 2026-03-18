@@ -2,7 +2,7 @@
  * Prompts Management Module
  * List / search / view / edit skill prompts
  */
-import { showToast } from '../utils/ui.js';
+import { showToast, escapeHtml, kpConfirm } from '../utils/ui.js';
 import { authFetch } from '../api/client.js';
 
 const PROMPTS_API = '/api/prompts';
@@ -89,7 +89,13 @@ async function selectPrompt(docType) {
 
   // Confirm leave edit if dirty
   if (_editMode && isPromptDirty()) {
-    const yes = window.confirm('Bạn có thay đổi chưa lưu. Thoát không?');
+    const yes = await kpConfirm({
+      title: 'Thay đổi chưa lưu',
+      message: 'Bạn có thay đổi chưa lưu. Thoát không?',
+      okText: 'Thoát',
+      cancelText: 'Ở lại',
+      danger: true,
+    });
     if (!yes) return;
   }
 
@@ -218,7 +224,14 @@ function bindDetailActions(data, isModified) {
   });
 
   document.getElementById('promptResetBtn')?.addEventListener('click', async () => {
-    if (!window.confirm(`Đặt lại prompt "${data.label}" về mặc định? Thay đổi tuỳ chỉnh sẽ bị mất.`)) return;
+    const shouldReset = await kpConfirm({
+      title: '🔄 Đặt lại prompt',
+      message: `Đặt lại prompt "${data.label}" về mặc định? Thay đổi tuỳ chỉnh sẽ bị mất.`,
+      okText: 'Đặt lại',
+      cancelText: 'Huỷ',
+      danger: true,
+    });
+    if (!shouldReset) return;
     try {
       await resetPrompt(_selected);
       showToast('Đã đặt lại về mặc định', 'success');
@@ -284,7 +297,3 @@ export async function loadPromptsPage() {
   }
 }
 
-function escapeHtml(text) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return String(text || '').replace(/[&<>"']/g, m => map[m]);
-}

@@ -1,0 +1,31 @@
+# Version control
+.git/
+.gitignore
+
+# IDEs and environments
+.vscode/
+.idea/
+venv/
+env/
+.env
+
+# Python compilation files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Data and logs (do not copy to image, mounted via volumes)
+pgdata/
+qdrant_data/
+*.db
+*.sqlite3
+*.log
+
+# Large unused files
+repo_structure.txt
+structure.txt
+FIXES.md
+thamkhao/

@@ -51,6 +51,8 @@ class BaseWorkerSettings:
 
 class IngestionWorkerSettings(BaseWorkerSettings):
     """Worker chuyên xử lý các tác vụ nặng, tốn thời gian (cào dữ liệu, chunking, embedding)."""
+    redis_settings = BaseWorkerSettings.redis_settings
+    health_check_interval = BaseWorkerSettings.health_check_interval
     queue_name = settings.ARQ_INGESTION_QUEUE_NAME
     functions = [sync_connector_job, scan_sources_job]
     job_timeout = settings.ARQ_INGESTION_JOB_TIMEOUT
@@ -59,6 +61,8 @@ class IngestionWorkerSettings(BaseWorkerSettings):
 
 class DefaultWorkerSettings(BaseWorkerSettings):
     """Worker xử lý các task nhẹ, ưu tiên cao (gửi thông báo, update db, cache)."""
+    redis_settings = BaseWorkerSettings.redis_settings
+    health_check_interval = BaseWorkerSettings.health_check_interval
     queue_name = settings.ARQ_DEFAULT_QUEUE_NAME
     functions = [fast_background_job]
     job_timeout = settings.ARQ_DEFAULT_JOB_TIMEOUT  # Timeout ngắn (2 phút)

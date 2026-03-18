@@ -209,6 +209,37 @@ export function kpConfirm({ title, message, okText = 'OK', cancelText = 'Cancel'
   }).then(res => !!res);
 }
 
+export function kpPrompt({ title, message, placeholder = '', defaultValue = '', okText = 'OK', cancelText = 'Cancel' } = {}) {
+  const body = document.createElement('div');
+  body.className = 'kp-modal-confirm';
+  if (message) {
+    const p = document.createElement('div');
+    p.className = 'kp-modal-confirm-text';
+    p.textContent = String(message);
+    body.appendChild(p);
+  }
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'time-input kp-modal-input kp-prompt-input';
+  input.placeholder = placeholder;
+  input.value = defaultValue;
+  body.appendChild(input);
+
+  return kpOpenModal({
+    title,
+    subtitle: '',
+    content: body,
+    okText,
+    cancelText,
+    okClass: 'primary-btn',
+    onOk: () => {
+      const val = input.value.trim();
+      if (!val) return { error: 'Vui lòng nhập giá trị' };
+      return val;
+    },
+  });
+}
+
 export function _kpBuildModalField({ id, label, type = 'text', value = '', placeholder = '', help = '', required = false, options = null } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'kp-modal-field';

@@ -1,49 +1,71 @@
-/* Modals Component */
+/* Modals Component — Premium Design */
+
+/* ── Base Overlay ── */
 #kpModalOverlay {
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 23, 0.7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9998;
-  animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: kpFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 [data-theme="light"] #kpModalOverlay {
   background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
 }
 
-@keyframes fadeIn {
+@keyframes kpFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+@keyframes kpSlideUp {
+  from { transform: translateY(24px) scale(0.96); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
+/* ── Modal Box ── */
 .kp-modal {
   background: var(--bg);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
   max-width: 560px;
-  width: 90%;
+  width: 92%;
   max-height: 90vh;
   overflow-y: auto;
-  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: kpSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   display: flex;
   flex-direction: column;
 }
 
+[data-theme="dark"] .kp-modal {
+  box-shadow:
+    0 24px 80px -12px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ── Header ── */
 .kp-modal-header {
-  padding: 24px 32px;
+  padding: 24px 28px 20px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg2);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.kp-modal-header-copy {
+  flex: 1;
+  min-width: 0;
 }
 
 .kp-modal-title {
@@ -52,27 +74,152 @@
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
-.kp-modal-subtitle {
+.kp-modal-sub {
   font-size: 14px;
   color: var(--text-muted);
   margin-top: 4px;
   font-weight: 500;
+  line-height: 1.5;
 }
 
+.kp-modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.kp-modal-close:hover {
+  background: var(--bg4);
+  color: var(--text);
+  transform: rotate(90deg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ── Body ── */
 .kp-modal-body {
-  padding: 32px;
+  padding: 24px 28px;
   flex: 1;
 }
 
-.kp-modal-footer {
-  padding: 20px 32px;
-  border-top: 1px solid var(--border);
+.kp-modal-form {
   display: flex;
-  gap: 12px;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.kp-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kp-modal-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.kp-modal-input {
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-family-body);
+  font-size: 14px;
   background: var(--bg2);
+  color: var(--text);
+  transition: all 0.2s;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kp-modal-input:hover {
+  border-color: var(--accent);
+}
+
+.kp-modal-input:focus {
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+
+.kp-modal-input::placeholder {
+  color: var(--text-dim);
+}
+
+.kp-modal-help {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ── Prompt Input (for kpPrompt) ── */
+.kp-prompt-input {
+  margin-top: 12px;
+  font-size: 15px;
+  padding: 12px 16px;
+}
+
+/* ── Confirm Text ── */
+.kp-modal-confirm {
+  padding: 4px 0;
+}
+
+.kp-modal-confirm-text {
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ── Error Message ── */
+.kp-modal-error {
+  margin: 12px 28px 0;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 500;
+  animation: kpShake 0.3s ease-in-out;
+}
+
+@keyframes kpShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* ── Footer Actions ── */
+.kp-modal-actions {
+  padding: 16px 28px 24px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* ── Body scroll lock ── */
+body.kp-modal-open {
+  overflow: hidden;
 }
 
 /* ── Skill Selector Modal ── */
@@ -80,13 +227,13 @@
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 23, 0.75);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  animation: fadeIn 0.2s ease;
+  animation: kpFadeIn 0.2s ease;
 }
 
 [data-theme="light"] .skill-modal-overlay {
@@ -97,12 +244,14 @@
   background: var(--bg2);
   border: 1px solid var(--border-strong);
   border-radius: 24px;
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 24px 80px -12px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   width: min(640px, 92vw);
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: kpSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   overflow: hidden;
 }
 
@@ -238,4 +387,3 @@
   justify-content: flex-end;
   background: var(--bg);
 }
-

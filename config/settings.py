@@ -107,7 +107,10 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = True
+        # Ensure environment variables always take precedence over .env file
+        env_nested_delimiter = '__'
 
 
 settings = Settings()

@@ -1,6 +1,7 @@
 // connectors.js — Full management: view, create, edit, delete, config, sync
+// Uses shared kpOpenModal/kpConfirm from ui.js
 import { authFetch, API } from '../api/client.js';
-import { showToast, escapeHtml } from '../utils/ui.js';
+import { showToast, escapeHtml, kpOpenModal, kpConfirm, _kpBuildModalField } from '../utils/ui.js';
 
 console.log('[Trace C1] connectors.js module loaded');
 
@@ -47,7 +48,7 @@ function updateSummaryGrid(summary) {
     <div class="connector-summary-card"><span>Tài liệu</span><strong>${(summary.documents || 0).toLocaleString()}</strong></div>
     <div class="connector-summary-card"><span>Syncing</span><strong>${summary.syncing || 0}</strong></div>
     <div class="connector-summary-card" style="cursor:pointer" onclick="window.syncAllConnectors()">
-      <span>🔄 Sync All</span><strong style="color:var(--accent,#63b3ed)">Run</strong>
+      <span>🔄 Sync All</span><strong style="color:var(--accent)">Run</strong>
     </div>
   `;
 }
@@ -79,30 +80,32 @@ window.switchConnectorTab = (type) => {
 // ── Grid ──────────────────────────────────────────────────────────────────────
 
 function renderConnectorGrid(tabs) {
-  const grid = document.getElementById('connectorsGrid');
+  const grid    = document.getElementById('connectorsGrid');
+  const toolbar = document.getElementById('connectorsToolbar');
   if (!grid) return;
 
   const currentTab = tabs.find(t => t.type === _activeTab);
 
-  // Add Instance button on top
-  let html = `
-    <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
-      <button class="primary-btn" onclick="window.openCreateConnector('${escapeHtml(_activeTab)}')">
-        + Thêm kết nối ${escapeHtml(_activeTab)}
-      </button>
-      <button class="secondary-btn mini" onclick="window.syncAllForType('${escapeHtml(_activeTab)}')">
-        🔄 Sync tất cả ${escapeHtml(_activeTab)}
-      </button>
-    </div>
-  `;
+  // Render "Add instance" toolbar SEPARATELY, outside the css grid
+  if (toolbar) {
+    toolbar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="primary-btn" onclick="window.openCreateConnector('${escapeHtml(_activeTab)}')">
+          + Thêm kết nối ${escapeHtml(_activeTab)}
+        </button>
+        <button class="secondary-btn mini" onclick="window.syncAllForType('${escapeHtml(_activeTab)}')">
+          🔄 Sync tất cả ${escapeHtml(_activeTab)}
+        </button>
+      </div>
+    `;
+  }
 
   if (!currentTab?.instances?.length) {
-    html += '<div class="connectors-empty">Chưa có kết nối nào. Thêm kết nối mới để bắt đầu.</div>';
-    grid.innerHTML = html;
+    grid.innerHTML = '<div class="connectors-empty">Chưa có kết nối nào. Thêm kết nối mới để bắt đầu.</div>';
     return;
   }
 
-  html += currentTab.instances.map(inst => {
+  grid.innerHTML = currentTab.instances.map(inst => {
     const status = inst.status || {};
     const sync   = (inst.sync || {}).latest_completed_run || {};
     const data   = inst.data || {};
@@ -117,10 +120,10 @@ function renderConnectorGrid(tabs) {
           <div class="connector-status-badge ${status.code}">${escapeHtml(status.label || status.code || '—')}</div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;font-size:12px;color:var(--text-secondary)">
-          <div><span style="display:block;color:var(--text-muted)">Tài liệu</span><strong>${data.documents || 0}</strong></div>
-          <div><span style="display:block;color:var(--text-muted)">Chunks</span><strong>${data.chunks || 0}</strong></div>
-          <div><span style="display:block;color:var(--text-muted)">Last sync</span><strong style="font-size:11px">${formatSyncTime(sync.finished_at || sync.last_sync_at)}</strong></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;font-size:12px;color:var(--text-muted)">
+          <div><span style="display:block;color:var(--text-dim)">Tài liệu</span><strong>${data.documents || 0}</strong></div>
+          <div><span style="display:block;color:var(--text-dim)">Chunks</span><strong>${data.chunks || 0}</strong></div>
+          <div><span style="display:block;color:var(--text-dim)">Last sync</span><strong style="font-size:11px">${formatSyncTime(sync.finished_at || sync.last_sync_at)}</strong></div>
         </div>
 
         <div class="connector-card-footer" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px">
@@ -134,139 +137,119 @@ function renderConnectorGrid(tabs) {
       </div>
     `;
   }).join('');
-
-  grid.innerHTML = html;
-}
-
-// ── Modal helper ──────────────────────────────────────────────────────────────
-
-function showConnectorModal(title, bodyHtml, onConfirm) {
-  let overlay = document.getElementById('connectorModalOverlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'connectorModalOverlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;display:flex;align-items:center;justify-content:center;';
-    document.body.appendChild(overlay);
-  }
-  overlay.innerHTML = `
-    <div style="background:var(--surface,#1e2130);border-radius:14px;padding:28px 32px;min-width:440px;max-width:580px;width:95%;box-shadow:0 8px 40px rgba(0,0,0,0.5);max-height:85vh;overflow-y:auto;">
-      <h3 style="margin:0 0 20px;color:var(--text-primary,#fff)">${title}</h3>
-      <div id="connectorModalBody">${bodyHtml}</div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
-        <button class="secondary-btn" id="connectorModalCancel">Huỷ</button>
-        <button class="primary-btn" id="connectorModalConfirm">Xác nhận</button>
-      </div>
-    </div>
-  `;
-  overlay.style.display = 'flex';
-  document.getElementById('connectorModalCancel').onclick = closeConnectorModal;
-  overlay.onclick = (e) => { if (e.target === overlay) closeConnectorModal(); };
-  document.getElementById('connectorModalConfirm').onclick = onConfirm;
-}
-
-function closeConnectorModal() {
-  const overlay = document.getElementById('connectorModalOverlay');
-  if (overlay) overlay.style.display = 'none';
 }
 
 // ── Create Instance ───────────────────────────────────────────────────────────
 
 window.openCreateConnector = function (connectorType) {
-  showConnectorModal(`Thêm kết nối ${connectorType}`, `
-    <div style="display:grid;gap:12px">
-      <label>Tên kết nối<br><input id="cName" type="text" class="admin-input" placeholder="vd: Confluence Production" style="width:100%"></label>
-      <label>Base URL<br><input id="cUrl" type="url" class="admin-input" placeholder="https://mycompany.atlassian.net" style="width:100%"></label>
-      <label>Kiểu xác thực<br>
-        <select id="cAuthType" class="admin-input" style="width:100%" onchange="window._toggleConnectorAuth()">
-          <option value="token">Token</option>
-          <option value="basic">Basic (Username + Password)</option>
-        </select>
-      </label>
-      <div id="cAuthBasic" style="display:none">
-        <label>Username<br><input id="cUsername" type="text" class="admin-input" style="width:100%"></label>
-      </div>
-      <label>Secret / Token / Password<br><input id="cSecret" type="password" class="admin-input" placeholder="API Token hoặc Password" style="width:100%"></label>
-    </div>
-  `, async () => {
-    const name     = document.getElementById('cName')?.value.trim();
-    const base_url = document.getElementById('cUrl')?.value.trim();
-    const auth_type= document.getElementById('cAuthType')?.value;
-    const username = document.getElementById('cUsername')?.value.trim() || undefined;
-    const secret   = document.getElementById('cSecret')?.value;
-    if (!name) return showToast('Vui lòng nhập tên kết nối', 'error');
-    const btn = document.getElementById('connectorModalConfirm');
-    btn.disabled = true; btn.textContent = 'Đang tạo...';
-    try {
-      const res = await authFetch(`${API}/connectors/${connectorType}/instances`, {
-        method: 'POST',
-        body: JSON.stringify({ name, base_url, auth_type, username, secret }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi tạo connector'); }
-      showToast('Đã tạo kết nối thành công', 'success');
-      closeConnectorModal();
-      loadConnectorCatalog();
-    } catch (e) { showToast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Xác nhận'; }
-  });
-};
+  const body = document.createElement('div');
+  body.className = 'kp-modal-form';
 
-window._toggleConnectorAuth = function () {
-  const type = document.getElementById('cAuthType')?.value;
-  const basic = document.getElementById('cAuthBasic');
-  if (basic) basic.style.display = type === 'basic' ? 'block' : 'none';
+  const { wrap: w1, input: nameIn } = _kpBuildModalField({ id: 'cName', label: 'Tên kết nối', placeholder: 'vd: Confluence Production', required: true });
+  const { wrap: w2, input: urlIn } = _kpBuildModalField({ id: 'cUrl', label: 'Base URL', type: 'url', placeholder: 'https://mycompany.atlassian.net' });
+  const { wrap: w3, input: authTypeIn } = _kpBuildModalField({
+    id: 'cAuthType', label: 'Kiểu xác thực', type: 'select',
+    options: [{ value: 'token', label: 'Token' }, { value: 'basic', label: 'Basic (Username + Password)' }],
+  });
+  const { wrap: w4, input: usernameIn } = _kpBuildModalField({ id: 'cUsername', label: 'Username (nếu Basic)', placeholder: 'Username' });
+  const { wrap: w5, input: secretIn } = _kpBuildModalField({ id: 'cSecret', label: 'Secret / Token / Password', type: 'password', placeholder: 'API Token hoặc Password' });
+
+  w4.style.display = 'none';
+  authTypeIn.addEventListener('change', () => {
+    w4.style.display = authTypeIn.value === 'basic' ? '' : 'none';
+  });
+
+  body.append(w1, w2, w3, w4, w5);
+
+  kpOpenModal({
+    title: `Thêm kết nối ${connectorType}`,
+    subtitle: 'Cấu hình kết nối mới',
+    content: body,
+    okText: 'Tạo kết nối',
+    onOk: async () => {
+      const name     = nameIn.value.trim();
+      const base_url = urlIn.value.trim();
+      const auth_type= authTypeIn.value;
+      const username = usernameIn.value.trim() || undefined;
+      const secret   = secretIn.value;
+      if (!name) return { error: 'Vui lòng nhập tên kết nối' };
+      try {
+        const res = await authFetch(`${API}/connectors/${connectorType}/instances`, {
+          method: 'POST',
+          body: JSON.stringify({ name, base_url, auth_type, username, secret }),
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi tạo connector'); }
+        showToast('Đã tạo kết nối thành công', 'success');
+        loadConnectorCatalog();
+        return true;
+      } catch (e) { return { error: e.message }; }
+    },
+  });
 };
 
 // ── Edit Instance ─────────────────────────────────────────────────────────────
 
 window.openEditConnector = function (connectorType, instanceId) {
-  // Find the instance from cached data
   const tabs = (_dashboardData?.tabs || []);
   const tab = tabs.find(t => t.type === connectorType);
   const inst = (tab?.instances || []).find(i => String(i.instance_id) === String(instanceId));
 
-  showConnectorModal(`Sửa kết nối: ${escapeHtml(inst?.instance_name || instanceId)}`, `
-    <div style="display:grid;gap:12px">
-      <label>Tên kết nối<br><input id="cName" type="text" class="admin-input" value="${escapeHtml(inst?.instance_name || '')}" style="width:100%"></label>
-      <label>Base URL<br><input id="cUrl" type="url" class="admin-input" value="${escapeHtml(inst?.base_url || '')}" style="width:100%"></label>
-      <label>Kiểu xác thực<br>
-        <select id="cAuthType" class="admin-input" style="width:100%">
-          <option value="token" ${inst?.auth_type !== 'basic' ? 'selected' : ''}>Token</option>
-          <option value="basic" ${inst?.auth_type === 'basic' ? 'selected' : ''}>Basic</option>
-        </select>
-      </label>
-      <label>Username (nếu Basic)<br><input id="cUsername" type="text" class="admin-input" value="${escapeHtml(inst?.username || '')}" style="width:100%"></label>
-      <label>Secret mới (để trống = không đổi)<br><input id="cSecret" type="password" class="admin-input" placeholder="••••••••" style="width:100%"></label>
-    </div>
-  `, async () => {
-    const payload = {};
-    const name     = document.getElementById('cName')?.value.trim();
-    const base_url = document.getElementById('cUrl')?.value.trim();
-    const auth_type= document.getElementById('cAuthType')?.value;
-    const username = document.getElementById('cUsername')?.value.trim();
-    const secret   = document.getElementById('cSecret')?.value;
-    if (name) payload.name = name;
-    if (base_url) payload.base_url = base_url;
-    if (auth_type) payload.auth_type = auth_type;
-    if (username) payload.username = username;
-    if (secret) payload.secret = secret;
-    const btn = document.getElementById('connectorModalConfirm');
-    btn.disabled = true; btn.textContent = 'Đang lưu...';
-    try {
-      const res = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi cập nhật'); }
-      showToast('Đã cập nhật kết nối', 'success');
-      closeConnectorModal();
-      loadConnectorCatalog();
-    } catch (e) { showToast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Xác nhận'; }
+  const body = document.createElement('div');
+  body.className = 'kp-modal-form';
+
+  const { wrap: w1, input: nameIn } = _kpBuildModalField({ id: 'cName', label: 'Tên kết nối', value: inst?.instance_name || '' });
+  const { wrap: w2, input: urlIn } = _kpBuildModalField({ id: 'cUrl', label: 'Base URL', type: 'url', value: inst?.base_url || '' });
+  const { wrap: w3, input: authTypeIn } = _kpBuildModalField({
+    id: 'cAuthType', label: 'Kiểu xác thực', type: 'select',
+    value: inst?.auth_type || 'token',
+    options: [{ value: 'token', label: 'Token' }, { value: 'basic', label: 'Basic' }],
+  });
+  const { wrap: w4, input: usernameIn } = _kpBuildModalField({ id: 'cUsername', label: 'Username', value: inst?.username || '' });
+  const { wrap: w5, input: secretIn } = _kpBuildModalField({ id: 'cSecret', label: 'Secret mới (để trống = không đổi)', type: 'password', placeholder: '••••••••' });
+
+  body.append(w1, w2, w3, w4, w5);
+
+  kpOpenModal({
+    title: `Sửa kết nối: ${inst?.instance_name || instanceId}`,
+    content: body,
+    okText: 'Lưu thay đổi',
+    onOk: async () => {
+      const payload = {};
+      const name     = nameIn.value.trim();
+      const base_url = urlIn.value.trim();
+      const auth_type= authTypeIn.value;
+      const username = usernameIn.value.trim();
+      const secret   = secretIn.value;
+      if (name) payload.name = name;
+      if (base_url) payload.base_url = base_url;
+      if (auth_type) payload.auth_type = auth_type;
+      if (username) payload.username = username;
+      if (secret) payload.secret = secret;
+      try {
+        const res = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi cập nhật'); }
+        showToast('Đã cập nhật kết nối', 'success');
+        loadConnectorCatalog();
+        return true;
+      } catch (e) { return { error: e.message }; }
+    },
   });
 };
 
 // ── Delete Instance ───────────────────────────────────────────────────────────
 
 window.deleteConnectorInstance = async function (connectorType, instanceId) {
-  if (!confirm('Xóa kết nối này? Dữ liệu đã sync sẽ không bị ảnh hưởng.')) return;
+  const confirmed = await kpConfirm({
+    title: '🗑 Xóa kết nối',
+    message: 'Xóa kết nối này? Dữ liệu đã sync sẽ không bị ảnh hưởng.',
+    okText: 'Xóa',
+    cancelText: 'Huỷ',
+    danger: true,
+  });
+  if (!confirmed) return;
   try {
     const res = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}`, { method: 'DELETE' });
     if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Xóa thất bại'); }
@@ -283,39 +266,60 @@ window.openConnectorConfig = function (connectorType, instanceId) {
   const inst = (tab?.instances || []).find(i => String(i.instance_id) === String(instanceId));
   const cfg = inst?.config || {};
 
-  showConnectorModal(`⚙️ Cấu hình: ${escapeHtml(inst?.instance_name || instanceId)}`, `
-    <div style="display:grid;gap:16px">
-      <label style="display:flex;align-items:center;gap:10px">
-        <input type="checkbox" id="cfgEnabled" ${cfg.enabled !== false ? 'checked' : ''}> Enabled (đang hoạt động)
-      </label>
-      <label style="display:flex;align-items:center;gap:10px">
-        <input type="checkbox" id="cfgAutoSync" ${cfg.auto_sync ? 'checked' : ''}> Auto Sync (tự động)
-      </label>
-      <div>
-        <p style="margin:0 0 8px;color:var(--text-secondary)">Lịch sync hàng ngày:</p>
-        <div style="display:flex;gap:12px;align-items:center">
-          <label>Giờ (0–23)<br><input id="cfgHour" type="number" min="0" max="23" class="admin-input" value="${cfg.schedule_hour ?? 2}" style="width:80px"></label>
-          <label>Phút (0–59)<br><input id="cfgMinute" type="number" min="0" max="59" class="admin-input" value="${cfg.schedule_minute ?? 0}" style="width:80px"></label>
-        </div>
-      </div>
-    </div>
-  `, async () => {
-    const enabled        = document.getElementById('cfgEnabled')?.checked ?? true;
-    const auto_sync      = document.getElementById('cfgAutoSync')?.checked ?? false;
-    const schedule_hour  = parseInt(document.getElementById('cfgHour')?.value) || 2;
-    const schedule_minute= parseInt(document.getElementById('cfgMinute')?.value) || 0;
-    const btn = document.getElementById('connectorModalConfirm');
-    btn.disabled = true; btn.textContent = 'Đang lưu...';
-    try {
-      const res = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}/config`, {
-        method: 'PUT',
-        body: JSON.stringify({ enabled, auto_sync, schedule_hour, schedule_minute }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi lưu config'); }
-      showToast('Đã lưu cấu hình', 'success');
-      closeConnectorModal();
-      loadConnectorCatalog();
-    } catch (e) { showToast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Xác nhận'; }
+  const body = document.createElement('div');
+  body.className = 'kp-modal-form';
+
+  // Enabled checkbox
+  const enabledWrap = document.createElement('div');
+  enabledWrap.className = 'kp-modal-field';
+  const enabledLabel = document.createElement('label');
+  enabledLabel.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer';
+  const enabledCb = document.createElement('input');
+  enabledCb.type = 'checkbox';
+  enabledCb.id = 'cfgEnabled';
+  enabledCb.checked = cfg.enabled !== false;
+  enabledLabel.appendChild(enabledCb);
+  enabledLabel.appendChild(document.createTextNode('Enabled (đang hoạt động)'));
+  enabledWrap.appendChild(enabledLabel);
+
+  // Auto sync checkbox
+  const autoWrap = document.createElement('div');
+  autoWrap.className = 'kp-modal-field';
+  const autoLabel = document.createElement('label');
+  autoLabel.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer';
+  const autoCb = document.createElement('input');
+  autoCb.type = 'checkbox';
+  autoCb.id = 'cfgAutoSync';
+  autoCb.checked = !!cfg.auto_sync;
+  autoLabel.appendChild(autoCb);
+  autoLabel.appendChild(document.createTextNode('Auto Sync (tự động)'));
+  autoWrap.appendChild(autoLabel);
+
+  const { wrap: w3, input: hourIn } = _kpBuildModalField({ id: 'cfgHour', label: 'Giờ sync (0–23)', type: 'number', value: String(cfg.schedule_hour ?? 2) });
+  const { wrap: w4, input: minuteIn } = _kpBuildModalField({ id: 'cfgMinute', label: 'Phút (0–59)', type: 'number', value: String(cfg.schedule_minute ?? 0) });
+
+  body.append(enabledWrap, autoWrap, w3, w4);
+
+  kpOpenModal({
+    title: `⚙️ Cấu hình: ${inst?.instance_name || instanceId}`,
+    content: body,
+    okText: 'Lưu cấu hình',
+    onOk: async () => {
+      const enabled        = enabledCb.checked;
+      const auto_sync      = autoCb.checked;
+      const schedule_hour  = parseInt(hourIn.value) || 2;
+      const schedule_minute= parseInt(minuteIn.value) || 0;
+      try {
+        const res = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}/config`, {
+          method: 'PUT',
+          body: JSON.stringify({ enabled, auto_sync, schedule_hour, schedule_minute }),
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi lưu config'); }
+        showToast('Đã lưu cấu hình', 'success');
+        loadConnectorCatalog();
+        return true;
+      } catch (e) { return { error: e.message }; }
+    },
   });
 };
 
@@ -333,7 +337,13 @@ export async function syncConnector(type, id) {
 window.syncConnector = syncConnector;
 
 window.syncAllConnectors = async function () {
-  if (!confirm('Sync tất cả connectors? Có thể mất vài phút.')) return;
+  const confirmed = await kpConfirm({
+    title: '🔄 Sync tất cả',
+    message: 'Sync tất cả connectors? Có thể mất vài phút.',
+    okText: 'Sync',
+    cancelText: 'Huỷ',
+  });
+  if (!confirmed) return;
   try {
     const res = await authFetch(`${API}/connectors/sync-all`, { method: 'POST' });
     if (!res.ok) throw new Error('Sync all failed');
@@ -377,10 +387,10 @@ window.discoverConnector = async function (connectorType, instanceId) {
     const panel = document.getElementById('connectorsGrid');
     if (panel && scopes.length) {
       const info = document.createElement('div');
-      info.style.cssText = 'margin-top:12px;padding:12px;background:rgba(99,179,237,0.08);border-radius:8px;border:1px solid rgba(99,179,237,0.2)';
+      info.style.cssText = 'margin-top:12px;padding:12px;background:var(--glow);border-radius:8px;border:1px solid var(--border)';
       info.innerHTML = `
         <strong style="color:var(--accent)">🔍 Tìm thấy ${scopes.length} scope(s):</strong>
-        <ul style="margin:8px 0 0;padding-left:20px;font-size:12px;color:var(--text-secondary)">
+        <ul style="margin:8px 0 0;padding-left:20px;font-size:12px;color:var(--text-muted)">
           ${scopes.slice(0, 20).map(s => `<li>${escapeHtml(JSON.stringify(s))}</li>`).join('')}
         </ul>
       `;
@@ -390,6 +400,48 @@ window.discoverConnector = async function (connectorType, instanceId) {
     }
   } catch (e) { showToast(`Discover thất bại: ${e.message}`, 'error'); }
 };
+
+// ── Tab sync helpers ──────────────────────────────────────────────────────────
+
+export function syncCurrentConnectorTab() {
+  window.syncAllForType(_activeTab);
+}
+
+export async function clearCurrentConnectorTab() {
+  const confirmed = await kpConfirm({
+    title: '⚠️ Xóa dữ liệu tab',
+    message: `Xóa toàn bộ dữ liệu đã sync cho tab "${_activeTab}"?`,
+    okText: 'Xóa',
+    danger: true,
+  });
+  if (!confirmed) return;
+  try {
+    const res = await authFetch(`${API}/connectors/${_activeTab}/clear`, { method: 'POST' });
+    if (!res.ok) throw new Error('Clear failed');
+    showToast('Đã xóa dữ liệu', 'success');
+    loadConnectorCatalog();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+export async function clearAllKnowledgeBase() {
+  const confirmed = await kpConfirm({
+    title: '⚠️ Xóa TOÀN BỘ knowledge base',
+    message: 'Hành động này sẽ xóa hết dữ liệu đã sync. Bạn có chắc chắn?',
+    okText: 'Xóa tất cả',
+    danger: true,
+  });
+  if (!confirmed) return;
+  try {
+    const res = await authFetch(`${API}/connectors/clear-all`, { method: 'POST' });
+    if (!res.ok) throw new Error('Clear all failed');
+    showToast('Đã xóa toàn bộ knowledge base', 'success');
+    loadConnectorCatalog();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+export function openCreateConnectorInstance() {
+  window.openCreateConnector(_activeTab);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

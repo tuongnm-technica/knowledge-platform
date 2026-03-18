@@ -1,21 +1,6 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: kp_postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: knowledge_platform
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./storage/db/init:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d knowledge_platform"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+# postgres service removed to use local DB
+
 
   redis:
     image: redis:7-alpine
@@ -33,21 +18,20 @@ services:
 
   api:
     build: .
+    image: knowledge-platform-core:latest
     container_name: kp_api
     ports:
       - "8000:8000"
     environment:
       # Trỏ kết nối vào các container khác trong mạng nội bộ docker
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/knowledge_platform
-      - DATABASE_SYNC_URL=postgresql://postgres:postgres@postgres:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=False
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_started
       qdrant:
@@ -55,20 +39,20 @@ services:
     command: python run.py
 
   worker_ingestion:
-    build: .
+    image: knowledge-platform-core:latest
     container_name: kp_worker_ingestion
     # Dùng chung environment với API, chỉ ghi đè RUN_WORKER
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/knowledge_platform
-      - DATABASE_SYNC_URL=postgresql://postgres:postgres@postgres:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=True
     depends_on:
-      postgres:
-        condition: service_healthy
+      api:
+        condition: service_started
       redis:
         condition: service_started
       qdrant:
@@ -76,19 +60,19 @@ services:
     command: arq arq_worker.IngestionWorkerSettings
 
   worker_default:
-    build: .
+    image: knowledge-platform-core:latest
     container_name: kp_worker_default
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/knowledge_platform
-      - DATABASE_SYNC_URL=postgresql://postgres:postgres@postgres:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=True
     depends_on:
-      postgres:
-        condition: service_healthy
+      api:
+        condition: service_started
       redis:
         condition: service_started
       qdrant:
