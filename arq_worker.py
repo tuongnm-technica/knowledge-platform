@@ -30,9 +30,7 @@ async def fast_background_job(ctx, task_data: str):
 async def scan_sources_job(ctx, slack_days: int, confluence_days: int, triggered_by: str, created_by: str | None):
     """ARQ job để quét tất cả các nguồn dữ liệu và tạo task drafts."""
     log.info("worker.scan_sources_job.started", triggered_by=triggered_by)
-    engine = create_async_engine(settings.DATABASE_URL)
-    session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with session_factory() as session:
+    async with ctx["db_session_factory"]() as session:
         stats = await scan_and_create_drafts(
             session=session,
             triggered_by=triggered_by,
@@ -42,17 +40,26 @@ async def scan_sources_job(ctx, slack_days: int, confluence_days: int, triggered
         )
         log.info("worker.scan_sources_job.completed", **stats)
 
+async def startup(ctx):
+    """Khởi tạo các tài nguyên dùng chung cho worker."""
+    engine = create_async_engine(settings.DATABASE_URL)
+    ctx["db_engine"] = engine
+    ctx["db_session_factory"] = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+async def shutdown(ctx):
+    """Dọn dẹp tài nguyên."""
+    await ctx["db_engine"].dispose()
 
 class BaseWorkerSettings:
     """Cấu hình dùng chung cho tất cả các queue"""
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     health_check_interval = 60
+    on_startup = startup
+    on_shutdown = shutdown
 
 
 class IngestionWorkerSettings(BaseWorkerSettings):
     """Worker chuyên xử lý các tác vụ nặng, tốn thời gian (cào dữ liệu, chunking, embedding)."""
-    redis_settings = BaseWorkerSettings.redis_settings
-    health_check_interval = BaseWorkerSettings.health_check_interval
     queue_name = settings.ARQ_INGESTION_QUEUE_NAME
     functions = [sync_connector_job, scan_sources_job]
     job_timeout = settings.ARQ_INGESTION_JOB_TIMEOUT
@@ -61,8 +68,6 @@ class IngestionWorkerSettings(BaseWorkerSettings):
 
 class DefaultWorkerSettings(BaseWorkerSettings):
     """Worker xử lý các task nhẹ, ưu tiên cao (gửi thông báo, update db, cache)."""
-    redis_settings = BaseWorkerSettings.redis_settings
-    health_check_interval = BaseWorkerSettings.health_check_interval
     queue_name = settings.ARQ_DEFAULT_QUEUE_NAME
     functions = [fast_background_job]
     job_timeout = settings.ARQ_DEFAULT_JOB_TIMEOUT  # Timeout ngắn (2 phút)

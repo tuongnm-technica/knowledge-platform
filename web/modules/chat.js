@@ -3,6 +3,9 @@ import { authFetch, API } from '../api/client.js';
 import { showToast, escapeHtml } from '../utils/ui.js';
 
 let _callbacks = {};
+let _isSending = false;  // Race condition prevention
+const TEXTAREA_MAX_HEIGHT = 180;
+const MAX_QUESTION_LENGTH = 1000;
 
 export function setChatCallbacks(callbacks) {
   _callbacks = callbacks || {};
@@ -13,7 +16,7 @@ export function setChatCallbacks(callbacks) {
 export function autoResize(el) {
   if (!el) return;
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 180) + 'px';
+  el.style.height = Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT) + 'px';
 }
 
 // ─── Keyboard handler ───────────────────────────────────────────────────────
@@ -39,6 +42,12 @@ export function useSuggestion(el) {
 // ─── Send message ────────────────────────────────────────────────────────────
 
 export async function sendMessage() {
+  // Prevent race condition - only allow one message at a time
+  if (_isSending) {
+    console.warn('Message already sending, ignoring duplicate');
+    return;
+  }
+
   const input   = document.getElementById('chatInput');
   const sendBtn = document.getElementById('sendBtn');
   if (!input) return;
@@ -49,30 +58,62 @@ export async function sendMessage() {
     showToast('Câu hỏi phải có ít nhất 3 ký tự', 'warning');
     return;
   }
+  if (question.length > MAX_QUESTION_LENGTH) {
+    showToast(`Câu hỏi quá dài (tối đa ${MAX_QUESTION_LENGTH} ký tự)`, 'warning');
+    return;
+  }
 
-  // Clear input immediately
-  input.value = '';
-  autoResize(input);
-
-  // Hide the empty state hero
-  const emptyState = document.getElementById('emptyState');
-  if (emptyState) emptyState.style.display = 'none';
-
-  // Append user bubble
-  appendBubble('user', escapeHtml(question));
-
-  // Show thinking indicator
-  const thinkId = 'think-' + Date.now();
-  appendThinking(thinkId);
-
-  if (sendBtn) sendBtn.disabled = true;
+  // Set flag BEFORE any async operation
+  _isSending = true;
 
   try {
+    // Clear UI
+    input.value = '';
+    autoResize(input);
+
+    const emptyState = document.getElementById('emptyState');
+    if (emptyState) emptyState.style.display = 'none';
+
+    // Append user bubble
+    const userBubble = document.createElement('div');
+    userBubble.textContent = question;
+    appendBubble('user', userBubble);
+
+    // Show thinking indicator
+    const thinkId = 'think-' + Date.now();
+    appendThinking(thinkId);
+
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Handle different HTTP status codes
     const resp = await authFetch(`${API}/ask`, {
       method: 'POST',
       body: JSON.stringify({ question }),
     });
-    
+
+    removeThinking(thinkId);
+
+    // Determine action based on status
+    if (resp.status === 504) {
+      // Gateway timeout - LLM is slow
+      showToast('LLM service slow, retrying in 5s...', 'warning');
+      setTimeout(() => {
+        _isSending = false;
+        sendMessage();
+      }, 5000);
+      return;
+    }
+
+    if (resp.status === 503) {
+      // Service unavailable
+      showToast('LLM service unavailable, try again in 10 minutes', 'error');
+      const errDiv = document.createElement('div');
+      errDiv.textContent = '⛔ Dịch vụ LLM tạm thời không khả dụng. Vui lòng thử lại sau.';
+      appendBubble('ai', errDiv);
+      scrollChatBottom();
+      return;
+    }
+
     if (!resp.ok) {
       const errData = await resp.json().catch(() => ({}));
       let msg = errData.detail || `Lỗi hệ thống (${resp.status})`;
@@ -83,13 +124,14 @@ export async function sendMessage() {
       }
       throw new Error(String(msg));
     }
-    
+
     const data = await resp.json();
-    removeThinking(thinkId);
-    appendBubble('ai', formatAnswer(data), data);
+    const answerHtml = formatAnswer(data);
+    appendBubble('ai', answerHtml, data);
     scrollChatBottom();
+    input.focus();
+
   } catch (e) {
-    removeThinking(thinkId);
     console.error('Chat error:', e);
     let errorMsg = 'Unknown error';
     if (typeof e === 'string') {
@@ -103,16 +145,16 @@ export async function sendMessage() {
         errorMsg = String(e);
       }
     }
-    // Final check for [object Object]
     if (errorMsg === '[object Object]') {
-       errorMsg = 'Lỗi không xác định (hãy kiểm tra console)';
+      errorMsg = 'Lỗi không xác định (hãy kiểm tra console)';
     }
-    appendBubble('ai', `<div class="chat-error">⚠️ Lỗi: ${escapeHtml(errorMsg)}</div>`);
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'chat-error';
+    errorDiv.textContent = `⚠️ Lỗi: ${errorMsg}`;
+    appendBubble('ai', errorDiv);
     scrollChatBottom();
   } finally {
-
-
-
+    _isSending = false;
     if (sendBtn) sendBtn.disabled = false;
     input.focus();
   }
@@ -120,7 +162,7 @@ export async function sendMessage() {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function appendBubble(role, html, data) {
+function appendBubble(role, element, data) {
   const container = document.getElementById('chatMessages');
   if (!container) return;
 
@@ -129,7 +171,14 @@ function appendBubble(role, html, data) {
 
   const bubble = document.createElement('div');
   bubble.className = `chat-bubble chat-bubble-${role}`;
-  bubble.innerHTML = html;
+
+  // Handle both string and DOM element
+  if (typeof element === 'string') {
+    // For backward compatibility with plain text
+    bubble.textContent = element;
+  } else if (element instanceof HTMLElement) {
+    bubble.appendChild(element);
+  }
 
   wrap.appendChild(bubble);
 
@@ -169,32 +218,109 @@ function scrollChatBottom() {
 }
 
 function formatAnswer(data) {
-  if (!data) return '';
-  let html = `<div class="chat-answer-text">${markdownToHtml(data.answer || '')}</div>`;
-
-  // Sources
-  const srcs = Array.isArray(data.sources) ? data.sources.slice(0, 6) : [];
-  if (srcs.length) {
-    html += `<div class="chat-sources">`;
-    srcs.forEach(s => {
-      const title = escapeHtml(s.title || s.source_id || 'Source');
-      const url   = s.url || '#';
-      const score = s.score != null ? Math.round(s.score * 100) + '%' : '';
-      const docId = s.source_id || '';
-      html += `
-        <div class="chat-source-chip-wrapper">
-          <a class="chat-source-chip" href="${escapeHtml(url)}" target="_blank" rel="noopener">
-            <span class="chat-source-icon">📄</span>
-            <span class="chat-source-title">${title}</span>
-            ${score ? `<span class="chat-source-score">${score}</span>` : ''}
-          </a>
-          <button class="chat-source-pin" onclick="addToBasket('${escapeHtml(docId)}', '${escapeHtml(title)}')" title="Ghim ngữ cảnh">📌</button>
-        </div>`;
-    });
-    html += `</div>`;
+  if (!data) return document.createElement('div');
+  
+  const container = document.createElement('div');
+  
+  // 1. Format answer text safely
+  const answerDiv = document.createElement('div');
+  answerDiv.className = 'chat-answer-text';
+  
+  try {
+    // Check if marked.js is available for markdown parsing
+    if (typeof marked !== 'undefined' && data.answer) {
+      // Use marked.js for safe markdown parsing 
+      const markdownHtml = marked.parse(data.answer, {
+        breaks: true,
+        gfm: true,
+      });
+      // Additional XSS protection: strip script tags and event handlers
+      const sanitized = markdownHtml
+        .replace(/<script[^>]*>.*?<\/script>/gi, '')
+        .replace(/on\w+\s*=/gi, 'disabled_');
+      answerDiv.innerHTML = sanitized;
+    } else {
+      // Fallback to plain text
+      answerDiv.textContent = data.answer || '';
+    }
+  } catch (e) {
+    console.warn('Markdown parsing failed, using plain text', e);
+    answerDiv.textContent = data.answer || '';
   }
-
-  return html;
+  
+  container.appendChild(answerDiv);
+  
+  // 2. Format sources safely using DOM API (NO innerHTML!)
+  const srcs = Array.isArray(data.sources) ? data.sources.slice(0, 6) : [];
+  if (srcs.length > 0) {
+    const sourcesDiv = document.createElement('div');
+    sourcesDiv.className = 'chat-sources';
+    
+    srcs.forEach(s => {
+      const chipWrapper = document.createElement('div');
+      chipWrapper.className = 'chat-source-chip-wrapper';
+      
+      // Create link safely
+      const link = document.createElement('a');
+      link.className = 'chat-source-chip';
+      link.target = '_blank';
+      link.rel = 'noopener';
+      
+      // Validate URL before setting - prevent javascript: protocol
+      let safeUrl = '#';
+      const urlStr = s.url || '';
+      try {
+        const parsed = new URL(urlStr, window.location.href);
+        if (['http:', 'https:'].includes(parsed.protocol)) {
+          safeUrl = urlStr;
+        }
+      } catch (e) {
+        // Invalid URL, keep default
+      }
+      link.href = safeUrl;
+      
+      // Add icon and title
+      const icon = document.createElement('span');
+      icon.className = 'chat-source-icon';
+      icon.textContent = '📄';
+      
+      const title = document.createElement('span');
+      title.className = 'chat-source-title';
+      title.textContent = s.title || s.source_id || 'Source';
+      
+      link.appendChild(icon);
+      link.appendChild(title);
+      
+      // Add score if available
+      if (s.score != null) {
+        const score = document.createElement('span');
+        score.className = 'chat-source-score';
+        score.textContent = Math.round(s.score * 100) + '%';
+        link.appendChild(score);
+      }
+      
+      // Create pin button with event listener (NOT onclick string!)
+      const pinBtn = document.createElement('button');
+      pinBtn.className = 'chat-source-pin';
+      pinBtn.title = 'Ghim ngữ cảnh';
+      pinBtn.textContent = '📌';
+      const docId = s.source_id || '';
+      const docTitle = s.title || 'Source';
+      pinBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addToBasket(docId, docTitle);
+      });
+      
+      chipWrapper.appendChild(link);
+      chipWrapper.appendChild(pinBtn);
+      sourcesDiv.appendChild(chipWrapper);
+    });
+    
+    container.appendChild(sourcesDiv);
+  }
+  
+  return container;
 }
 
 function buildActionBar(data) {
@@ -216,31 +342,20 @@ function buildActionBar(data) {
   return bar;
 }
 
+// Note: markdownToHtml is deprecated, use marked.js in formatAnswer() instead
+// This is kept for backward compatibility if needed
 function markdownToHtml(md) {
+  console.warn('markdownToHtml is deprecated, use marked.js in formatAnswer');
   if (!md) return '';
-  // Very simple markdown-to-html: bold, italic, code, headers, lists
+  // Escape first to prevent XSS
   let html = escapeHtml(md);
-  // code blocks
-  html = html.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
-    `<pre class="chat-code-block"><code>${code.trim()}</code></pre>`);
-  // inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="chat-inline-code">$1</code>');
-  // headers
-  html = html.replace(/^### (.+)$/gm, '<h3 class="chat-h3">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="chat-h2">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="chat-h1">$1</h1>');
-  // bold + italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  // Simple safe markdown: just preserve basic formatting
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // unordered lists
-  html = html.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>\n?)+/g, m => `<ul class="chat-list">${m}</ul>`);
-  // ordered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
   // line breaks
-  html = html.replace(/\n\n/g, '</p><p class="chat-p">').replace(/\n/g, '<br>');
-  return `<p class="chat-p">${html}</p>`;
+  html = html.replace(/\n/g, '<br>');
+  return html;
 }
 
 // ─── Search ──────────────────────────────────────────────────────────────────

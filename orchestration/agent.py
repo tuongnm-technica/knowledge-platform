@@ -2,6 +2,7 @@
 Main agent orchestration.
 """
 
+import asyncio
 import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,35 +41,92 @@ class OllamaLLM:
                 options={"num_predict": max_tokens, "temperature": 0.1},
                 timeout=settings.LLM_TIMEOUT,
             )
+        except asyncio.TimeoutError:
+            # Re-raise timeout so it can be caught at higher level
+            log.warning("ollama.timeout", model=self._model)
+            raise
         except httpx.TimeoutException:
-            raise RuntimeError(f"Ollama timed out ({settings.LLM_TIMEOUT}s)")
+            # Convert httpx timeout to asyncio.TimeoutError
+            log.warning("ollama.httpx_timeout", model=self._model)
+            raise asyncio.TimeoutError(f"Ollama timed out ({settings.LLM_TIMEOUT}s)")
+        except (httpx.ConnectError, httpx.NetworkError) as e:
+            log.error("ollama.connection_error", error=str(e))
+            raise ConnectionError(f"LLM service unreachable: {str(e)}")
         except httpx.HTTPStatusError as e:
+            log.error("ollama.http_error", status=e.response.status_code)
+            if e.response.status_code == 503:
+                raise ConnectionError("LLM service unavailable")
             raise RuntimeError(f"Ollama error {e.response.status_code}")
+        except Exception as e:
+            log.exception("ollama.unexpected_error", error=str(e))
+            raise
 
     async def is_available(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(f"{self._base}/api/tags")
+                resp = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
                 return resp.status_code == 200
         except Exception:
             return False
 
 
 class Agent:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, user_id: str):
+        """
+        Initialize Agent with user context from the start.
+        
+        Args:
+            session: AsyncSession for database access
+            user_id: User ID for permission/context filtering
+        """
         self._session = session
-        self._search = HybridSearch(session)
-        self._permissions = PermissionFilter(session)
+        self._user_id = user_id
+        
+        # Pass user_id to all components for proper isolation
+        self._search = HybridSearch(session, user_id=user_id)
+        self._permissions = PermissionFilter(session, user_id=user_id)
         self._scorer = RankingScorer()
-        self._repo = DocumentRepository(session)
-        self._graph = KnowledgeGraph(session)
+        self._repo = DocumentRepository(session, user_id=user_id)
+        self._graph = KnowledgeGraph(session, user_id=user_id)
         self._llm = OllamaLLM()
+        
+        log.info(
+            "agent.initialized",
+            user_id=user_id,
+        )
 
-    async def ask(self, question: str, user_id: str) -> dict:
-        tools = build_tool_registry(self._session)
+    async def ask(self, question: str) -> dict:
+        """
+        Process a question through the ReAct agent pipeline.
+        
+        Args:
+            question: User's question
+            
+        Returns:
+            Dictionary with answer, sources, and metadata
+            
+        Raises:
+            asyncio.TimeoutError: If LLM processing times out
+            ConnectionError: If LLM service is unavailable
+        """
+        # Build tools with user context
+        tools = build_tool_registry(self._session, user_id=self._user_id)
         loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS)
+        
         try:
-            result: ReActResult = await loop.run(question, user_id=user_id)
+            # Note: user_id is already in self, no need to pass again
+            result: ReActResult = await loop.run(question, user_id=self._user_id)
+        except asyncio.TimeoutError:
+            # Re-raise to be caught by API endpoint
+            raise
+        except Exception as e:
+            log.exception(
+                "agent.ask_failed",
+                user_id=self._user_id,
+                question=question[:60],
+                error_type=type(e).__name__,
+            )
+            raise
         finally:
             try:
                 await loop.close()
