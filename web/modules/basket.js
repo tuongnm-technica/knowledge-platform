@@ -1,5 +1,6 @@
 // basket.js
-import { showToast, escapeHtml, kpConfirm } from '../utils/ui.js';
+import { showToast, escapeHtml, kpConfirm, kpOpenModal } from '../utils/ui.js';
+import { authFetch, API } from '../api/client.js';
 
 let basketItems = [];
 
@@ -118,8 +119,63 @@ export async function clearBasket() {
 export function refreshBasketDetails() { renderBasket(); }
 
 export async function basketRunSkill() {
-    if (basketItems.length === 0) return showToast('Gio trong');
-    showToast('Chay skill dang duoc phat trien (integrated with app.js callback)');
+    if (basketItems.length === 0) return showToast('Giỏ tài liệu trống. Hãy ghim tài liệu trước.', 'warning');
+
+    const body = document.createElement('div');
+    body.innerHTML = `
+      <div style="margin-bottom: 12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:13px;">Chọn loại tài liệu (Skill)</label>
+        <select id="skillTypeSelect" class="time-input" style="width:100%; box-sizing: border-box;">
+          <option value="srs">📄 GPT-4: SRS (Software Requirements)</option>
+          <option value="brd">📋 GPT-4: BRD (Business Requirements)</option>
+          <option value="use_cases">📐 GPT-4: Use Cases</option>
+          <option value="user_stories">🎯 GPT-5: User Stories</option>
+          <option value="fe_spec">🖥️ GPT-6: FE Technical Spec</option>
+          <option value="qa_test_spec">🧪 GPT-7: QA Test Spec</option>
+          <option value="api_spec">🔌 GPT-3: API Spec</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:13px;">Yêu cầu thêm (Prompt cho AI)</label>
+        <textarea id="skillInstructionInput" class="time-input" style="width:100%; min-height:80px; resize:vertical; box-sizing: border-box;" placeholder="Ví dụ: Tập trung vào luồng thanh toán VNPay..."></textarea>
+      </div>
+    `;
+
+    kpOpenModal({
+        title: '✨ Chạy AI Skill',
+        content: body,
+        okText: '🚀 Bắt đầu tạo',
+        onOk: async () => {
+            const docType = document.getElementById('skillTypeSelect').value;
+            const goal = document.getElementById('skillInstructionInput').value.trim();
+            const docIds = basketItems.map(i => i.id);
+
+            showToast('Đang khởi tạo Agent... Vui lòng đợi.', 'info');
+            try {
+                const res = await authFetch(`${API}/docs/drafts/from-documents`, {
+                    method: 'POST',
+                    // Đồng bộ payload với file docs.py (doc_ids và goal)
+                    body: JSON.stringify({ doc_type: docType, doc_ids: docIds, goal: goal })
+                });
+                if (!res.ok) { 
+                    const err = await res.json().catch(()=>({})); 
+                    throw new Error(err.detail || 'Lỗi khi chạy skill'); 
+                }
+                const data = await res.json();
+                showToast('Tạo bản nháp thành công!', 'success');
+                
+                closeBasketDrawer();
+                if (window.navigate) window.navigate('drafts');
+                if (window.openDocDraftEditor && data.draft && data.draft.id) {
+                    setTimeout(() => window.openDocDraftEditor(data.draft.id), 500);
+                }
+                return true;
+            } catch (e) { 
+                showToast(e.message, 'error');
+                return false;
+            }
+        }
+    });
 }
 
 loadBasket();

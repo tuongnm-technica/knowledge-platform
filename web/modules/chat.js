@@ -1,6 +1,6 @@
 // Chat Module — AI chat, search, history
 import { authFetch, API } from '../api/client.js';
-import { showToast, escapeHtml } from '../utils/ui.js';
+import { showToast, escapeHtml, kpOpenModal } from '../utils/ui.js';
 
 let _callbacks = {};
 let _isSending = false;  // Race condition prevention
@@ -286,7 +286,7 @@ function formatAnswer(data) {
       
       const title = document.createElement('span');
       title.className = 'chat-source-title';
-      title.textContent = s.title || s.source_id || 'Source';
+      title.textContent = s.title || s.document_id || 'Source';
       
       link.appendChild(icon);
       link.appendChild(title);
@@ -304,12 +304,16 @@ function formatAnswer(data) {
       pinBtn.className = 'chat-source-pin';
       pinBtn.title = 'Ghim ngữ cảnh';
       pinBtn.textContent = '📌';
-      const docId = s.source_id || '';
+      const docId = s.document_id || s.source_id || '';
       const docTitle = s.title || 'Source';
       pinBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        addToBasket(docId, docTitle);
+        if (typeof window.addToBasket === 'function') {
+          window.addToBasket(docId, docTitle);
+        } else {
+          showToast('Tính năng giỏ tài liệu (Basket) chưa sẵn sàng', 'warning');
+        }
       });
       
       chipWrapper.appendChild(link);
@@ -443,18 +447,24 @@ function renderSearchResults(results) {
                         .replace(/```mermaid[\s\S]*?```/g, '[Diagram]')
                         .trim();
 
+      const safeDocId = escapeHtml(docId).replace(/'/g, "\\'");
+      const safeDocTitle = escapeHtml(docTitle).replace(/'/g, "\\'");
+      const docAuthor = result.author ? `Bởi: ${escapeHtml(result.author)}` : '';
+
       item.innerHTML = `
         <div class="kp-result-header">
           <span class="kp-result-title">${escapeHtml(docTitle)}</span>
           <div class="kp-result-actions">
             ${score != null ? `<span class="kp-result-score">${score}%</span>` : ''}
-            <button class="kp-pin-btn" onclick="addToBasket('${escapeHtml(docId)}', '${escapeHtml(docTitle)}')" title="Thêm vào giỏ">📌</button>
+            <button class="kp-pin-btn" onclick="if(window.addToBasket) window.addToBasket('${safeDocId}', '${safeDocTitle}')" title="Thêm vào giỏ">📌</button>
           </div>
         </div>
         <div class="kp-result-snippet">${escapeHtml(snippet)}</div>
         <div class="kp-result-meta">
           <span class="kp-result-badge">${escapeHtml(result.source || result.source_type || 'Internal source')}</span>
-          ${result.url ? `<a class="kp-result-url" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Mở ↗</a>` : ''}
+          ${docAuthor ? `<span style="font-size: 11px; color: var(--text-dim); margin-right: auto;">${docAuthor}</span>` : ''}
+          <button class="secondary-btn mini" onclick="window.viewDocument('${safeDocId}')">📄 Chi tiết</button>
+          ${result.url ? `<a class="kp-result-url" style="margin-left:8px;" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Mở ↗</a>` : ''}
         </div>`;
       grid.appendChild(item);
     });
@@ -488,6 +498,44 @@ function renderSearchResults(results) {
   
   container.appendChild(pager);
 }
+
+// ─── Document Details Modal ──────────────────────────────────────────────────
+
+window.viewDocument = async function(docId) {
+  try {
+    const res = await authFetch(`${API}/search/${docId}`);
+    if (!res.ok) throw new Error('Không thể tải nội dung tài liệu (hoặc bạn không có quyền truy cập).');
+    const doc = await res.json();
+
+    let htmlContent = '';
+    if (typeof marked !== 'undefined') {
+      htmlContent = marked.parse(doc.content || '');
+    } else {
+      htmlContent = escapeHtml(doc.content || '').replace(/\n/g, '<br>');
+    }
+
+    const body = document.createElement('div');
+    body.innerHTML = `
+      <div style="margin-bottom: 16px; font-size: 13px; color: var(--text-dim); display: flex; gap: 12px; flex-wrap: wrap;">
+        <span class="kp-result-badge">${escapeHtml(doc.source || 'N/A')}</span>
+        ${doc.author ? `<span>👤 ${escapeHtml(doc.author)}</span>` : ''}
+        ${doc.url ? `<a href="${escapeHtml(doc.url)}" target="_blank" style="color: var(--accent);">Mở URL gốc ↗</a>` : ''}
+      </div>
+      <div style="max-height: 60vh; overflow-y: auto; line-height: 1.6; color: var(--text); padding-right: 8px;">
+        ${htmlContent}
+      </div>
+    `;
+
+    kpOpenModal({
+      title: doc.title || 'Chi tiết tài liệu',
+      content: body,
+      okText: 'Đóng',
+      cancelText: null
+    });
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+};
 
 // ─── History (stub) ──────────────────────────────────────────────────────────
 

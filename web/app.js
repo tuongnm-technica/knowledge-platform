@@ -36,7 +36,7 @@ async function doLogin() {
   if (btnText) btnText.textContent = 'Đang đăng nhập...';
   if (err) err.style.display = 'none';
   try {
-    const r = await fetch(API + '/auth/login', {
+    const r = await fetch(`${API}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: pwd }),
@@ -124,8 +124,18 @@ function applyUser(u) {
 }
 
 async function checkHealth() {
+  // Thiết lập timeout 5 giây để tránh trình duyệt chờ đợi vô tận nếu BE bị treo
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
   try {
-    const r = await fetch(`${API}/health`);
+    const r = await fetch(`${API}/health`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!r.ok) {
+      throw new Error(`HTTP Error: ${r.status}`);
+    }
+
     const d = await r.json();
     // API returns { status: 'ok'|'degraded', components: { postgresql: 'ok', qdrant: 'ok', ... }}
     const coreOk = d.status === 'ok'

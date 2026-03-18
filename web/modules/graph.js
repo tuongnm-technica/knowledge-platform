@@ -509,8 +509,12 @@ function renderGraphResult(panel, title, data) {
 }
 
 function renderGapsResult(panel, data) {
-  const gaps = data.insights?.gaps || [];
-  const stale = data.insights?.stale_sources || [];
+  const stale = data.staleSources || [];
+  // Tự map lại từ cấu trúc trả về mới của BE thành list gaps để render
+  const gaps = [];
+  if (data.orphanEntities?.length) gaps.push({ type: "Orphan Entities", count: data.orphanEntities.length });
+  if (data.missingRelationships?.length) gaps.push({ type: "Missing Relationships", count: data.missingRelationships.length });
+  if (data.isolatedDocuments?.length) gaps.push({ type: "Isolated Documents", count: data.isolatedDocuments.length });
   
   let html = '<div class="graph-result-header"><h3>🔍 Gap Insights</h3></div>';
   
@@ -521,8 +525,8 @@ function renderGapsResult(panel, data) {
         <ul class="gap-list">
           ${stale.slice(0, 10).map(s => `
             <li class="gap-item">
-              <span class="gap-source">${s.source}</span>
-              <span class="gap-days">${s.days} days</span>
+              <span class="gap-source">${s.connector || s.source}</span>
+              <span class="gap-days">${s.daysSinceSync || s.days} days</span>
             </li>
           `).join('')}
         </ul>
@@ -550,4 +554,3 @@ function renderGapsResult(panel, data) {
   
   panel.innerHTML = html;
 }
-

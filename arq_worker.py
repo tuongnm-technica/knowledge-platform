@@ -30,15 +30,19 @@ async def fast_background_job(ctx, task_data: str):
 async def scan_sources_job(ctx, slack_days: int, confluence_days: int, triggered_by: str, created_by: str | None):
     """ARQ job để quét tất cả các nguồn dữ liệu và tạo task drafts."""
     log.info("worker.scan_sources_job.started", triggered_by=triggered_by)
-    async with ctx["db_session_factory"]() as session:
-        stats = await scan_and_create_drafts(
-            session=session,
-            triggered_by=triggered_by,
-            created_by=created_by,
-            slack_days=slack_days,
-            confluence_days=confluence_days,
-        )
-        log.info("worker.scan_sources_job.completed", **stats)
+    try:
+        async with ctx["db_session_factory"]() as session:
+            stats = await scan_and_create_drafts(
+                session=session,
+                triggered_by=triggered_by,
+                created_by=created_by,
+                slack_days=slack_days,
+                confluence_days=confluence_days,
+            )
+            log.info("worker.scan_sources_job.completed", **stats)
+    except Exception as e:
+        log.error("worker.scan_sources_job.failed", triggered_by=triggered_by, error=str(e))
+        raise
 
 async def startup(ctx):
     """Khởi tạo các tài nguyên dùng chung cho worker."""

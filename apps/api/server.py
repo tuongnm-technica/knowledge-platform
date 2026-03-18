@@ -5,12 +5,10 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
 from storage.db.db import create_tables
-from apps.api.routes import search, ask, ingest, health, connectors, auth, users, graph, srs, docs, documents, assets, prompts
-from apps.api.routes.auth import router as auth_router
+from apps.api.routes import search, ask, ingest, health, connectors, auth, users, graph, docs, documents, assets, prompts, tasks
 from config.settings import settings
 from utils.logging import configure_logging
 from scheduler.sync_scheduler import start_scheduler, stop_scheduler
-from tasks.routes import router as tasks_router
 from storage.vector.vector_store import get_qdrant
 from qdrant_client.models import Distance, VectorParams
 
@@ -64,13 +62,12 @@ app.include_router(ingest.router)
 app.include_router(health.router)
 app.include_router(connectors.router)
 app.include_router(users.router)
-app.include_router(tasks_router)
 app.include_router(graph.router)
-app.include_router(srs.router)
 app.include_router(docs.router)
 app.include_router(documents.router)
 app.include_router(assets.router)
 app.include_router(prompts.router)
+app.include_router(tasks.router)
 
 @app.get("/", include_in_schema=False)
 async def serve_ui():
