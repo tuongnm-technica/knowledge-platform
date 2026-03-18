@@ -1,18 +1,19 @@
 /* Modals Component */
 #kpModalOverlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  inset: 0;
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9998;
-  animation: fadeIn var(--transition-base);
+  animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] #kpModalOverlay {
+  background: rgba(15, 23, 42, 0.4);
 }
 
 @keyframes fadeIn {
@@ -21,141 +22,87 @@
 }
 
 @keyframes slideUp {
-  from { 
-    transform: translateY(20px); 
-    opacity: 0; 
-  }
-  to { 
-    transform: translateY(0); 
-    opacity: 1; 
-  }
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .kp-modal {
   background: var(--bg);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-2xl);
-  max-width: 500px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  max-width: 560px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
-  animation: slideUp var(--transition-base);
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
 }
 
 .kp-modal-header {
-  padding: var(--spacing-xl);
+  padding: 24px 32px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg2);
 }
 
 .kp-modal-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-title);
+  font-size: 20px;
+  font-weight: 800;
   color: var(--text);
+  letter-spacing: -0.02em;
 }
 
 .kp-modal-subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin-top: var(--spacing-sm);
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 500;
 }
 
 .kp-modal-body {
-  padding: var(--spacing-xl);
+  padding: 32px;
+  flex: 1;
 }
 
 .kp-modal-footer {
-  padding: var(--spacing-xl);
+  padding: 20px 32px;
   border-top: 1px solid var(--border);
   display: flex;
-  gap: var(--spacing-md);
+  gap: 12px;
   justify-content: flex-end;
+  background: var(--bg2);
 }
 
-.kp-modal-form-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
-}
-
-.kp-modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
-}
-
-.kp-modal-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.kp-modal-label {
-  font-weight: var(--font-weight-semibold);
-  color: var(--text);
-  font-size: var(--font-size-sm);
-}
-
-.kp-modal-input,
-.kp-modal-textarea {
-  width: 100%;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  font-family: var(--font-family-body);
-  font-size: var(--font-size-base);
-  color: var(--text);
-  background: var(--bg);
-  transition: all var(--transition-fast);
-}
-
-.kp-modal-input:focus,
-.kp-modal-textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--accent1-light);
-}
-
-.kp-modal-textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.kp-modal-help {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  padding: var(--spacing-md);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-}
-
-/* ── Skill Selector Modal ─────────────────────────────────────────────── */
-
+/* ── Skill Selector Modal ── */
 .skill-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  animation: fadeIn 0.18s ease;
+  animation: fadeIn 0.2s ease;
+}
+
+[data-theme="light"] .skill-modal-overlay {
+  background: rgba(15, 23, 42, 0.5);
 }
 
 .skill-modal {
-  background: var(--bg2, rgba(255,250,242,0.92));
-  border: 1px solid var(--border-strong, rgba(69,47,26,0.14));
+  background: var(--bg2);
+  border: 1px solid var(--border-strong);
   border-radius: 24px;
-  box-shadow: var(--shadow, 0 24px 70px rgba(95,65,38,0.14));
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  width: min(600px, 92vw);
-  max-height: 82vh;
+  box-shadow: var(--shadow);
+  width: min(640px, 92vw);
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  animation: slideUp 0.2s ease;
+  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   overflow: hidden;
 }
 
@@ -163,135 +110,132 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px 14px;
-  border-bottom: 1px solid var(--border, rgba(69,47,26,0.08));
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
 }
 
 .skill-modal-title {
-  font-family: 'Syne', sans-serif;
-  font-size: 17px;
-  font-weight: 700;
+  font-family: var(--font-family-title);
+  font-size: 20px;
+  font-weight: 800;
   color: var(--text);
   letter-spacing: -0.02em;
 }
 
 .skill-modal-close {
-  width: 32px; height: 32px;
-  border-radius: 50%;
+  width: 36px; height: 36px;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  background: transparent;
+  background: var(--bg3);
   cursor: pointer;
   font-size: 14px;
   color: var(--text-muted);
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
-.skill-modal-close:hover { background: var(--bg3); color: var(--text); }
+.skill-modal-close:hover { background: var(--bg4); color: var(--text); transform: rotate(90deg); }
 
 .skill-modal-subtitle {
-  font-size: 12.5px;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-muted);
-  padding: 10px 24px 4px;
+  padding: 16px 32px 8px;
 }
 
 .skill-agent-list {
   flex: 1;
   overflow-y: auto;
   padding: 8px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 360px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0 16px;
 }
 
 .skill-agent-item {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
   cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.15s;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  transition: all 0.2s;
   user-select: none;
 }
 .skill-agent-item:hover {
-  background: rgba(255,255,255,0.6);
-  border-color: var(--border);
+  border-color: var(--accent);
+  background: var(--bg3);
+  transform: translateY(-2px);
 }
 .skill-agent-item:has(input:checked) {
-  background: linear-gradient(135deg, var(--glow, rgba(15,118,110,0.12)), rgba(255,255,255,0.55));
-  border-color: var(--border-active, rgba(15,118,110,0.35));
-}
-.skill-agent-item input[type="radio"] {
-  margin-top: 3px;
-  accent-color: var(--accent);
-  flex-shrink: 0;
+  background: var(--glow);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .skill-agent-content {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 .skill-agent-label {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text);
 }
 .skill-agent-desc {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.6;
+  font-weight: 500;
 }
 
 .skill-modal-goal {
-  padding: 10px 16px;
+  padding: 24px 32px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
   border-top: 1px solid var(--border);
+  background: var(--bg);
 }
+
 .skill-goal-label {
+  font-family: var(--font-family-title);
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 800;
+  color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
+
 .skill-goal-textarea {
   width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
+  padding: 16px;
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
+  font-family: var(--font-family-body);
+  font-size: 14px;
   color: var(--text);
-  background: rgba(255,255,255,0.52);
+  background: var(--bg2);
   resize: none;
-  transition: border-color 0.15s;
+  transition: all 0.2s;
+  min-height: 80px;
 }
 .skill-goal-textarea:focus {
   outline: none;
-  border-color: var(--border-active);
-  box-shadow: 0 0 0 3px var(--glow);
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: 0 0 0 4px var(--glow);
 }
 
 .skill-modal-actions {
   display: flex;
-  gap: 10px;
-  padding: 12px 16px 16px;
+  gap: 12px;
+  padding: 16px 32px 24px;
   justify-content: flex-end;
+  background: var(--bg);
 }
-.skill-cancel-btn {
-  padding: 9px 18px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  cursor: pointer;
-  font-size: 13.5px;
-  color: var(--text-muted);
-  transition: all 0.15s;
-}
-.skill-cancel-btn:hover { background: var(--bg3); color: var(--text); }
 

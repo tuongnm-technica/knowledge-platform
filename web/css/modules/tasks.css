@@ -1,137 +1,148 @@
 /* Tasks Module Styles */
 .tasks-container {
-  padding: var(--spacing-lg);
+  padding: 32px;
 }
 
 .tasks-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: 32px;
   flex-wrap: wrap;
-  gap: var(--spacing-lg);
+  gap: 24px;
 }
 
 .tasks-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .tasks-title {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  margin-bottom: var(--spacing-md);
+  font-family: var(--font-family-title);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
 }
 
 .tasks-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px;
 }
 
 .task-card {
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-fast);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
 }
 
 .task-card:hover {
-  box-shadow: var(--shadow-md);
+  border-color: var(--accent);
   transform: translateY(-4px);
+  box-shadow: var(--shadow-soft);
 }
 
 .task-status {
-  display: inline-block;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  margin-bottom: var(--spacing-md);
-  text-transform: capitalize;
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: fit-content;
 }
 
 .task-status.pending {
-  background: #fef3c7;
-  color: #d97706;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warn);
+  border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
 .task-status.running {
-  background: #dbeafe;
-  color: #0284c7;
+  background: var(--glow);
+  color: var(--accent);
+  border: 1px solid var(--accent);
 }
 
 .task-status.completed {
-  background: #dcfce7;
-  color: var(--accent3-dark);
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .task-status.failed {
-  background: #fee2e2;
-  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
-.task-status.confirmed {
-  background: #e9d5ff;
-  color: #9333ea;
-}
-
-.task-title {
-  font-weight: var(--font-weight-bold);
-  margin-bottom: var(--spacing-md);
+.task-card-title {
+  font-family: var(--font-family-title);
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 12px;
   color: var(--text);
 }
 
 .task-progress {
-  margin: var(--spacing-md) 0;
+  margin: 16px 0;
 }
 
 .progress-bar {
   width: 100%;
-  height: 8px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-full);
+  height: 6px;
+  background: var(--bg3);
+  border-radius: 10px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary), var(--accent2));
-  transition: width var(--transition-base);
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transition: width 0.3s ease;
 }
 
 .task-meta {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin-top: var(--spacing-lg);
-  padding-top: var(--spacing-md);
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: auto;
+  padding-top: 16px;
   border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  font-weight: 500;
 }
 
 .task-actions {
   display: flex;
-  gap: var(--spacing-md);
-  margin-top: var(--spacing-md);
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .task-actions button {
   flex: 1;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  transition: all var(--transition-fast);
-  background: var(--bg-secondary);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
   color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .task-actions button:hover {
-  background: var(--primary);
-  color: white;
+  background: var(--bg4);
+  border-color: var(--accent);
 }

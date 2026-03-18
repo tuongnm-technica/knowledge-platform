@@ -1,44 +1,46 @@
 /* Buttons Component */
 .btn {
-  padding: var(--spacing-md) var(--spacing-lg);
+  padding: 10px 20px;
   border: none;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   cursor: pointer;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  transition: all var(--transition-fast);
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: var(--font-family-body);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
+  gap: 8px;
   white-space: nowrap;
+  outline: none;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  background: var(--accent);
   color: white;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px var(--glow);
 }
 
 .btn-primary:hover {
+  background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 6px 16px var(--glow);
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .btn-secondary {
-  background: var(--bg-secondary);
+  background: var(--bg3);
   color: var(--text);
   border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--primary);
+  background: var(--bg4);
+  border-color: var(--border-strong);
 }
 
 .btn-danger {
@@ -47,7 +49,8 @@
 }
 
 .btn-danger:hover {
-  background: #dc2626;
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 
 .btn-success {
@@ -56,17 +59,20 @@
 }
 
 .btn-success:hover {
-  background: var(--accent3-dark);
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 
 .btn-sm {
-  padding: var(--spacing-sm) var(--spacing-md);
-  font-size: var(--font-size-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
 }
 
 .btn-lg {
-  padding: var(--spacing-lg) var(--spacing-xl);
-  font-size: var(--font-size-lg);
+  padding: 14px 28px;
+  font-size: 16px;
+  border-radius: 12px;
 }
 
 .btn:disabled {
@@ -82,7 +88,6 @@
   pointer-events: none;
 }
 
-/* Ẩn các icon hoặc phần tử con bên trong nút khi đang loading */
 .btn.is-loading > * {
   opacity: 0;
 }
@@ -92,10 +97,10 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 1.2rem;
-  height: 1.2rem;
-  margin-left: -0.6rem; /* Kéo lùi lại 50% kích thước để căn giữa tuyệt đối */
-  margin-top: -0.6rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: -0.625rem;
+  margin-top: -0.625rem;
   border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: #ffffff;
   border-radius: 50%;
@@ -104,7 +109,7 @@
 
 .btn-secondary.is-loading::after {
   border: 2px solid var(--border);
-  border-top-color: var(--primary);
+  border-top-color: var(--accent);
 }
 
 @keyframes btn-spin {
