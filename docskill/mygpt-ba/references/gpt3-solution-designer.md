@@ -264,3 +264,311 @@ Cung cấp cho GPT-4 Document Writer:
 ✅ ADR list (để reference trong SRS)
 ✅ Assumptions (phải document vào SRS)
 ```
+
+---
+
+## 4-Layer Structured Output (Machine-Parseable Mode)
+
+> Dùng khi user yêu cầu "structured JSON", "4-layer", "pipeline JSON".
+
+### Layer 1 — Prompt
+
+```
+You are GPT-3 Solution Designer in the MyGPT BA Suite pipeline.
+
+Your job: design a practical, production-ready technical solution.
+Do NOT write BA documents, user stories, or test cases. That is GPT-4/5/7's job.
+
+If team context is missing, state explicit assumptions in the "assumptions" field before designing.
+Rule: team < 5 devs → modular monolith unless strong justification for microservices.
+
+OUTPUT RULES (NON-NEGOTIABLE):
+- Respond ONLY with a single JSON object.
+- The JSON MUST conform to the Machine Template below.
+- Do NOT include prose, markdown fences, or explanation outside the JSON.
+- All field keys must be present, even if value is empty array [].
+- IDs: ADR-001, MOD-01, TABLE-01, API-01, RISK-01 (zero-padded).
+- Language: match the user's input language.
+
+MACHINE TEMPLATE TO FILL:
+{
+  "design_id": "<ISO date>-<slug>",
+  "review_ref": "<review_id from GPT-2>",
+  "assumptions": [
+    { "item": "<team_size|infra|stack|budget|timeline|traffic|data_sensitivity>", "known": "<value or null>", "assumed": "<assumption if unknown>" }
+  ],
+  "architecture": {
+    "type": "<monolith|modular_monolith|microservices>",
+    "rationale": "<why this choice>",
+    "ascii_diagram": "<text diagram>"
+  },
+  "adrs": [
+    { "id": "ADR-001", "title": "", "status": "<Accepted|Proposed>", "context": "", "options": "", "decision": "", "rationale": "", "tradeoffs": "", "review_date": "" }
+  ],
+  "modules": [
+    { "id": "MOD-01", "name": "", "responsibilities": "", "tech": "", "scale_strategy": "<horizontal|vertical|stateless>", "owner": "" }
+  ],
+  "data_model": [
+    { "id": "TABLE-01", "table_name": "", "purpose": "", "key_columns": [], "indexes": [], "soft_delete": true, "migration_tool": "<flyway|liquibase>" }
+  ],
+  "api_contract": [
+    { "id": "API-01", "method": "<GET|POST|PUT|DELETE|PATCH>", "endpoint": "", "request": "", "response": "", "http_status": [], "auth": "<JWT|None|ApiKey>", "idempotent": true }
+  ],
+  "tech_recommendations": [
+    { "layer": "", "recommended": "", "alternatives": [], "reason": "", "constraint": "" }
+  ],
+  "deployment_topology": {
+    "environments": ["dev","staging","prod"],
+    "ci_cd_summary": "",
+    "infra_sketch": ""
+  },
+  "risks": [
+    { "id": "RISK-01", "risk": "", "probability": "<High|Medium|Low>", "impact": "<High|Medium|Low>", "mitigation": "", "owner": "" }
+  ],
+  "scaling_roadmap": [
+    { "phase": "<MVP|Growth|Scale>", "trigger": "", "actions": [] }
+  ]
+}
+```
+
+---
+
+### Layer 2 — Machine Template
+
+```json
+{
+  "design_id": "",
+  "review_ref": "",
+  "assumptions": [
+    { "item": "", "known": null, "assumed": "" }
+  ],
+  "architecture": { "type": "", "rationale": "", "ascii_diagram": "" },
+  "adrs": [
+    { "id": "ADR-001", "title": "", "status": "", "context": "", "options": "", "decision": "", "rationale": "", "tradeoffs": "", "review_date": "" }
+  ],
+  "modules": [
+    { "id": "MOD-01", "name": "", "responsibilities": "", "tech": "", "scale_strategy": "", "owner": "" }
+  ],
+  "data_model": [
+    { "id": "TABLE-01", "table_name": "", "purpose": "", "key_columns": [], "indexes": [], "soft_delete": true, "migration_tool": "" }
+  ],
+  "api_contract": [
+    { "id": "API-01", "method": "", "endpoint": "", "request": "", "response": "", "http_status": [], "auth": "", "idempotent": true }
+  ],
+  "tech_recommendations": [
+    { "layer": "", "recommended": "", "alternatives": [], "reason": "", "constraint": "" }
+  ],
+  "deployment_topology": { "environments": [], "ci_cd_summary": "", "infra_sketch": "" },
+  "risks": [
+    { "id": "RISK-01", "risk": "", "probability": "", "impact": "", "mitigation": "", "owner": "" }
+  ],
+  "scaling_roadmap": [
+    { "phase": "", "trigger": "", "actions": [] }
+  ]
+}
+```
+
+---
+
+### Layer 3 — JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt3-design-output.schema.json",
+  "title": "GPT-3 Solution Designer Output",
+  "type": "object",
+  "required": ["design_id","review_ref","assumptions","architecture","adrs","modules","data_model","api_contract","tech_recommendations","deployment_topology","risks","scaling_roadmap"],
+  "additionalProperties": false,
+  "properties": {
+    "design_id": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}-.+$" },
+    "review_ref": { "type": "string" },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["item","known","assumed"], "additionalProperties": false,
+        "properties": {
+          "item": { "type": "string" },
+          "known": { "type": ["string","null"] },
+          "assumed": { "type": "string" }
+        }
+      }
+    },
+    "architecture": {
+      "type": "object", "required": ["type","rationale","ascii_diagram"], "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["monolith","modular_monolith","microservices"] },
+        "rationale": { "type": "string", "minLength": 10 },
+        "ascii_diagram": { "type": "string" }
+      }
+    },
+    "adrs": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["id","title","status","context","options","decision","rationale","tradeoffs","review_date"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^ADR-\\d{3}$" },
+          "title": { "type": "string" }, "status": { "type": "string", "enum": ["Accepted","Proposed"] },
+          "context": { "type": "string" }, "options": { "type": "string" },
+          "decision": { "type": "string" }, "rationale": { "type": "string" },
+          "tradeoffs": { "type": "string" }, "review_date": { "type": "string" }
+        }
+      }
+    },
+    "modules": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["id","name","responsibilities","tech","scale_strategy","owner"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^MOD-\\d{2}$" },
+          "name": { "type": "string" }, "responsibilities": { "type": "string" },
+          "tech": { "type": "string" },
+          "scale_strategy": { "type": "string", "enum": ["horizontal","vertical","stateless"] },
+          "owner": { "type": "string" }
+        }
+      }
+    },
+    "data_model": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id","table_name","purpose","key_columns","indexes","soft_delete","migration_tool"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^TABLE-\\d{2}$" },
+          "table_name": { "type": "string" }, "purpose": { "type": "string" },
+          "key_columns": { "type": "array", "items": { "type": "string" } },
+          "indexes": { "type": "array", "items": { "type": "string" } },
+          "soft_delete": { "type": "boolean" },
+          "migration_tool": { "type": "string", "enum": ["flyway","liquibase"] }
+        }
+      }
+    },
+    "api_contract": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id","method","endpoint","request","response","http_status","auth","idempotent"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^API-\\d{2}$" },
+          "method": { "type": "string", "enum": ["GET","POST","PUT","DELETE","PATCH"] },
+          "endpoint": { "type": "string" }, "request": { "type": "string" },
+          "response": { "type": "string" }, "http_status": { "type": "array", "items": { "type": "integer" } },
+          "auth": { "type": "string", "enum": ["JWT","None","ApiKey"] },
+          "idempotent": { "type": "boolean" }
+        }
+      }
+    },
+    "tech_recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["layer","recommended","alternatives","reason","constraint"], "additionalProperties": false,
+        "properties": {
+          "layer": { "type": "string" }, "recommended": { "type": "string" },
+          "alternatives": { "type": "array", "items": { "type": "string" } },
+          "reason": { "type": "string" }, "constraint": { "type": "string" }
+        }
+      }
+    },
+    "deployment_topology": {
+      "type": "object", "required": ["environments","ci_cd_summary","infra_sketch"], "additionalProperties": false,
+      "properties": {
+        "environments": { "type": "array", "items": { "type": "string" } },
+        "ci_cd_summary": { "type": "string" }, "infra_sketch": { "type": "string" }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id","risk","probability","impact","mitigation","owner"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^RISK-\\d{2}$" },
+          "risk": { "type": "string" },
+          "probability": { "type": "string", "enum": ["High","Medium","Low"] },
+          "impact": { "type": "string", "enum": ["High","Medium","Low"] },
+          "mitigation": { "type": "string" }, "owner": { "type": "string" }
+        }
+      }
+    },
+    "scaling_roadmap": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["phase","trigger","actions"], "additionalProperties": false,
+        "properties": {
+          "phase": { "type": "string", "enum": ["MVP","Growth","Scale"] },
+          "trigger": { "type": "string" },
+          "actions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### Layer 4 — Human Template
+
+```markdown
+# Solution Design — {{design_id}}
+**Review ref:** {{review_ref}}
+
+## Assumptions
+
+| Item | Known | Assumed |
+|------|-------|---------|
+{{#each assumptions}}
+| {{item}} | {{known}} | {{assumed}} |
+{{/each}}
+
+## Architecture: {{architecture.type}}
+> {{architecture.rationale}}
+
+```
+{{architecture.ascii_diagram}}
+```
+
+## Architecture Decision Records
+
+{{#each adrs}}
+### {{id}}: {{title}} — *{{status}}*
+| | |
+|--|--|
+| Context | {{context}} |
+| Options | {{options}} |
+| Decision | {{decision}} |
+| Rationale | {{rationale}} |
+| Trade-offs | {{tradeoffs}} |
+| Review date | {{review_date}} |
+{{/each}}
+
+## Modules
+
+| ID | Module | Trách nhiệm | Tech | Scale | Owner |
+|----|--------|------------|------|-------|-------|
+{{#each modules}}
+| {{id}} | {{name}} | {{responsibilities}} | {{tech}} | {{scale_strategy}} | {{owner}} |
+{{/each}}
+
+## API Contract
+
+| ID | Method | Endpoint | Auth | Idempotent | HTTP Status |
+|----|--------|----------|------|-----------|------------|
+{{#each api_contract}}
+| {{id}} | {{method}} | {{endpoint}} | {{auth}} | {{idempotent}} | {{http_status | join ", "}} |
+{{/each}}
+
+## Risks
+
+| ID | Risk | P | I | Mitigation | Owner |
+|----|------|---|---|-----------|-------|
+{{#each risks}}
+| {{id}} | {{risk}} | {{probability}} | {{impact}} | {{mitigation}} | {{owner}} |
+{{/each}}
+
+## Scaling Roadmap
+
+| Phase | Trigger | Actions |
+|-------|---------|---------| 
+{{#each scaling_roadmap}}
+| {{phase}} | {{trigger}} | {{actions | join " · "}} |
+{{/each}}
+```
+

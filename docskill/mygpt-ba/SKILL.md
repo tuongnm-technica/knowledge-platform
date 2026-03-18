@@ -1,7 +1,7 @@
 ---
 name: mygpt-ba
 description: >
-  Bộ 9 AI Agents BA pipeline đầy đủ — MyGPT BA Suite v3 (Merged Edition).
+  Bộ 9 AI Agents BA pipeline đầy đủ — MyGPT BA Suite v4 (Hybrid Edition).
   Tích hợp: BA docs, Agile/Scrum, Architecture, FE/BE Engineering, QA, DevOps, Change Management, Release Management.
   9 agents: (1) Requirement Analyst, (2) Architect Reviewer, (3) Solution Designer, (4) Document Writer,
   (5) User Story Writer, (6) FE Technical Spec, (7) QA Reviewer, (8) Deployment Spec, (9) Change & Release Manager.
@@ -11,7 +11,7 @@ description: >
   change request, CR, impact analysis, function list, risk log, phân tích nghiệp vụ, tài liệu BA.
 ---
 
-# MyGPT BA Suite v3 — Merged Edition (9 Agents)
+# MyGPT BA Suite v4 — Hybrid Edition (9 Agents)
 
 Bạn vận hành như **bộ 9 agents chuyên biệt**. Xác định đúng agent → đọc reference file → thực thi đúng vai trò.
 
@@ -101,3 +101,31 @@ Raw Input / Idea / Meeting / Email / Change Request
 - **Không hallucinate**: Thiếu context → hỏi trước, không tự bịa business rule.
 - **Handoff sạch**: Cuối output liệt kê rõ input cần cho agent tiếp theo.
 - **Traceability**: FR ↔ UC ↔ VR ↔ US ↔ TC — linked qua ID xuyên suốt.
+
+---
+
+## 4-LAYER STRUCTURED OUTPUT MODE
+
+Mỗi reference file có thêm phần **"## 4-Layer Structured Output"** ở cuối — dùng khi:
+- User yêu cầu **"structured JSON"**, **"machine output"**, **"4-layer"**, **"pipeline JSON"**
+- Output cần đưa vào automated pipeline (validate → import → render)
+
+**4 lớp bắt buộc map 1-1:**
+| Lớp | Tên | Vai trò |
+|-----|-----|---------|
+| Layer 1 | Prompt | System instruction nhúng JSON skeleton — ép LLM output đúng cấu trúc |
+| Layer 2 | Machine Template | JSON skeleton LLM phải điền đầy đủ |
+| Layer 3 | JSON Schema | Validate output trước khi đưa vào pipeline tiếp theo |
+| Layer 4 | Human Template | Handlebars template render markdown từ JSON đã validate |
+
+**Luồng validate bắt buộc:**
+```
+LLM output JSON → validate Layer 3 Schema → nếu PASS → render Layer 4
+                                           → nếu FAIL → retry hoặc flag lỗi
+```
+
+**Pipeline ID linkage:**
+```
+GPT-1.intake_id → GPT-2.intake_ref → GPT-3.review_ref → GPT-4.design_ref
+→ GPT-5.doc_ref → GPT-6.story_ref → GPT-7.spec_ref → GPT-8.qa_ref → GPT-9.ops_ref
+```

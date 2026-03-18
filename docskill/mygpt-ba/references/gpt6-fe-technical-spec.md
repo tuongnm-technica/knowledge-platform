@@ -247,3 +247,134 @@ Cung cấp cho GPT-6 QA Reviewer:
 ✅ Accessibility requirements (a11y test cases)
 ✅ Performance Budget (performance test thresholds)
 ```
+
+---
+
+## 4-Layer Structured Output (Machine-Parseable Mode)
+
+> Dùng khi user yêu cầu "structured JSON", "4-layer", "pipeline JSON".
+
+### Layer 1 — Prompt
+
+```
+You are GPT-6 FE Technical Spec in the MyGPT BA Suite pipeline.
+
+Your job: generate FE technical contract from Use Cases, API Contract, and Validation Rules.
+Output must be sufficient for a frontend developer to implement without asking BA or BE.
+
+YOU DO NOT: choose UI library, write code, define backend logic.
+YOU DO: component architecture, UI state matrix, validation UX, API integration spec, a11y, error boundary, performance budget.
+
+OUTPUT RULES (NON-NEGOTIABLE):
+- Respond ONLY with a single JSON object conforming to the Machine Template.
+- IDs: COMP-01, STATE-01, APICALL-01, A11Y-01, ERR-01.
+- Language: match the user's input language.
+
+MACHINE TEMPLATE TO FILL:
+{
+  "spec_id": "<ISO date>-<slug>",
+  "story_ref": "<sprint_id from GPT-5>",
+  "components": [
+    { "id": "COMP-01", "name": "", "type": "<Page|Feature|UI|Shared>", "props_in": [], "events_out": [], "description": "" }
+  ],
+  "ui_states": [
+    { "id": "STATE-01", "component": "COMP-01", "state": "<Loading|Success|Empty|Error|Partial|Submitting|ValidationError>", "visual": "", "user_actions": [], "trigger": "" }
+  ],
+  "validation_ux": [
+    { "field": "", "trigger": "<on-blur|on-submit|on-change>", "error_display": "<Inline|Toast|Modal>", "button_behavior": "", "reset_behavior": "" }
+  ],
+  "api_integration": [
+    { "id": "APICALL-01", "endpoint": "", "trigger": "", "loading_state": "", "success_behavior": "", "error_handling": { "400": "", "401": "", "403": "", "404": "", "422": "", "500": "" }, "optimistic_update": false, "rollback_strategy": "" }
+  ],
+  "accessibility": [
+    { "id": "A11Y-01", "element": "", "aria_requirements": "", "keyboard_behavior": "", "wcag_criterion": "" }
+  ],
+  "error_boundaries": [
+    { "id": "ERR-01", "scope": "", "error_type": "", "fallback_ui": "", "recovery_action": "", "report_to_monitoring": true }
+  ],
+  "performance_budget": {
+    "bundle_size_kb_gzipped": 200, "lcp_ms": 2500, "inp_ms": 200, "cls": 0.1, "lazy_loading_strategy": ""
+  }
+}
+```
+
+---
+
+### Layer 2 — Machine Template
+
+```json
+{
+  "spec_id": "", "story_ref": "",
+  "components": [{ "id": "COMP-01", "name": "", "type": "", "props_in": [], "events_out": [], "description": "" }],
+  "ui_states": [{ "id": "STATE-01", "component": "COMP-01", "state": "", "visual": "", "user_actions": [], "trigger": "" }],
+  "validation_ux": [{ "field": "", "trigger": "", "error_display": "", "button_behavior": "", "reset_behavior": "" }],
+  "api_integration": [{ "id": "APICALL-01", "endpoint": "", "trigger": "", "loading_state": "", "success_behavior": "", "error_handling": { "400": "", "401": "", "403": "", "404": "", "422": "", "500": "" }, "optimistic_update": false, "rollback_strategy": "" }],
+  "accessibility": [{ "id": "A11Y-01", "element": "", "aria_requirements": "", "keyboard_behavior": "", "wcag_criterion": "" }],
+  "error_boundaries": [{ "id": "ERR-01", "scope": "", "error_type": "", "fallback_ui": "", "recovery_action": "", "report_to_monitoring": true }],
+  "performance_budget": { "bundle_size_kb_gzipped": 200, "lcp_ms": 2500, "inp_ms": 200, "cls": 0.1, "lazy_loading_strategy": "" }
+}
+```
+
+---
+
+### Layer 3 — JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt6-fe-spec-output.schema.json",
+  "title": "GPT-6 FE Technical Spec Output",
+  "type": "object",
+  "required": ["spec_id","story_ref","components","ui_states","validation_ux","api_integration","accessibility","error_boundaries","performance_budget"],
+  "additionalProperties": false,
+  "properties": {
+    "spec_id": { "type": "string" }, "story_ref": { "type": "string" },
+    "components": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["id","name","type","props_in","events_out","description"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^COMP-\\d{2}$" }, "name": { "type": "string" }, "type": { "type": "string", "enum": ["Page","Feature","UI","Shared"] }, "props_in": { "type": "array", "items": { "type": "string" } }, "events_out": { "type": "array", "items": { "type": "string" } }, "description": { "type": "string" } } } },
+    "ui_states": { "type": "array", "items": { "type": "object", "required": ["id","component","state","visual","user_actions","trigger"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^STATE-\\d{2}$" }, "component": { "type": "string" }, "state": { "type": "string", "enum": ["Loading","Success","Empty","Error","Partial","Submitting","ValidationError"] }, "visual": { "type": "string" }, "user_actions": { "type": "array", "items": { "type": "string" } }, "trigger": { "type": "string" } } } },
+    "validation_ux": { "type": "array", "items": { "type": "object", "required": ["field","trigger","error_display","button_behavior","reset_behavior"], "additionalProperties": false, "properties": { "field": { "type": "string" }, "trigger": { "type": "string", "enum": ["on-blur","on-submit","on-change"] }, "error_display": { "type": "string", "enum": ["Inline","Toast","Modal"] }, "button_behavior": { "type": "string" }, "reset_behavior": { "type": "string" } } } },
+    "api_integration": { "type": "array", "items": { "type": "object", "required": ["id","endpoint","trigger","loading_state","success_behavior","error_handling","optimistic_update","rollback_strategy"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^APICALL-\\d{2}$" }, "endpoint": { "type": "string" }, "trigger": { "type": "string" }, "loading_state": { "type": "string" }, "success_behavior": { "type": "string" }, "error_handling": { "type": "object", "required": ["400","401","403","404","422","500"], "additionalProperties": false, "properties": { "400": { "type": "string" }, "401": { "type": "string" }, "403": { "type": "string" }, "404": { "type": "string" }, "422": { "type": "string" }, "500": { "type": "string" } } }, "optimistic_update": { "type": "boolean" }, "rollback_strategy": { "type": "string" } } } },
+    "accessibility": { "type": "array", "items": { "type": "object", "required": ["id","element","aria_requirements","keyboard_behavior","wcag_criterion"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^A11Y-\\d{2}$" }, "element": { "type": "string" }, "aria_requirements": { "type": "string" }, "keyboard_behavior": { "type": "string" }, "wcag_criterion": { "type": "string" } } } },
+    "error_boundaries": { "type": "array", "items": { "type": "object", "required": ["id","scope","error_type","fallback_ui","recovery_action","report_to_monitoring"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^ERR-\\d{2}$" }, "scope": { "type": "string" }, "error_type": { "type": "string" }, "fallback_ui": { "type": "string" }, "recovery_action": { "type": "string" }, "report_to_monitoring": { "type": "boolean" } } } },
+    "performance_budget": { "type": "object", "required": ["bundle_size_kb_gzipped","lcp_ms","inp_ms","cls","lazy_loading_strategy"], "additionalProperties": false, "properties": { "bundle_size_kb_gzipped": { "type": "integer" }, "lcp_ms": { "type": "integer" }, "inp_ms": { "type": "integer" }, "cls": { "type": "number" }, "lazy_loading_strategy": { "type": "string" } } }
+  }
+}
+```
+
+---
+
+### Layer 4 — Human Template
+
+```markdown
+# FE Technical Spec — {{spec_id}}
+**Story ref:** {{story_ref}}
+
+## Components
+
+| ID | Tên | Loại | Props in | Events out |
+|----|-----|------|----------|-----------|
+{{#each components}}
+| {{id}} | {{name}} | {{type}} | {{props_in | join ", "}} | {{events_out | join ", "}} |
+{{/each}}
+
+## UI State Matrix
+
+| ID | Component | State | Visual | Actions | Trigger |
+|----|-----------|-------|--------|---------|---------|
+{{#each ui_states}}
+| {{id}} | {{component}} | {{state}} | {{visual}} | {{user_actions | join ", "}} | {{trigger}} |
+{{/each}}
+
+## Validation UX
+
+| Field | Trigger | Error display | Button behavior | Reset |
+|-------|---------|--------------|----------------|-------|
+{{#each validation_ux}}
+| {{field}} | {{trigger}} | {{error_display}} | {{button_behavior}} | {{reset_behavior}} |
+{{/each}}
+
+## Performance Budget
+- Bundle: **{{performance_budget.bundle_size_kb_gzipped}}KB** gzipped
+- LCP: **{{performance_budget.lcp_ms}}ms** | INP: **{{performance_budget.inp_ms}}ms** | CLS: **{{performance_budget.cls}}**
+- Lazy loading: {{performance_budget.lazy_loading_strategy}}
+```
+

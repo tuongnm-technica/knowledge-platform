@@ -339,3 +339,164 @@ GPT-9 là agent cuối. Output của GPT-9 đi đến:
 
 Nếu CR mở ra requirement mới → quay lại GPT-1 với source_type = "change_request"
 ```
+
+---
+
+## 4-Layer Structured Output (Machine-Parseable Mode)
+
+> Dùng khi user yêu cầu "structured JSON", "4-layer", "pipeline JSON".
+
+### Layer 1 — Prompt
+
+```
+You are GPT-9 Change & Release Manager in the MyGPT BA Suite pipeline.
+
+You handle two workflows:
+WORKFLOW A — Change Request Analysis: analyze impact across 6 dimensions (Module/API/Database/UI/Business Rules/Tests), classify risk, estimate effort, recommend rollback plan.
+WORKFLOW B — Release Artifacts: generate Release Note, update Function List, generate UAT Report, update Risk Log.
+
+"System affected" is NOT acceptable. Write "Module: OrderService — API: POST /orders — add field 'priority' — breaking: No".
+
+OUTPUT RULES (NON-NEGOTIABLE):
+- Respond ONLY with a single JSON object conforming to the Machine Template.
+- IDs: CR-XX, FL-XX, RISK-XXX, DEF-XXX.
+- Language: match the user's input language.
+
+MACHINE TEMPLATE TO FILL:
+{
+  "release_id": "<ISO date>-v<X.Y.Z>",
+  "ops_ref": "<ops_id from GPT-8>",
+  "workflow": "<A_change_request|B_release_artifacts>",
+  "change_request": {
+    "id": "CR-01", "title": "", "requested_by": "",
+    "priority": "<Critical|High|Medium|Low>",
+    "type": "<New Feature|Enhancement|Bug Fix|Regulatory>",
+    "status": "<Draft|In Review|Approved|In Progress|Done>",
+    "description": "", "business_justification": "",
+    "current_behavior": "", "expected_behavior": "",
+    "impact_analysis": {
+      "modules": [{ "module": "", "impact": "<High|Medium|Low>", "change_type": "", "effort": "<S|M|L|XL>", "notes": "" }],
+      "apis": [{ "endpoint": "", "method": "", "impact": "", "change_type": "", "breaking_change": false, "version_bump": false }],
+      "database": [{ "table": "", "column": "", "change_type": "", "migration_required": false, "data_migration": false, "rollback_script": false }],
+      "ui_screens": [{ "screen": "", "component": "", "impact": "", "change_required": "" }],
+      "business_rules": [{ "br_id": "", "current_rule": "", "new_rule": "", "conflict": false, "action": "" }],
+      "test_impact": [{ "suite": "", "tests_affected": "", "rewrite_required": false, "regression_risk": "<High|Medium|Low>" }]
+    },
+    "risk_level": "<Critical|High|Medium|Low>",
+    "rollback_plan": [],
+    "effort_estimate": { "development": "", "testing": "", "total": "" }
+  },
+  "function_list": [
+    { "id": "", "category": "", "great_function": "", "medium_function": "", "small_function": "", "description": "", "priority": "", "status": "<Confirmed|In Progress|Reviewing (UAT)|Ready for Release|Released|Backlog>", "added_date": "" }
+  ],
+  "release_note": {
+    "system_name": "", "version": "", "release_date": "", "release_manager": "",
+    "objectives": [],
+    "changes": [{ "ref_id": "", "description": "", "type": "<New Feature|Enhancement|Bug Fix>", "notes": "" }],
+    "breaking_changes": [], "known_issues": [], "rollback_plan": []
+  },
+  "risk_log": [
+    { "id": "RISK-001", "category": "<Technical|Business|Data|Resource|External|Security|Compliance>", "description": "", "impact": "<High|Medium|Low>", "probability": "<High|Medium|Low>", "resolution_plan": "", "owner": "", "due_date": "", "status": "<Open|In Progress|Mitigated|Closed>" }
+  ]
+}
+```
+
+---
+
+### Layer 2 — Machine Template
+
+```json
+{
+  "release_id": "", "ops_ref": "", "workflow": "",
+  "change_request": {
+    "id": "CR-01", "title": "", "requested_by": "", "priority": "", "type": "", "status": "",
+    "description": "", "business_justification": "", "current_behavior": "", "expected_behavior": "",
+    "impact_analysis": {
+      "modules": [{ "module": "", "impact": "", "change_type": "", "effort": "", "notes": "" }],
+      "apis": [{ "endpoint": "", "method": "", "impact": "", "change_type": "", "breaking_change": false, "version_bump": false }],
+      "database": [{ "table": "", "column": "", "change_type": "", "migration_required": false, "data_migration": false, "rollback_script": false }],
+      "ui_screens": [{ "screen": "", "component": "", "impact": "", "change_required": "" }],
+      "business_rules": [{ "br_id": "", "current_rule": "", "new_rule": "", "conflict": false, "action": "" }],
+      "test_impact": [{ "suite": "", "tests_affected": "", "rewrite_required": false, "regression_risk": "" }]
+    },
+    "risk_level": "", "rollback_plan": [],
+    "effort_estimate": { "development": "", "testing": "", "total": "" }
+  },
+  "function_list": [{ "id": "", "category": "", "great_function": "", "medium_function": "", "small_function": "", "description": "", "priority": "", "status": "", "added_date": "" }],
+  "release_note": { "system_name": "", "version": "", "release_date": "", "release_manager": "", "objectives": [], "changes": [{ "ref_id": "", "description": "", "type": "", "notes": "" }], "breaking_changes": [], "known_issues": [], "rollback_plan": [] },
+  "risk_log": [{ "id": "RISK-001", "category": "", "description": "", "impact": "", "probability": "", "resolution_plan": "", "owner": "", "due_date": "", "status": "" }]
+}
+```
+
+---
+
+### Layer 3 — JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt9-release-output.schema.json",
+  "title": "GPT-9 Change & Release Manager Output",
+  "type": "object",
+  "required": ["release_id","ops_ref","workflow","change_request","function_list","release_note","risk_log"],
+  "additionalProperties": false,
+  "properties": {
+    "release_id": { "type": "string" }, "ops_ref": { "type": "string" },
+    "workflow": { "type": "string", "enum": ["A_change_request","B_release_artifacts"] },
+    "change_request": { "type": "object", "required": ["id","title","requested_by","priority","type","status","description","business_justification","current_behavior","expected_behavior","impact_analysis","risk_level","rollback_plan","effort_estimate"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^CR-\\d{2}$" }, "title": { "type": "string" }, "requested_by": { "type": "string" }, "priority": { "type": "string", "enum": ["Critical","High","Medium","Low"] }, "type": { "type": "string", "enum": ["New Feature","Enhancement","Bug Fix","Regulatory"] }, "status": { "type": "string", "enum": ["Draft","In Review","Approved","In Progress","Done"] }, "description": { "type": "string" }, "business_justification": { "type": "string" }, "current_behavior": { "type": "string" }, "expected_behavior": { "type": "string" }, "impact_analysis": { "type": "object", "required": ["modules","apis","database","ui_screens","business_rules","test_impact"], "additionalProperties": false, "properties": { "modules": { "type": "array", "items": { "type": "object", "required": ["module","impact","change_type","effort","notes"], "additionalProperties": false, "properties": { "module": { "type": "string" }, "impact": { "type": "string", "enum": ["High","Medium","Low"] }, "change_type": { "type": "string" }, "effort": { "type": "string", "enum": ["S","M","L","XL"] }, "notes": { "type": "string" } } } }, "apis": { "type": "array", "items": { "type": "object", "required": ["endpoint","method","impact","change_type","breaking_change","version_bump"], "additionalProperties": false, "properties": { "endpoint": { "type": "string" }, "method": { "type": "string" }, "impact": { "type": "string" }, "change_type": { "type": "string" }, "breaking_change": { "type": "boolean" }, "version_bump": { "type": "boolean" } } } }, "database": { "type": "array", "items": { "type": "object", "required": ["table","column","change_type","migration_required","data_migration","rollback_script"], "additionalProperties": false, "properties": { "table": { "type": "string" }, "column": { "type": "string" }, "change_type": { "type": "string" }, "migration_required": { "type": "boolean" }, "data_migration": { "type": "boolean" }, "rollback_script": { "type": "boolean" } } } }, "ui_screens": { "type": "array", "items": { "type": "object", "required": ["screen","component","impact","change_required"], "additionalProperties": false, "properties": { "screen": { "type": "string" }, "component": { "type": "string" }, "impact": { "type": "string" }, "change_required": { "type": "string" } } } }, "business_rules": { "type": "array", "items": { "type": "object", "required": ["br_id","current_rule","new_rule","conflict","action"], "additionalProperties": false, "properties": { "br_id": { "type": "string" }, "current_rule": { "type": "string" }, "new_rule": { "type": "string" }, "conflict": { "type": "boolean" }, "action": { "type": "string" } } } }, "test_impact": { "type": "array", "items": { "type": "object", "required": ["suite","tests_affected","rewrite_required","regression_risk"], "additionalProperties": false, "properties": { "suite": { "type": "string" }, "tests_affected": { "type": "string" }, "rewrite_required": { "type": "boolean" }, "regression_risk": { "type": "string", "enum": ["High","Medium","Low"] } } } } } }, "risk_level": { "type": "string", "enum": ["Critical","High","Medium","Low"] }, "rollback_plan": { "type": "array", "items": { "type": "string" } }, "effort_estimate": { "type": "object", "required": ["development","testing","total"], "additionalProperties": false, "properties": { "development": { "type": "string" }, "testing": { "type": "string" }, "total": { "type": "string" } } } } },
+    "function_list": { "type": "array", "items": { "type": "object", "required": ["id","category","great_function","medium_function","small_function","description","priority","status","added_date"], "additionalProperties": false, "properties": { "id": { "type": "string" }, "category": { "type": "string" }, "great_function": { "type": "string" }, "medium_function": { "type": "string" }, "small_function": { "type": "string" }, "description": { "type": "string" }, "priority": { "type": "string" }, "status": { "type": "string", "enum": ["Confirmed","In Progress","Reviewing (UAT)","Ready for Release","Released","Backlog"] }, "added_date": { "type": "string" } } } },
+    "release_note": { "type": "object", "required": ["system_name","version","release_date","release_manager","objectives","changes","breaking_changes","known_issues","rollback_plan"], "additionalProperties": false, "properties": { "system_name": { "type": "string" }, "version": { "type": "string" }, "release_date": { "type": "string" }, "release_manager": { "type": "string" }, "objectives": { "type": "array", "items": { "type": "string" } }, "changes": { "type": "array", "items": { "type": "object", "required": ["ref_id","description","type","notes"], "additionalProperties": false, "properties": { "ref_id": { "type": "string" }, "description": { "type": "string" }, "type": { "type": "string", "enum": ["New Feature","Enhancement","Bug Fix"] }, "notes": { "type": "string" } } } }, "breaking_changes": { "type": "array", "items": { "type": "string" } }, "known_issues": { "type": "array", "items": { "type": "string" } }, "rollback_plan": { "type": "array", "items": { "type": "string" } } } },
+    "risk_log": { "type": "array", "items": { "type": "object", "required": ["id","category","description","impact","probability","resolution_plan","owner","due_date","status"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^RISK-\\d{3}$" }, "category": { "type": "string", "enum": ["Technical","Business","Data","Resource","External","Security","Compliance"] }, "description": { "type": "string" }, "impact": { "type": "string", "enum": ["High","Medium","Low"] }, "probability": { "type": "string", "enum": ["High","Medium","Low"] }, "resolution_plan": { "type": "string" }, "owner": { "type": "string" }, "due_date": { "type": "string" }, "status": { "type": "string", "enum": ["Open","In Progress","Mitigated","Closed"] } } } }
+  }
+}
+```
+
+---
+
+### Layer 4 — Human Template
+
+```markdown
+# Release — {{release_note.system_name}} {{release_note.version}}
+
+| Field | Value |
+|-------|-------|
+| Release ID | {{release_id}} |
+| Ngày release | {{release_note.release_date}} |
+| Release Manager | {{release_note.release_manager}} |
+| Ops ref | {{ops_ref}} |
+
+## Mục tiêu Release
+{{#each release_note.objectives}}
+{{@index_plus_1}}. {{this}}
+{{/each}}
+
+## Danh sách thay đổi
+
+| Ref | Nội dung | Loại | Ghi chú |
+|-----|---------|------|---------| 
+{{#each release_note.changes}}
+| {{ref_id}} | {{description}} | {{type}} | {{notes}} |
+{{/each}}
+
+## Change Request — {{change_request.id}}
+**Risk level:** {{change_request.risk_level}} | **Status:** {{change_request.status}}
+
+### Impact Analysis
+**Modules:** {{change_request.impact_analysis.modules | map 'module' | join ", "}}
+**APIs với breaking change:** {{change_request.impact_analysis.apis | filter 'breaking_change' | map 'endpoint' | join ", "}}
+**DB tables cần migration:** {{change_request.impact_analysis.database | filter 'migration_required' | map 'table' | join ", "}}
+
+### Rollback Plan
+{{#each change_request.rollback_plan}}
+{{@index_plus_1}}. {{this}}
+{{/each}}
+
+## Risk Log
+
+| ID | Category | Mô tả | Impact | P | Status | Owner | Due |
+|----|---------|-------|--------|---|--------|-------|-----|
+{{#each risk_log}}
+| {{id}} | {{category}} | {{description}} | {{impact}} | {{probability}} | {{status}} | {{owner}} | {{due_date}} |
+{{/each}}
+```
+

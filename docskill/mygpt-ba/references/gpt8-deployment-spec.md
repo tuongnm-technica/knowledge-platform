@@ -278,3 +278,167 @@ Action Items:
 - [ ] Confirm backup completed successfully (T+24h)
 - [ ] Performance review at T+48h
 - [ ] Post-launch summary to stakeholders
+
+---
+
+## 4-Layer Structured Output (Machine-Parseable Mode)
+
+> Dùng khi user yêu cầu "structured JSON", "4-layer", "pipeline JSON".
+
+### Layer 1 — Prompt
+
+```
+You are GPT-8 Deployment & Operations Spec in the MyGPT BA Suite pipeline.
+
+Your job: produce deployment spec, CI/CD pipeline, monitoring & alerting rules, incident runbook, DR plan, and go-live checklist.
+Output must be sufficient for a DevOps/SRE engineer without asking additional questions.
+
+"Monitor the application" is NOT acceptable. Write "Alert when P95 response time > 500ms for 5 consecutive minutes."
+
+OUTPUT RULES (NON-NEGOTIABLE):
+- Respond ONLY with a single JSON object conforming to the Machine Template.
+- IDs: ENV-01, STEP-01, ALERT-01, RUNBOOK-01, DR-01.
+- Language: match the user's input language.
+
+MACHINE TEMPLATE TO FILL:
+{
+  "ops_id": "<ISO date>-<slug>",
+  "qa_ref": "<qa_id from GPT-7>",
+  "environments": [
+    { "id": "ENV-01", "name": "<dev|staging|prod>", "purpose": "", "infrastructure": "", "database": "", "external_services": "", "data": "", "access": "", "deploy_trigger": "", "backup": "" }
+  ],
+  "cicd_pipeline": {
+    "branch_strategy": { "main": "", "develop": "", "feature": "", "hotfix": "" },
+    "stages": [
+      { "id": "STEP-01", "name": "", "tool": "", "duration_min": 0, "fail_condition": "" }
+    ],
+    "rollback_strategy": { "automatic": "", "manual_command": "", "db_rollback": "" }
+  },
+  "monitoring_alerts": [
+    { "id": "ALERT-01", "metric": "", "condition": "", "severity": "<P1|P2|P3>", "channel": "", "action": "" }
+  ],
+  "dashboard_panels": [],
+  "runbooks": [
+    { "id": "RUNBOOK-01", "trigger": "", "severity": "<SEV-1|SEV-2|SEV-3|SEV-4>", "steps": [], "communicate_to": "", "post_incident_review": true }
+  ],
+  "dr_plan": [
+    { "scenario": "", "rto": "", "rpo": "", "recovery_steps": [] }
+  ],
+  "go_live_checklist": {
+    "technical": [],
+    "process": [],
+    "post_launch_48h": []
+  }
+}
+```
+
+---
+
+### Layer 2 — Machine Template
+
+```json
+{
+  "ops_id": "", "qa_ref": "",
+  "environments": [
+    { "id": "ENV-01", "name": "", "purpose": "", "infrastructure": "", "database": "", "external_services": "", "data": "", "access": "", "deploy_trigger": "", "backup": "" }
+  ],
+  "cicd_pipeline": {
+    "branch_strategy": { "main": "", "develop": "", "feature": "", "hotfix": "" },
+    "stages": [{ "id": "STEP-01", "name": "", "tool": "", "duration_min": 0, "fail_condition": "" }],
+    "rollback_strategy": { "automatic": "", "manual_command": "", "db_rollback": "" }
+  },
+  "monitoring_alerts": [{ "id": "ALERT-01", "metric": "", "condition": "", "severity": "", "channel": "", "action": "" }],
+  "dashboard_panels": [],
+  "runbooks": [{ "id": "RUNBOOK-01", "trigger": "", "severity": "", "steps": [], "communicate_to": "", "post_incident_review": true }],
+  "dr_plan": [{ "scenario": "", "rto": "", "rpo": "", "recovery_steps": [] }],
+  "go_live_checklist": { "technical": [], "process": [], "post_launch_48h": [] }
+}
+```
+
+---
+
+### Layer 3 — JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt8-ops-output.schema.json",
+  "title": "GPT-8 Deployment Spec Output",
+  "type": "object",
+  "required": ["ops_id","qa_ref","environments","cicd_pipeline","monitoring_alerts","dashboard_panels","runbooks","dr_plan","go_live_checklist"],
+  "additionalProperties": false,
+  "properties": {
+    "ops_id": { "type": "string" }, "qa_ref": { "type": "string" },
+    "environments": { "type": "array", "minItems": 3, "items": { "type": "object", "required": ["id","name","purpose","infrastructure","database","external_services","data","access","deploy_trigger","backup"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^ENV-\\d{2}$" }, "name": { "type": "string", "enum": ["dev","staging","prod"] }, "purpose": { "type": "string" }, "infrastructure": { "type": "string" }, "database": { "type": "string" }, "external_services": { "type": "string" }, "data": { "type": "string" }, "access": { "type": "string" }, "deploy_trigger": { "type": "string" }, "backup": { "type": "string" } } } },
+    "cicd_pipeline": { "type": "object", "required": ["branch_strategy","stages","rollback_strategy"], "additionalProperties": false, "properties": { "branch_strategy": { "type": "object", "required": ["main","develop","feature","hotfix"], "additionalProperties": false, "properties": { "main": { "type": "string" }, "develop": { "type": "string" }, "feature": { "type": "string" }, "hotfix": { "type": "string" } } }, "stages": { "type": "array", "minItems": 5, "items": { "type": "object", "required": ["id","name","tool","duration_min","fail_condition"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^STEP-\\d{2}$" }, "name": { "type": "string" }, "tool": { "type": "string" }, "duration_min": { "type": "integer" }, "fail_condition": { "type": "string" } } } }, "rollback_strategy": { "type": "object", "required": ["automatic","manual_command","db_rollback"], "additionalProperties": false, "properties": { "automatic": { "type": "string" }, "manual_command": { "type": "string" }, "db_rollback": { "type": "string" } } } } },
+    "monitoring_alerts": { "type": "array", "minItems": 4, "items": { "type": "object", "required": ["id","metric","condition","severity","channel","action"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^ALERT-\\d{2}$" }, "metric": { "type": "string" }, "condition": { "type": "string" }, "severity": { "type": "string", "enum": ["P1","P2","P3"] }, "channel": { "type": "string" }, "action": { "type": "string" } } } },
+    "dashboard_panels": { "type": "array", "items": { "type": "string" } },
+    "runbooks": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["id","trigger","severity","steps","communicate_to","post_incident_review"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^RUNBOOK-\\d{2}$" }, "trigger": { "type": "string" }, "severity": { "type": "string", "enum": ["SEV-1","SEV-2","SEV-3","SEV-4"] }, "steps": { "type": "array", "items": { "type": "string" } }, "communicate_to": { "type": "string" }, "post_incident_review": { "type": "boolean" } } } },
+    "dr_plan": { "type": "array", "minItems": 3, "items": { "type": "object", "required": ["scenario","rto","rpo","recovery_steps"], "additionalProperties": false, "properties": { "scenario": { "type": "string" }, "rto": { "type": "string" }, "rpo": { "type": "string" }, "recovery_steps": { "type": "array", "items": { "type": "string" } } } } },
+    "go_live_checklist": { "type": "object", "required": ["technical","process","post_launch_48h"], "additionalProperties": false, "properties": { "technical": { "type": "array", "items": { "type": "string" } }, "process": { "type": "array", "items": { "type": "string" } }, "post_launch_48h": { "type": "array", "items": { "type": "string" } } } }
+  }
+}
+```
+
+---
+
+### Layer 4 — Human Template
+
+```markdown
+# Deployment & Ops Spec — {{ops_id}}
+**QA ref:** {{qa_ref}}
+
+## Environments
+
+| ID | Name | Infrastructure | Deploy trigger | Backup |
+|----|------|---------------|----------------|--------|
+{{#each environments}}
+| {{id}} | {{name}} | {{infrastructure}} | {{deploy_trigger}} | {{backup}} |
+{{/each}}
+
+## CI/CD Stages
+
+| ID | Stage | Tool | Duration | Fail condition |
+|----|-------|------|----------|----------------|
+{{#each cicd_pipeline.stages}}
+| {{id}} | {{name}} | {{tool}} | {{duration_min}} min | {{fail_condition}} |
+{{/each}}
+
+**Rollback:**
+- Auto: {{cicd_pipeline.rollback_strategy.automatic}}
+- Manual: `{{cicd_pipeline.rollback_strategy.manual_command}}`
+- DB: {{cicd_pipeline.rollback_strategy.db_rollback}}
+
+## Monitoring Alerts
+
+| ID | Metric | Điều kiện | Severity | Kênh | Action |
+|----|--------|----------|---------|------|--------|
+{{#each monitoring_alerts}}
+| {{id}} | {{metric}} | {{condition}} | {{severity}} | {{channel}} | {{action}} |
+{{/each}}
+
+## DR Plan
+
+| Scenario | RTO | RPO | Recovery steps |
+|---------|-----|-----|----------------|
+{{#each dr_plan}}
+| {{scenario}} | {{rto}} | {{rpo}} | {{recovery_steps | join " → "}} |
+{{/each}}
+
+## Go-Live Checklist
+**Technical:**
+{{#each go_live_checklist.technical}}
+- [ ] {{this}}
+{{/each}}
+
+**Process:**
+{{#each go_live_checklist.process}}
+- [ ] {{this}}
+{{/each}}
+
+**Post-launch 48h:**
+{{#each go_live_checklist.post_launch_48h}}
+- [ ] {{this}}
+{{/each}}
+```
+

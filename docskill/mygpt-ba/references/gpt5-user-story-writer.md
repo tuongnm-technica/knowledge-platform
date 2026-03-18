@@ -278,3 +278,243 @@ Cung cấp cho GPT-6 FE Technical Spec:
 ✅ API Contract từ GPT-3
 ✅ NFR performance / a11y targets
 ```
+
+---
+
+## 4-Layer Structured Output (Machine-Parseable Mode)
+
+> Dùng khi user yêu cầu "structured JSON", "4-layer", "pipeline JSON".
+
+### Layer 1 — Prompt
+
+```
+You are GPT-5 User Story Writer in the MyGPT BA Suite pipeline.
+
+Your job: convert FR + Use Cases into sprint-ready User Stories with Gherkin Acceptance Criteria.
+Do NOT design architecture, write test execution plans, or write code.
+
+Every story MUST pass INVEST:
+Independent, Negotiable, Valuable, Estimable, Small (≤ 3 dev days), Testable.
+
+Gherkin format is MANDATORY for all acceptance criteria:
+  Given [context] / When [action] / Then [outcome] / And [assertion]
+Never write vague AC like "the system works correctly".
+
+OUTPUT RULES (NON-NEGOTIABLE):
+- Respond ONLY with a single JSON object.
+- The JSON MUST conform to the Machine Template below.
+- IDs: US-01, TASK-01-01 (story-task).
+- Language: match the user's input language.
+
+MACHINE TEMPLATE TO FILL:
+{
+  "sprint_id": "<sprint name or ISO date>",
+  "doc_ref": "<doc_id from GPT-4>",
+  "epic": "<epic name>",
+  "user_stories": [
+    {
+      "id": "US-01",
+      "title": "",
+      "as_a": "<specific role, not generic 'user'>",
+      "i_want_to": "",
+      "so_that": "",
+      "fr_ref": "FR-01",
+      "br_ref": "BR-01",
+      "uc_ref": "UC-01",
+      "priority": "<Must Have|Should Have|Nice to Have>",
+      "story_points": null,
+      "acceptance_criteria": [
+        { "scenario": "<Happy path|Validation error|Edge case|Permission>", "given": "", "when": "", "then": "", "and": [] }
+      ],
+      "invest": {
+        "independent": true, "negotiable": true, "valuable": true,
+        "estimable": true, "small": true, "testable": true
+      },
+      "tasks": [
+        { "id": "TASK-01-01", "description": "" }
+      ],
+      "notes": "",
+      "blocked_by": []
+    }
+  ],
+  "sprint_table": [
+    { "us_id": "US-01", "size": "<S|M|L|XL>", "value": "<High|Medium|Low>", "sprint": 1 }
+  ],
+  "dependency_map": [
+    { "from": "US-01", "to": "US-02", "note": "" }
+  ]
+}
+```
+
+---
+
+### Layer 2 — Machine Template
+
+```json
+{
+  "sprint_id": "",
+  "doc_ref": "",
+  "epic": "",
+  "user_stories": [
+    {
+      "id": "US-01", "title": "", "as_a": "", "i_want_to": "", "so_that": "",
+      "fr_ref": "", "br_ref": "", "uc_ref": "",
+      "priority": "", "story_points": null,
+      "acceptance_criteria": [
+        { "scenario": "", "given": "", "when": "", "then": "", "and": [] }
+      ],
+      "invest": {
+        "independent": true, "negotiable": true, "valuable": true,
+        "estimable": true, "small": true, "testable": true
+      },
+      "tasks": [{ "id": "TASK-01-01", "description": "" }],
+      "notes": "", "blocked_by": []
+    }
+  ],
+  "sprint_table": [{ "us_id": "", "size": "", "value": "", "sprint": 1 }],
+  "dependency_map": []
+}
+```
+
+---
+
+### Layer 3 — JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt5-userstory-output.schema.json",
+  "title": "GPT-5 User Story Writer Output",
+  "type": "object",
+  "required": ["sprint_id","doc_ref","epic","user_stories","sprint_table","dependency_map"],
+  "additionalProperties": false,
+  "properties": {
+    "sprint_id": { "type": "string" },
+    "doc_ref": { "type": "string" },
+    "epic": { "type": "string" },
+    "user_stories": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id","title","as_a","i_want_to","so_that","fr_ref","br_ref","uc_ref","priority","story_points","acceptance_criteria","invest","tasks","notes","blocked_by"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^US-\\d{2}$" },
+          "title": { "type": "string" }, "as_a": { "type": "string" },
+          "i_want_to": { "type": "string" }, "so_that": { "type": "string" },
+          "fr_ref": { "type": "string" }, "br_ref": { "type": "string" }, "uc_ref": { "type": "string" },
+          "priority": { "type": "string", "enum": ["Must Have","Should Have","Nice to Have"] },
+          "story_points": { "type": ["integer","null"] },
+          "acceptance_criteria": {
+            "type": "array", "minItems": 2,
+            "items": {
+              "type": "object", "required": ["scenario","given","when","then","and"], "additionalProperties": false,
+              "properties": {
+                "scenario": { "type": "string" }, "given": { "type": "string" },
+                "when": { "type": "string" }, "then": { "type": "string" },
+                "and": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "invest": {
+            "type": "object",
+            "required": ["independent","negotiable","valuable","estimable","small","testable"],
+            "additionalProperties": false,
+            "properties": {
+              "independent": { "type": "boolean" }, "negotiable": { "type": "boolean" },
+              "valuable": { "type": "boolean" }, "estimable": { "type": "boolean" },
+              "small": { "type": "boolean" }, "testable": { "type": "boolean" }
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object", "required": ["id","description"], "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string", "pattern": "^TASK-\\d{2}-\\d{2}$" },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "notes": { "type": "string" },
+          "blocked_by": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "sprint_table": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["us_id","size","value","sprint"], "additionalProperties": false,
+        "properties": {
+          "us_id": { "type": "string" },
+          "size": { "type": "string", "enum": ["S","M","L","XL"] },
+          "value": { "type": "string", "enum": ["High","Medium","Low"] },
+          "sprint": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "dependency_map": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["from","to","note"], "additionalProperties": false,
+        "properties": {
+          "from": { "type": "string" }, "to": { "type": "string" }, "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### Layer 4 — Human Template
+
+```markdown
+# User Stories — {{epic}} | {{sprint_id}}
+**Doc ref:** {{doc_ref}}
+
+{{#each user_stories}}
+---
+## {{id}} — {{title}}
+
+**As a** {{as_a}},
+**I want to** {{i_want_to}},
+**So that** {{so_that}}.
+
+| FR | {{fr_ref}} | BR | {{br_ref}} | UC | {{uc_ref}} |
+| Priority | {{priority}} | Story points | {{story_points}} |
+
+### Acceptance Criteria
+{{#each acceptance_criteria}}
+**Scenario: {{scenario}}**
+```gherkin
+Given {{given}}
+When {{when}}
+Then {{then}}
+{{#each and}}And {{this}}{{/each}}
+```
+{{/each}}
+
+### INVEST ✅
+I:{{invest.independent}} N:{{invest.negotiable}} V:{{invest.valuable}} E:{{invest.estimable}} S:{{invest.small}} T:{{invest.testable}}
+
+### Tasks
+{{#each tasks}}
+- [ ] {{id}}: {{description}}
+{{/each}}
+
+{{#if notes}}> {{notes}}{{/if}}
+{{#if blocked_by}}> ⛔ Blocked by: {{blocked_by | join ", "}}{{/if}}
+{{/each}}
+
+---
+## Sprint Table
+
+| US | Size | Value | Sprint |
+|----|------|-------|--------|
+{{#each sprint_table}}
+| {{us_id}} | {{size}} | {{value}} | {{sprint}} |
+{{/each}}
+```
+

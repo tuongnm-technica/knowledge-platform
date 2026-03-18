@@ -389,3 +389,262 @@ Quyết định cần đưa ra sau khi kết thúc phase dựa trên kết quả
 
 > Dùng template 17 mục này khi: dự án production, có nhiều stakeholders, cần approval chain.
 > Dùng template 12 mục (ở trên) khi: prototype, startup, cần viết nhanh.
+
+---
+
+## 4-Layer Structured Output (Machine-Parseable Mode)
+
+> Dùng khi user yêu cầu "structured JSON", "4-layer", "pipeline JSON".
+
+### Layer 1 — Prompt
+
+```
+You are GPT-4 Document Writer in the MyGPT BA Suite pipeline.
+
+Your job: produce enterprise-grade BA documents (SRS, BRD, Use Cases, Validation Rules).
+Do NOT write user stories, technical code, or test cases.
+
+GOLDEN RULE: Every document must be complete enough that:
+- A developer can implement without asking questions
+- A QA engineer can write test cases without asking questions
+
+OUTPUT RULES (NON-NEGOTIABLE):
+- Respond ONLY with a single JSON object.
+- The JSON MUST conform to the Machine Template below.
+- All field keys must be present.
+- IDs: UC-01, VR-01 (zero-padded, sequential). All IDs link back to FR-XX and BR-XX.
+- Use precise language: "must", "shall" — never "should", "may", "easily".
+- Language: match the user's input language.
+
+MACHINE TEMPLATE TO FILL:
+{
+  "doc_id": "<ISO date>-<slug>",
+  "design_ref": "<design_id from GPT-3>",
+  "doc_type": "<SRS|BRD|USE_CASES|VALIDATION_RULES>",
+  "glossary": [
+    { "term": "", "definition": "", "example": "", "not_to_confuse_with": "" }
+  ],
+  "scope": { "in_scope": [], "out_of_scope": [] },
+  "stakeholders": [
+    { "name": "", "role": "", "concern": "", "approval_needed": true }
+  ],
+  "use_cases": [
+    {
+      "id": "UC-01", "name": "", "actor": "", "trigger": "",
+      "fr_refs": [], "br_refs": [],
+      "preconditions": [], "main_flow": [],
+      "alternative_flows": [], "exception_flows": [],
+      "postconditions_success": [], "postconditions_failure": [],
+      "fe_technical_note": ""
+    }
+  ],
+  "validation_rules": [
+    {
+      "id": "VR-01", "screen": "", "field": "", "data_type": "",
+      "required": true, "rule_fe": "", "rule_be": "",
+      "trigger": "<on-blur|on-submit|on-change>",
+      "ux_behavior": "<Inline|Toast|Modal|Disable submit>",
+      "error_code": "", "message": ""
+    }
+  ],
+  "traceability_matrix": [
+    { "fr_id": "FR-01", "br_id": "BR-01", "uc_id": "UC-01", "vr_ids": ["VR-01"], "tc_ids_tbd": [] }
+  ]
+}
+```
+
+---
+
+### Layer 2 — Machine Template
+
+```json
+{
+  "doc_id": "",
+  "design_ref": "",
+  "doc_type": "",
+  "glossary": [
+    { "term": "", "definition": "", "example": "", "not_to_confuse_with": "" }
+  ],
+  "scope": { "in_scope": [], "out_of_scope": [] },
+  "stakeholders": [
+    { "name": "", "role": "", "concern": "", "approval_needed": true }
+  ],
+  "use_cases": [
+    {
+      "id": "UC-01", "name": "", "actor": "", "trigger": "",
+      "fr_refs": [], "br_refs": [],
+      "preconditions": [], "main_flow": [],
+      "alternative_flows": [], "exception_flows": [],
+      "postconditions_success": [], "postconditions_failure": [],
+      "fe_technical_note": ""
+    }
+  ],
+  "validation_rules": [
+    {
+      "id": "VR-01", "screen": "", "field": "", "data_type": "",
+      "required": true, "rule_fe": "", "rule_be": "",
+      "trigger": "", "ux_behavior": "", "error_code": "", "message": ""
+    }
+  ],
+  "traceability_matrix": [
+    { "fr_id": "", "br_id": "", "uc_id": "", "vr_ids": [], "tc_ids_tbd": [] }
+  ]
+}
+```
+
+---
+
+### Layer 3 — JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt4-document-output.schema.json",
+  "title": "GPT-4 Document Writer Output",
+  "type": "object",
+  "required": ["doc_id","design_ref","doc_type","glossary","scope","stakeholders","use_cases","validation_rules","traceability_matrix"],
+  "additionalProperties": false,
+  "properties": {
+    "doc_id": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}-.+$" },
+    "design_ref": { "type": "string" },
+    "doc_type": { "type": "string", "enum": ["SRS","BRD","USE_CASES","VALIDATION_RULES"] },
+    "glossary": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["term","definition","example","not_to_confuse_with"], "additionalProperties": false,
+        "properties": {
+          "term": { "type": "string" }, "definition": { "type": "string" },
+          "example": { "type": "string" }, "not_to_confuse_with": { "type": "string" }
+        }
+      }
+    },
+    "scope": {
+      "type": "object", "required": ["in_scope","out_of_scope"], "additionalProperties": false,
+      "properties": {
+        "in_scope": { "type": "array", "items": { "type": "string" } },
+        "out_of_scope": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "stakeholders": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["name","role","concern","approval_needed"], "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" }, "role": { "type": "string" },
+          "concern": { "type": "string" }, "approval_needed": { "type": "boolean" }
+        }
+      }
+    },
+    "use_cases": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id","name","actor","trigger","fr_refs","br_refs","preconditions","main_flow","alternative_flows","exception_flows","postconditions_success","postconditions_failure","fe_technical_note"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^UC-\\d{2}$" },
+          "name": { "type": "string" }, "actor": { "type": "string" }, "trigger": { "type": "string" },
+          "fr_refs": { "type": "array", "items": { "type": "string" } },
+          "br_refs": { "type": "array", "items": { "type": "string" } },
+          "preconditions": { "type": "array", "items": { "type": "string" } },
+          "main_flow": { "type": "array", "items": { "type": "string" } },
+          "alternative_flows": { "type": "array", "items": { "type": "string" } },
+          "exception_flows": { "type": "array", "items": { "type": "string" } },
+          "postconditions_success": { "type": "array", "items": { "type": "string" } },
+          "postconditions_failure": { "type": "array", "items": { "type": "string" } },
+          "fe_technical_note": { "type": "string" }
+        }
+      }
+    },
+    "validation_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id","screen","field","data_type","required","rule_fe","rule_be","trigger","ux_behavior","error_code","message"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^VR-\\d{2}$" },
+          "screen": { "type": "string" }, "field": { "type": "string" },
+          "data_type": { "type": "string" }, "required": { "type": "boolean" },
+          "rule_fe": { "type": "string" }, "rule_be": { "type": "string" },
+          "trigger": { "type": "string", "enum": ["on-blur","on-submit","on-change"] },
+          "ux_behavior": { "type": "string", "enum": ["Inline","Toast","Modal","Disable submit"] },
+          "error_code": { "type": "string" }, "message": { "type": "string" }
+        }
+      }
+    },
+    "traceability_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["fr_id","br_id","uc_id","vr_ids","tc_ids_tbd"], "additionalProperties": false,
+        "properties": {
+          "fr_id": { "type": "string" }, "br_id": { "type": "string" },
+          "uc_id": { "type": "string" },
+          "vr_ids": { "type": "array", "items": { "type": "string" } },
+          "tc_ids_tbd": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### Layer 4 — Human Template
+
+```markdown
+# {{doc_type}} Document — {{doc_id}}
+**Design ref:** {{design_ref}}
+
+## Glossary
+
+| Thuật ngữ | Định nghĩa | Ví dụ | Không nhầm với |
+|-----------|-----------|-------|----------------|
+{{#each glossary}}
+| {{term}} | {{definition}} | {{example}} | {{not_to_confuse_with}} |
+{{/each}}
+
+## Phạm vi
+**In scope:** {{scope.in_scope | join ", "}}
+**Out of scope:** {{scope.out_of_scope | join ", "}}
+
+## Use Cases
+
+{{#each use_cases}}
+### {{id}} — {{name}}
+**Actor:** {{actor}} | **Trigger:** {{trigger}}
+**FR refs:** {{fr_refs | join ", "}} | **BR refs:** {{br_refs | join ", "}}
+
+**Preconditions:** {{preconditions | join "; "}}
+
+**Main flow:**
+{{#each main_flow}}
+{{@index_plus_1}}. {{this}}
+{{/each}}
+
+**Exception flows:** {{exception_flows | join " · "}}
+
+**Postconditions (success):** {{postconditions_success | join " · "}}
+**Postconditions (failure):** {{postconditions_failure | join " · "}}
+
+> FE Note: {{fe_technical_note}}
+{{/each}}
+
+## Validation Rules
+
+| ID | Screen | Field | Type | Required | Trigger | UX | Error | Message |
+|----|--------|-------|------|----------|---------|-----|-------|---------| 
+{{#each validation_rules}}
+| {{id}} | {{screen}} | {{field}} | {{data_type}} | {{required}} | {{trigger}} | {{ux_behavior}} | {{error_code}} | {{message}} |
+{{/each}}
+
+## Traceability Matrix
+
+| FR | BR | UC | VR | TC (TBD) |
+|----|-----|-----|-----|---------| 
+{{#each traceability_matrix}}
+| {{fr_id}} | {{br_id}} | {{uc_id}} | {{vr_ids | join ", "}} | {{tc_ids_tbd | join ", "}} |
+{{/each}}
+```
+

@@ -229,3 +229,169 @@ Cung cấp cho GPT-7 Deployment Spec:
 ✅ Environment requirements (dev/staging/prod) — từ GPT-3
 ✅ Go-live readiness criteria — từ Section 4.3
 ```
+
+---
+
+## 4-Layer Structured Output (Machine-Parseable Mode)
+
+> Dùng khi user yêu cầu "structured JSON", "4-layer", "pipeline JSON".
+
+### Layer 1 — Prompt
+
+```
+You are GPT-7 QA Reviewer in the MyGPT BA Suite pipeline.
+
+Your job: check cross-pipeline consistency, generate test cases by level with owner, produce UAT plan with quantified exit criteria.
+
+CRITICAL: Always separate test levels with ownership:
+- Unit Tests: Owner = Developer
+- Integration Tests: Owner = QA/Dev (run in CI)
+- E2E Tests: Owner = QA Team
+- UAT: Owner = Business Stakeholders (NOT QA)
+
+Security tests must map to OWASP Top 10 (2021) — not generic phrases.
+BLOCK (verdict) = must fix before dev starts. WARN = must fix before QA sign-off.
+
+OUTPUT RULES (NON-NEGOTIABLE):
+- Respond ONLY with a single JSON object conforming to the Machine Template.
+- IDs: CHK-01, UT-01, IT-01, E2E-01, SEC-01, PERF-01, A11Y-01, UAT-01, TDATA-01.
+- Language: match the user's input language.
+
+MACHINE TEMPLATE TO FILL:
+{
+  "qa_id": "<ISO date>-<slug>",
+  "spec_ref": "<spec_id from GPT-6>",
+  "consistency_checks": [
+    { "id": "CHK-01", "issue": "", "location_a": "", "location_b": "", "severity": "<Critical|High|Medium>", "verdict": "<BLOCK|WARN>", "fix": "" }
+  ],
+  "unit_tests": [
+    { "id": "UT-01", "module": "", "test": "", "expected": "", "regression_tag": "<Smoke|Regression>" }
+  ],
+  "integration_tests": [
+    { "id": "IT-01", "scenario": "", "precondition": "", "steps": [], "expected": "", "http_status": "", "regression_tag": "<Smoke|Regression>" }
+  ],
+  "e2e_tests": [
+    { "id": "E2E-01", "uc_ref": "UC-01", "title": "", "precondition": "", "steps": [], "expected_result": "", "test_data": "", "priority": "<P1|P2|P3>", "regression_tag": "<Smoke|Regression|Full>" }
+  ],
+  "security_tests": [
+    { "id": "SEC-01", "owasp_category": "", "scenario": "", "steps": [], "expected": "", "severity": "<Critical|High|Medium>" }
+  ],
+  "performance_tests": [
+    { "id": "PERF-01", "scenario": "", "tool": "", "config": "", "success_criteria": "" }
+  ],
+  "a11y_tests": [
+    { "id": "A11Y-01", "wcag_criterion": "", "test": "", "tool": "", "expected": "" }
+  ],
+  "test_data_sets": [
+    { "id": "TDATA-01", "name": "", "used_for": "", "created_by": "", "scope": "", "reset_strategy": "" }
+  ],
+  "uat_plan": {
+    "participants": [{ "stakeholder": "", "role": "", "feature_area": "", "dates": "" }],
+    "uat_tests": [{ "id": "UAT-01", "feature": "", "business_scenario": "", "actor": "", "steps": [], "expected_outcome": "" }],
+    "exit_criteria": [{ "criteria": "", "threshold": "", "current": null }],
+    "defect_severity_matrix": [{ "severity": "<P1|P2|P3|P4>", "definition": "", "example": "", "sla_fix": "" }]
+  },
+  "regression_strategy": [
+    { "set": "<Smoke|Regression|Full>", "trigger": "", "tc_included": "", "estimated_run_min": 0 }
+  ]
+}
+```
+
+---
+
+### Layer 2 — Machine Template
+
+```json
+{
+  "qa_id": "", "spec_ref": "",
+  "consistency_checks": [{ "id": "CHK-01", "issue": "", "location_a": "", "location_b": "", "severity": "", "verdict": "", "fix": "" }],
+  "unit_tests": [{ "id": "UT-01", "module": "", "test": "", "expected": "", "regression_tag": "" }],
+  "integration_tests": [{ "id": "IT-01", "scenario": "", "precondition": "", "steps": [], "expected": "", "http_status": "", "regression_tag": "" }],
+  "e2e_tests": [{ "id": "E2E-01", "uc_ref": "", "title": "", "precondition": "", "steps": [], "expected_result": "", "test_data": "", "priority": "", "regression_tag": "" }],
+  "security_tests": [{ "id": "SEC-01", "owasp_category": "", "scenario": "", "steps": [], "expected": "", "severity": "" }],
+  "performance_tests": [{ "id": "PERF-01", "scenario": "", "tool": "", "config": "", "success_criteria": "" }],
+  "a11y_tests": [{ "id": "A11Y-01", "wcag_criterion": "", "test": "", "tool": "", "expected": "" }],
+  "test_data_sets": [{ "id": "TDATA-01", "name": "", "used_for": "", "created_by": "", "scope": "", "reset_strategy": "" }],
+  "uat_plan": {
+    "participants": [{ "stakeholder": "", "role": "", "feature_area": "", "dates": "" }],
+    "uat_tests": [{ "id": "UAT-01", "feature": "", "business_scenario": "", "actor": "", "steps": [], "expected_outcome": "" }],
+    "exit_criteria": [{ "criteria": "", "threshold": "", "current": null }],
+    "defect_severity_matrix": [{ "severity": "", "definition": "", "example": "", "sla_fix": "" }]
+  },
+  "regression_strategy": [{ "set": "", "trigger": "", "tc_included": "", "estimated_run_min": 0 }]
+}
+```
+
+---
+
+### Layer 3 — JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt7-qa-output.schema.json",
+  "title": "GPT-7 QA Reviewer Output",
+  "type": "object",
+  "required": ["qa_id","spec_ref","consistency_checks","unit_tests","integration_tests","e2e_tests","security_tests","performance_tests","a11y_tests","test_data_sets","uat_plan","regression_strategy"],
+  "additionalProperties": false,
+  "properties": {
+    "qa_id": { "type": "string" }, "spec_ref": { "type": "string" },
+    "consistency_checks": { "type": "array", "items": { "type": "object", "required": ["id","issue","location_a","location_b","severity","verdict","fix"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^CHK-\\d{2}$" }, "issue": { "type": "string" }, "location_a": { "type": "string" }, "location_b": { "type": "string" }, "severity": { "type": "string", "enum": ["Critical","High","Medium"] }, "verdict": { "type": "string", "enum": ["BLOCK","WARN"] }, "fix": { "type": "string" } } } },
+    "unit_tests": { "type": "array", "items": { "type": "object", "required": ["id","module","test","expected","regression_tag"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^UT-\\d{2}$" }, "module": { "type": "string" }, "test": { "type": "string" }, "expected": { "type": "string" }, "regression_tag": { "type": "string", "enum": ["Smoke","Regression"] } } } },
+    "integration_tests": { "type": "array", "items": { "type": "object", "required": ["id","scenario","precondition","steps","expected","http_status","regression_tag"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^IT-\\d{2}$" }, "scenario": { "type": "string" }, "precondition": { "type": "string" }, "steps": { "type": "array", "items": { "type": "string" } }, "expected": { "type": "string" }, "http_status": { "type": "string" }, "regression_tag": { "type": "string", "enum": ["Smoke","Regression"] } } } },
+    "e2e_tests": { "type": "array", "items": { "type": "object", "required": ["id","uc_ref","title","precondition","steps","expected_result","test_data","priority","regression_tag"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^E2E-\\d{2}$" }, "uc_ref": { "type": "string" }, "title": { "type": "string" }, "precondition": { "type": "string" }, "steps": { "type": "array", "items": { "type": "string" } }, "expected_result": { "type": "string" }, "test_data": { "type": "string" }, "priority": { "type": "string", "enum": ["P1","P2","P3"] }, "regression_tag": { "type": "string", "enum": ["Smoke","Regression","Full"] } } } },
+    "security_tests": { "type": "array", "items": { "type": "object", "required": ["id","owasp_category","scenario","steps","expected","severity"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^SEC-\\d{2}$" }, "owasp_category": { "type": "string" }, "scenario": { "type": "string" }, "steps": { "type": "array", "items": { "type": "string" } }, "expected": { "type": "string" }, "severity": { "type": "string", "enum": ["Critical","High","Medium"] } } } },
+    "performance_tests": { "type": "array", "items": { "type": "object", "required": ["id","scenario","tool","config","success_criteria"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^PERF-\\d{2}$" }, "scenario": { "type": "string" }, "tool": { "type": "string" }, "config": { "type": "string" }, "success_criteria": { "type": "string" } } } },
+    "a11y_tests": { "type": "array", "items": { "type": "object", "required": ["id","wcag_criterion","test","tool","expected"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^A11Y-\\d{2}$" }, "wcag_criterion": { "type": "string" }, "test": { "type": "string" }, "tool": { "type": "string" }, "expected": { "type": "string" } } } },
+    "test_data_sets": { "type": "array", "items": { "type": "object", "required": ["id","name","used_for","created_by","scope","reset_strategy"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^TDATA-\\d{2}$" }, "name": { "type": "string" }, "used_for": { "type": "string" }, "created_by": { "type": "string" }, "scope": { "type": "string" }, "reset_strategy": { "type": "string" } } } },
+    "uat_plan": { "type": "object", "required": ["participants","uat_tests","exit_criteria","defect_severity_matrix"], "additionalProperties": false, "properties": { "participants": { "type": "array", "items": { "type": "object", "required": ["stakeholder","role","feature_area","dates"], "additionalProperties": false, "properties": { "stakeholder": { "type": "string" }, "role": { "type": "string" }, "feature_area": { "type": "string" }, "dates": { "type": "string" } } } }, "uat_tests": { "type": "array", "items": { "type": "object", "required": ["id","feature","business_scenario","actor","steps","expected_outcome"], "additionalProperties": false, "properties": { "id": { "type": "string", "pattern": "^UAT-\\d{2}$" }, "feature": { "type": "string" }, "business_scenario": { "type": "string" }, "actor": { "type": "string" }, "steps": { "type": "array", "items": { "type": "string" } }, "expected_outcome": { "type": "string" } } } }, "exit_criteria": { "type": "array", "items": { "type": "object", "required": ["criteria","threshold","current"], "additionalProperties": false, "properties": { "criteria": { "type": "string" }, "threshold": { "type": "string" }, "current": { "type": ["string","null"] } } } }, "defect_severity_matrix": { "type": "array", "items": { "type": "object", "required": ["severity","definition","example","sla_fix"], "additionalProperties": false, "properties": { "severity": { "type": "string", "enum": ["P1","P2","P3","P4"] }, "definition": { "type": "string" }, "example": { "type": "string" }, "sla_fix": { "type": "string" } } } } } },
+    "regression_strategy": { "type": "array", "items": { "type": "object", "required": ["set","trigger","tc_included","estimated_run_min"], "additionalProperties": false, "properties": { "set": { "type": "string", "enum": ["Smoke","Regression","Full"] }, "trigger": { "type": "string" }, "tc_included": { "type": "string" }, "estimated_run_min": { "type": "integer" } } } }
+  }
+}
+```
+
+---
+
+### Layer 4 — Human Template
+
+```markdown
+# QA Review — {{qa_id}}
+**Spec ref:** {{spec_ref}}
+
+## Consistency Checks
+
+| ID | Vấn đề | Location A | Location B | Severity | Verdict | Sửa |
+|----|--------|-----------|-----------|---------|---------|-----|
+{{#each consistency_checks}}
+| {{id}} | {{issue}} | {{location_a}} | {{location_b}} | {{severity}} | {{verdict}} | {{fix}} |
+{{/each}}
+
+## Test Cases — Unit (Owner: Developer)
+| ID | Module | Test | Expected | Tag |
+|----|--------|------|---------|-----|
+{{#each unit_tests}}
+| {{id}} | {{module}} | {{test}} | {{expected}} | {{regression_tag}} |
+{{/each}}
+
+## Test Cases — E2E (Owner: QA Team)
+| ID | UC | Title | Priority | Tag |
+|----|-----|-------|---------|-----|
+{{#each e2e_tests}}
+| {{id}} | {{uc_ref}} | {{title}} | {{priority}} | {{regression_tag}} |
+{{/each}}
+
+## UAT Exit Criteria
+| Criteria | Threshold | Current | Status |
+|---------|-----------|---------|--------|
+{{#each uat_plan.exit_criteria}}
+| {{criteria}} | {{threshold}} | {{current}} | — |
+{{/each}}
+
+## Regression Strategy
+| Set | Trigger | TCs included | Est. run time |
+|-----|---------|-------------|--------------|
+{{#each regression_strategy}}
+| {{set}} | {{trigger}} | {{tc_included}} | {{estimated_run_min}} min |
+{{/each}}
+```
+
