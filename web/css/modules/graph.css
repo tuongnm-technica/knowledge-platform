@@ -37,7 +37,11 @@
 }
 
 [data-theme="dark"] .graph-panel {
-  background: linear-gradient(180deg, rgba(19,28,34,0.92), rgba(23,32,40,0.78));
+  background-color: rgba(10,16,22,0.92);
+  background-image: 
+    radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(10,16,22,0.92), rgba(15,23,34,0.88));
+  background-size: 20px 20px, 100% 100%;
 }
 
 /* ── GRAPH TOOLBAR ── */
@@ -550,7 +554,11 @@
 .graph-canvas-wrap {
   position: relative;
   width: 100%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(240,248,255,0.38));
+  background-color: rgba(255,255,255,0.55);
+  background-image: 
+    radial-gradient(rgba(100,120,200,0.15) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,0.55), rgba(240,248,255,0.38));
+  background-size: 20px 20px, 100% 100%;
   cursor: crosshair;
   min-height: 500px;
   overflow: hidden;
