@@ -34,17 +34,27 @@ class FileParser:
 
     def _parse_docx(self, data: bytes) -> str:
         from docx import Document
+        from docx.oxml.text.paragraph import CT_P
+        from docx.oxml.table import CT_Tbl
+        from docx.text.paragraph import Paragraph
+        from docx.table import Table
+
         doc   = Document(io.BytesIO(data))
         parts = []
-        for para in doc.paragraphs:
-            if para.text.strip():
-                parts.append(para.text.strip())
-        # Đọc cả tables
-        for table in doc.tables:
-            for row in table.rows:
-                cells = [c.text.strip() for c in row.cells if c.text.strip()]
-                if cells:
-                    parts.append(" | ".join(cells))
+        
+        # Duyệt qua các block (đoạn văn & bảng) theo đúng thứ tự xuất hiện trong file
+        for child in doc.element.body.iterchildren():
+            if isinstance(child, CT_P):
+                para = Paragraph(child, doc)
+                if para.text.strip():
+                    parts.append(para.text.strip())
+            elif isinstance(child, CT_Tbl):
+                table = Table(child, doc)
+                for row in table.rows:
+                    cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                    if cells:
+                        parts.append(" | ".join(cells))
+                        
         return "\n\n".join(parts)
 
     def _parse_xlsx(self, data: bytes) -> str:

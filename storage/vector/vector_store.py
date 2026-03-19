@@ -87,6 +87,35 @@ class VectorStore:
         )
         self._client.upsert(collection_name=settings.QDRANT_COLLECTION, points=[point])
 
+    def upsert_batch(self, chunks_data: list[dict]) -> None:
+        """
+        Upsert nhiều vector cùng lúc để tối ưu hiệu năng mạng.
+        chunks_data format: [{"chunk_id": str, "document_id": str, "vector": list, "content": str, "source": str, "title": str}]
+        """
+        if not chunks_data:
+            return
+            
+        points = []
+        for data in chunks_data:
+            chunk_id = data["chunk_id"]
+            points.append(
+                PointStruct(
+                    id=str(uuid.UUID(chunk_id)) if self._is_uuid(chunk_id) else abs(hash(chunk_id)) % (2**63),
+                    vector=data["vector"],
+                    payload={
+                        "chunk_id": chunk_id,
+                        "document_id": data["document_id"],
+                        "content": data["content"],
+                        "source": data.get("source", ""),
+                        "title": data.get("title", ""),
+                    },
+                )
+            )
+            
+        # Đẩy toàn bộ lên Qdrant trong 1 network call duy nhất
+        self._client.upsert(collection_name=settings.QDRANT_COLLECTION, points=points)
+        log.debug("qdrant.upsert_batch.done", count=len(points))
+
     def similarity_search(
         self,
         query_vector: list[float],

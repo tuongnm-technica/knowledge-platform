@@ -220,6 +220,26 @@
   color: var(--text-muted);
 }
 
+.pager-btn {
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pager-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--glow);
+}
+
+.pager-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {
   .search-page-content { padding: 16px; }

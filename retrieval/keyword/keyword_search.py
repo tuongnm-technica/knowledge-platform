@@ -46,7 +46,7 @@ class KeywordSearch:
         """
 
         tsquery_expr = "websearch_to_tsquery('simple', :q)"
-        filter_clause = "c.document_id::text = ANY(:doc_ids) AND " if allowed_document_ids else ""
+        filter_clause = "c.document_id::text = ANY(:doc_ids::text[]) AND " if allowed_document_ids else ""
 
         sql = base_sql.format(
             tsquery_expr=tsquery_expr,
@@ -95,7 +95,7 @@ class KeywordSearch:
             return []
 
         conditions = " OR ".join([f"c.content ILIKE :w{i}" for i in range(len(words))])
-        filter_clause = "c.document_id::text = ANY(:doc_ids) AND " if allowed_document_ids else ""
+        filter_clause = "c.document_id::text = ANY(:doc_ids::text[]) AND " if allowed_document_ids else ""
 
         sql = f"""
             SELECT

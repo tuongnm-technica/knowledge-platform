@@ -32,6 +32,7 @@ async def graph_health(
         allowed_docs = await perm_filter.allowed_docs(current_user.user_id)
         
         # Build query - admins see all, others see filtered
+        params = {}
         base_query = "SELECT source, COUNT(*) AS c FROM documents"
         if allowed_docs is not None:
             # User is non-admin: filter by allowed documents
@@ -46,22 +47,23 @@ async def graph_health(
                     "staleSources": [],
                     "missingConnectors": [],
                 }
-            base_query += f" WHERE id::text = ANY(ARRAY{allowed_docs!r}::text[])"
+            base_query += " WHERE id::text = ANY(:allowed::text[])"
+            params["allowed"] = list(allowed_docs)
         
         base_query += " GROUP BY source ORDER BY c DESC"
         
         docs_by_source = (
-            await session.execute(text(base_query))
+            await session.execute(text(base_query), params)
         ).mappings().all()
         docs_by_source = [{"source": r["source"], "count": int(r["c"])} for r in docs_by_source]
 
         latest_query = "SELECT source, MAX(updated_at) AS latest FROM documents"
         if allowed_docs is not None and allowed_docs:
-            latest_query += f" WHERE id::text = ANY(ARRAY{allowed_docs!r}::text[])"
+            latest_query += " WHERE id::text = ANY(:allowed::text[])"
         latest_query += " GROUP BY source"
         
         latest_by_source = (
-            await session.execute(text(latest_query))
+            await session.execute(text(latest_query), params)
         ).mappings().all()
         latest_map = {r["source"]: r["latest"] for r in latest_by_source}
 
@@ -174,7 +176,8 @@ async def graph_snapshot(
         params = {"limit": limit}
         
         if allowed_docs is not None:
-            entity_query += f" WHERE de.document_id::text = ANY(ARRAY{allowed_docs!r}::text[])"
+            entity_query += " WHERE de.document_id::text = ANY(:allowed::text[])"
+            params["allowed"] = list(allowed_docs)
         
         entity_query += """
             GROUP BY e.id, e.name, e.entity_type
@@ -203,14 +206,14 @@ async def graph_snapshot(
         edges_query = """
             SELECT source_id::text AS source, target_id::text AS target, relation_type
             FROM entity_relations
-            WHERE source_id::text = ANY(:ids) AND target_id::text = ANY(:ids)
+            WHERE source_id::text = ANY(:ids::text[]) AND target_id::text = ANY(:ids::text[])
             LIMIT :edge_limit
         """
 
         edges_result = (
             await session.execute(
                 text(edges_query),
-                {"ids": ids, "edge_limit": edge_limit}
+                {"ids": list(ids), "edge_limit": edge_limit}
             )
         ).mappings().all()
 
@@ -373,13 +376,15 @@ async def graph_node_detail(
             # Node is an entity
             # Get mention count
             mention_query = "SELECT COUNT(*) AS mentions FROM document_entities WHERE entity_id::text = :node_id"
+            params = {"node_id": node_id}
             
             if allowed_docs is not None:
-                mention_query += f" AND document_id::text = ANY(ARRAY{allowed_docs!r}::text[])"
+                mention_query += " AND document_id::text = ANY(:allowed::text[])"
+                params["allowed"] = list(allowed_docs)
             
             mention_result = await session.execute(
                 text(mention_query),
-                {"node_id": node_id}
+                params
             )
             mentions = mention_result.scalar() or 0
             

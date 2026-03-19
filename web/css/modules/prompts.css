@@ -216,6 +216,80 @@
   color: var(--text-muted);
 }
 
+/* ── Tabs Chế độ xem ── */
+.prompt-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg3, rgba(0,0,0,0.05));
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+[data-theme="dark"] .prompt-tabs { background: rgba(255,255,255,0.05); }
+
+.prompt-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 5px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.prompt-tab-btn:hover { color: var(--text); }
+
+.prompt-tab-btn.active {
+  background: var(--bg, #fff);
+  color: var(--text);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] .prompt-tab-btn.active {
+  background: var(--bg2, rgba(30,41,59,1));
+}
+
+/* ── Markdown Preview ── */
+.prompt-preview {
+  flex: 1;
+  background: var(--bg2, rgba(255,250,242,0.5));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 28px;
+  overflow-y: auto;
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 13.5px;
+  box-sizing: border-box;
+}
+
+.prompt-preview h1, .prompt-preview h2, .prompt-preview h3, .prompt-preview h4 { margin-top: 0; color: var(--text); }
+.prompt-preview pre {
+  background: var(--bg3, rgba(0,0,0,0.04));
+  padding: 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--border-strong);
+}
+[data-theme="dark"] .prompt-preview pre { background: rgba(0,0,0,0.2); }
+
+.prompt-preview code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12.5px; }
+
+.prompt-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+}
+.prompt-preview th, .prompt-preview td {
+  border: 1px solid var(--border-strong);
+  padding: 8px 12px;
+  text-align: left;
+}
+.prompt-preview th { background: var(--bg3); font-weight: 600; }
+
 .prompt-edit-hint {
   color: var(--accent, #0f766e);
   font-weight: 600;
@@ -320,3 +394,48 @@
     max-height: 260px;
   }
 }
+
+/* ── CODEMIRROR OVERRIDES ── */
+.CodeMirror {
+  flex: 1;
+  height: 100% !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg2, rgba(255,250,242,0.5));
+  color: var(--text);
+  transition: all 0.15s;
+  padding: 8px 0;
+}
+
+.CodeMirror-focused {
+  border-color: var(--border-active, rgba(15,118,110,0.4));
+  box-shadow: 0 0 0 3px var(--glow, rgba(15,118,110,0.08));
+}
+
+.CodeMirror-gutters {
+  background: var(--bg3, rgba(0,0,0,0.02));
+  border-right: 1px solid var(--border);
+}
+
+.CodeMirror-linenumber {
+  color: var(--text-dim);
+}
+
+.CodeMirror-cursor {
+  border-left: 2px solid var(--accent, #0f766e);
+}
+
+[data-theme="dark"] .CodeMirror {
+  background: rgba(30,41,59,0.5);
+}
+
+/* Syntax highlighting colors */
+.cm-header { font-weight: 800; color: var(--accent, #0f766e); }
+.cm-string { color: #10b981; }
+.cm-variable-2 { color: #3b82f6; }
+.cm-comment { color: var(--text-muted); font-style: italic; }
+.cm-quote { color: #f59e0b; }
+.cm-link { color: #3b82f6; text-decoration: underline; }

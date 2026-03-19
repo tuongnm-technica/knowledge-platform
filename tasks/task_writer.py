@@ -193,7 +193,8 @@ async def build_task_from_answer(
             for cid in chunk_ids[:10]:
                 for a in (assets_by_chunk.get(cid) or [])[:2]:
                     aid = str(a.get("asset_id") or "").strip()
-                    rel = str(a.get("local_path") or "").strip().replace("\\", "/")
+                    # Lstrip('/') quan trọng để ngăn thư viện Path coi đây là absolute path
+                    rel = str(a.get("local_path") or "").strip().replace("\\", "/").lstrip("/")
                     if not aid or not rel or aid in picked:
                         continue
                     try:

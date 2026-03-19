@@ -54,7 +54,8 @@ class HybridSearch:
             )
             # Use per-request weights (don't mutate instance/class state).
             import re
-            if re.search(r"\d+/\d+/\d+", query):
+            # Bắt cả ngày tháng ngắn dạng DD/MM (vd: 9/2, 11/3) thay vì chỉ DD/MM/YYYY
+            if re.search(r"\d+/\d+", query):
                 keyword_weight = 0.7
                 vector_weight = 0.3
             else:

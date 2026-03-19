@@ -146,7 +146,7 @@ async def me(
     row = result.mappings().first()
 
     if not row:
-        raise HTTPException(status_code=404, detail="User khong ton tai")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User khong ton tai (vui long dang nhap lai)")
 
     role = normalize_role(row.get("role") or "standard", is_admin=bool(row["is_admin"]))
     effective_admin = bool(row["is_admin"]) or role == ROLE_SYSTEM_ADMIN

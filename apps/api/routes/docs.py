@@ -16,6 +16,7 @@ from persistence.document_repository import DocumentRepository
 from persistence.project_memory_repository import ProjectMemoryRepository
 from prompts.doc_draft_prompt import SUPPORTED_DOC_TYPES, build_doc_system_prompt, build_doc_user_prompt
 from storage.db.db import get_db
+from orchestration.agent import OllamaLLM
 
 
 log = structlog.get_logger()
@@ -128,6 +129,10 @@ def _parse_llm_response(text: str) -> tuple[str, dict]:
     match = re.search(r"<json>\s*(.*?)\s*</json>", text, re.DOTALL | re.IGNORECASE)
     if match:
         json_str = match.group(1)
+        
+        # Dọn dẹp lỗi phổ biến của AI: bọc thêm markdown ```json ... ``` bên trong thẻ <json>
+        json_str = re.sub(r"^```(?:json)?|```$", "", json_str.strip(), flags=re.MULTILINE).strip()
+        
         try:
             structured_data = json.loads(json_str)
         except Exception as e:
@@ -139,6 +144,59 @@ def _parse_llm_response(text: str) -> tuple[str, dict]:
         content = text.strip()
         
     return content, structured_data
+
+
+def _build_memory_prompt(memory_grouped: dict) -> str:
+    if not memory_grouped:
+        return ""
+    
+    lines = [
+        "\n\n--- PROJECT MEMORY ---",
+        "You MUST adhere to these previously defined concepts and roles. Do not redefine them differently."
+    ]
+    
+    for mtype, items in memory_grouped.items():
+        lines.append(f"\n## {mtype.upper()}:")
+        # Giới hạn 50 items mỗi loại, cắt ngắn content để tránh nổ token
+        for item in items[:50]:
+            key = str(item.get("key") or "").strip()
+            content = str(item.get("content") or "").strip()[:400]
+            if key and content:
+                lines.append(f"- {key}: {content}")
+    
+    lines.append("------------------------\n")
+    return "\n".join(lines)
+
+
+async def _extract_and_save_memory(structured_data: dict, repo: ProjectMemoryRepository, user_id: str):
+    if not structured_data:
+        return
+        
+    # 1. Trích xuất Glossary
+    for item in structured_data.get("glossary", []):
+        if isinstance(item, dict):
+            k = item.get("term")
+            v = item.get("definition")
+            if k and v:
+                await repo.upsert(memory_type="glossary", key=k[:255], content=v[:1000], created_by=user_id)
+                
+    # 2. Trích xuất Stakeholders / Actors (Tương thích chuẩn JSON Schema mới)
+    stakeholders = structured_data.get("stakeholders") or structured_data.get("actors") or []
+    for item in stakeholders:
+        if isinstance(item, dict):
+            k = item.get("name") or item.get("actor")
+            v = item.get("role") or item.get("description")
+            if k and v:
+                await repo.upsert(memory_type="actor", key=k[:255], content=v[:1000], created_by=user_id)
+
+    # 3. Trích xuất Business Rules (Dự phòng nếu AI có sinh ra field này)
+    rules = structured_data.get("business_rules") or structured_data.get("rules") or []
+    for item in rules:
+        if isinstance(item, dict):
+            k = item.get("id") or item.get("rule")
+            v = item.get("description") or item.get("desc")
+            if k and v:
+                await repo.upsert(memory_type="rule", key=k[:255], content=v[:1000], created_by=user_id)
 
 
 @router.get("/supported-types")
@@ -190,13 +248,7 @@ async def create_doc_draft_from_answer(
     system += "\n\nCRITICAL REQUIREMENT: You MUST output a structured JSON representing the core data of your response. Place this JSON anywhere in your response wrapped exactly in <json> and </json> tags."
 
     memory_grouped = await ProjectMemoryRepository(session).get_all_grouped()
-    if memory_grouped:
-        system += "\n\n--- PROJECT MEMORY ---\nYou MUST adhere to these previously defined concepts and roles. Do not redefine them differently.\n"
-        for mtype, items in memory_grouped.items():
-            system += f"\n## {mtype.upper()}:\n"
-            for item in items:
-                system += f"- {item['key']}: {item['content']}\n"
-        system += "------------------------\n"
+    system += _build_memory_prompt(memory_grouped)
 
     user = build_doc_user_prompt(
         doc_type=doc_type,
@@ -222,17 +274,7 @@ async def create_doc_draft_from_answer(
             content, structured_data = _parse_llm_response(raw_content)
             if structured_data:
                 repo = ProjectMemoryRepository(session)
-                for mtype in ["actor", "actors", "glossary", "terms", "rule", "rules"]:
-                    if mtype in structured_data:
-                        items = structured_data[mtype]
-                        if isinstance(items, list):
-                            for item in items:
-                                if isinstance(item, dict):
-                                    k = item.get("name") or item.get("term") or item.get("actor")
-                                    v = item.get("description") or item.get("definition") or item.get("desc")
-                                    if k and v:
-                                        ntype = "actor" if "actor" in mtype else ("rule" if "rule" in mtype else "glossary")
-                                        await repo.upsert(memory_type=ntype, key=k, content=v, created_by=current_user.user_id)
+                await _extract_and_save_memory(structured_data, repo, current_user.user_id)
         except Exception as exc:
             log.error("docs.draft.llm_failed", doc_type=doc_type, error=str(exc))
             content = ""
@@ -292,13 +334,7 @@ async def create_doc_draft_from_documents(
     system += "\n\nCRITICAL REQUIREMENT: You MUST output a structured JSON representing the core data of your response. Place this JSON anywhere in your response wrapped exactly in <json> and </json> tags."
 
     memory_grouped = await ProjectMemoryRepository(session).get_all_grouped()
-    if memory_grouped:
-        system += "\n\n--- PROJECT MEMORY ---\nYou MUST adhere to these previously defined concepts and roles. Do not redefine them differently.\n"
-        for mtype, items in memory_grouped.items():
-            system += f"\n## {mtype.upper()}:\n"
-            for item in items:
-                system += f"- {item['key']}: {item['content']}\n"
-        system += "------------------------\n"
+    system += _build_memory_prompt(memory_grouped)
 
     user = build_doc_user_prompt(
         doc_type=doc_type,
@@ -324,17 +360,7 @@ async def create_doc_draft_from_documents(
             content, structured_data = _parse_llm_response(raw_content)
             if structured_data:
                 repo = ProjectMemoryRepository(session)
-                for mtype in ["actor", "actors", "glossary", "terms", "rule", "rules"]:
-                    if mtype in structured_data:
-                        items = structured_data[mtype]
-                        if isinstance(items, list):
-                            for item in items:
-                                if isinstance(item, dict):
-                                    k = item.get("name") or item.get("term") or item.get("actor")
-                                    v = item.get("description") or item.get("definition") or item.get("desc")
-                                    if k and v:
-                                        ntype = "actor" if "actor" in mtype else ("rule" if "rule" in mtype else "glossary")
-                                        await repo.upsert(memory_type=ntype, key=k, content=v, created_by=current_user.user_id)
+                await _extract_and_save_memory(structured_data, repo, current_user.user_id)
         except Exception as exc:
             log.error("docs.draft.llm_failed", doc_type=doc_type, error=str(exc))
             content = ""
@@ -482,4 +508,3 @@ async def delete_project_memory(
     if not ok:
         raise HTTPException(status_code=404, detail="Không tìm thấy memory entry.")
     return {"status": "deleted", "id": memory_id}
-

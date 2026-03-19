@@ -72,17 +72,23 @@ class VectorIndex:
 
         await self._session.commit()
 
+        # Tối ưu hóa: Đẩy dữ liệu lên Qdrant theo Batch thay vì từng Point một (N+1 Problem)
+        batch_data = []
         for chunk, vector in zip(chunks, vectors):
-            try:
-                self._store.upsert(
-                    chunk_id=chunk.id,
-                    document_id=chunk.document_id,
-                    vector=vector,
-                    content=chunk.content,
-                    source=source, 
-                    title=title,
-                )
-            except Exception as e:
-                log.error("vector_index.qdrant.error", chunk_id=chunk.id, error=str(e))
+            batch_data.append({
+                "chunk_id": chunk.id,
+                "document_id": chunk.document_id,
+                "vector": vector,
+                "content": chunk.content,
+                "source": source,
+                "title": title
+            })
+            
+        try:
+            # Gửi 1 lần duy nhất
+            self._store.upsert_batch(batch_data)
+        except Exception as e:
+            log.error("vector_index.qdrant.batch_error", document_id=document_id, error=str(e))
+            # Có thể throw exception ra ngoài để worker Retry lại cả job
 
         log.info("vector_index.done", indexed=len(chunks))

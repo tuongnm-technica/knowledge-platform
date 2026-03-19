@@ -13,8 +13,8 @@ from orchestration.agent_tasks import run_agent_job
 
 log = structlog.get_logger()
 
-# Standard Redis DSN for Docker environment
-REDIS_URL = "redis://redis:6379/0"
+# Lấy URL từ settings, fallback về mặc định cho Docker nếu chưa được định nghĩa
+REDIS_URL = getattr(settings, "REDIS_URL", "redis://redis:6379/0")
 
 async def sync_connector_job(ctx, connector_type: str, instance_id: str, incremental: bool):
     """Task được xử lý ở background, tách bạch hoàn toàn với API server"""
@@ -49,14 +49,22 @@ async def scan_sources_job(ctx, slack_days: int, confluence_days: int, triggered
         log.error("worker.scan_sources_job.failed", triggered_by=triggered_by, error=str(e))
         raise
 
+async def handle_job_end(ctx, job_id, function_name, args, kwargs, outcome):
+    """Cơ chế Dead Letter Queue (DLQ) đơn giản qua log & Redis"""
+    if not outcome.success:
+        log.error("worker.job.dead_letter", job_id=job_id, function_name=function_name, exception=str(outcome.result))
+        # Tại đây BE Dev có thể gọi session DB: await session.execute("INSERT INTO dead_letter_jobs ...")
+
 async def startup(ctx):
     """Khởi tạo các tài nguyên dùng chung cho worker."""
+    log.info("worker.startup", message="Initializing DB connections")
     engine = create_async_engine(settings.DATABASE_URL)
     ctx["db_engine"] = engine
     ctx["db_session_factory"] = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def shutdown(ctx):
     """Dọn dẹp tài nguyên."""
+    log.info("worker.shutdown", message="Disposing DB connections")
     await ctx["db_engine"].dispose()
 
 class BaseWorkerSettings:
@@ -65,6 +73,7 @@ class BaseWorkerSettings:
     health_check_interval = 60
     on_startup = startup
     on_shutdown = shutdown
+    after_job = handle_job_end
 
 
 class IngestionWorkerSettings(BaseWorkerSettings):

@@ -845,24 +845,58 @@ async def start_connector_sync(
     selection = cfg.get("selection") or {}
     connector = _build_connector(connector_type, inst, selection)
 
-    redis = await get_redis_pool()
-    await redis.enqueue_job("sync_connector_job", connector_type, instance_id, incremental)
-    log.info("connectors.sync.queued", key=connector_key)
+    # 1. Bơm log 'running' vào DB để UI hiển thị thanh tiến độ ngay lập tức
+    now = datetime.utcnow()
+    await session.execute(
+        text(
+            """
+            INSERT INTO sync_logs (connector, status, started_at)
+            VALUES (:connector, 'running', :now)
+            """
+        ),
+        {"connector": connector_key, "now": now}
+    )
+    await session.commit()
+
+    # 2. Đẩy job vào queue (chỉ định đúng queue ingestion) hoặc chạy nền nếu lỗi
+    try:
+        redis = await get_redis_pool()
+        queue_name = getattr(settings, "ARQ_INGESTION_QUEUE_NAME", "ingestion")
+        await redis.enqueue_job("sync_connector_job", connector_type, instance_id, incremental, _queue_name=queue_name)
+        log.info("connectors.sync.queued", key=connector_key)
+    except Exception as e:
+        log.warning("connectors.sync.redis_failed_fallback", error=str(e))
+        background_tasks.add_task(_run_sync_task, connector_type, instance_id, incremental)
+        
     return {"status": "started", "connector": connector_key, "incremental": incremental}
 
 
 async def _run_sync_task(connector_type: str, instance_id: str, incremental: bool) -> None:
-    async with AsyncSessionLocal() as session:
-        inst = await _fetch_instance(session, connector_type, instance_id)
-        connector_key = _connector_key(connector_type, instance_id)
-        cfg = await _ensure_connector_config(session, connector_key)
-        selection = cfg.get("selection") or {}
-        connector = _build_connector(connector_type, inst, selection)
-        pipeline = IngestionPipeline(session)
-        
-        start = perf_counter()
-        stats = await pipeline.run(connector, incremental=incremental, connector_key=connector_key)
-        log.info("connectors.sync.done", key=connector_key, elapsed=round(perf_counter() - start, 2), **stats)
+    connector_key = _connector_key(connector_type, instance_id)
+    try:
+        async with AsyncSessionLocal() as session:
+            inst = await _fetch_instance(session, connector_type, instance_id)
+            cfg = await _ensure_connector_config(session, connector_key)
+            selection = cfg.get("selection") or {}
+            connector = _build_connector(connector_type, inst, selection)
+            pipeline = IngestionPipeline(session)
+            
+            start = perf_counter()
+            stats = await pipeline.run(connector, incremental=incremental, connector_key=connector_key)
+            log.info("connectors.sync.done", key=connector_key, elapsed=round(perf_counter() - start, 2), **stats)
+    except Exception as e:
+        log.exception("connectors.sync.failed_bg_task", key=connector_key, error=str(e))
+        # Đảm bảo tắt thanh tiến độ nếu pipeline bị crash ngầm
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text("""
+                    UPDATE sync_logs 
+                    SET status = 'failed', finished_at = :now, errors = errors + 1
+                    WHERE connector = :c AND status = 'running'
+                """),
+                {"c": connector_key, "now": datetime.utcnow()}
+            )
+            await session.commit()
 
 
 async def start_all_configured_syncs(
@@ -894,8 +928,26 @@ async def start_all_configured_syncs(
                 skipped.append({"connector": connector_key, "reason": "Already syncing"})
                 continue
                 
-            redis = await get_redis_pool()
-            await redis.enqueue_job("sync_connector_job", t, inst["id"], incremental)
+            now = datetime.utcnow()
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO sync_logs (connector, status, started_at)
+                    VALUES (:connector, 'running', :now)
+                    """
+                ),
+                {"connector": connector_key, "now": now}
+            )
+            await session.commit()
+
+            try:
+                redis = await get_redis_pool()
+                queue_name = getattr(settings, "ARQ_INGESTION_QUEUE_NAME", "ingestion")
+                await redis.enqueue_job("sync_connector_job", t, inst["id"], incremental, _queue_name=queue_name)
+            except Exception as e:
+                log.warning("connectors.sync.redis_failed_fallback", error=str(e))
+                background_tasks.add_task(_run_sync_task, t, inst["id"], incremental)
+                
             started.append(connector_key)
 
     return {"status": "started" if started else "skipped", "started": started, "skipped": skipped, "incremental": incremental}

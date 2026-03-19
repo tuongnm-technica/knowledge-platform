@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.routes.auth import CurrentUser, get_current_user
+from apps.api.auth.dependencies import CurrentUser, get_current_user
 from persistence.skill_prompt_repository import SkillPromptRepository
 from prompts.doc_draft_prompt import SKILL_SYSTEM_PROMPTS
 from storage.db.db import get_db
 
-router = APIRouter(prefix="/api/prompts", tags=["prompts"])
+router = APIRouter(prefix="/prompts", tags=["prompts"])
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────

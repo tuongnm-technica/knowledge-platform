@@ -1,0 +1,56 @@
+<div class="page" id="page-users" x-data="adminModule">
+  <div class="users-content">
+    <div class="section-header">
+      <div class="section-title">Danh sách Users</div>
+      <button class="add-btn" @click="openUserModal(null)">+ Thêm user</button>
+    </div>
+    <div id="usersTableContainer">
+      <div x-show="isLoadingUsers" class="loading-state">Đang tải users...</div>
+      <div x-cloak x-show="!isLoadingUsers && users.length === 0" class="search-empty">Chưa có người dùng nào.</div>
+      <table x-cloak x-show="!isLoadingUsers && users.length > 0" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+          <thead>
+              <tr style="border-bottom: 1px solid var(--border); color: var(--text-dim);">
+                  <th style="padding: 12px 8px;">Tên hiển thị</th>
+                  <th style="padding: 12px 8px;">Email</th>
+                  <th style="padding: 12px 8px;">Vai trò</th>
+                  <th style="padding: 12px 8px;">Thao tác</th>
+              </tr>
+          </thead>
+          <tbody>
+            <template x-for="u in users" :key="u.id">
+              <tr style="border-bottom: 1px solid var(--border-light);">
+                  <td style="padding: 12px 8px; font-weight: 600;" x-text="u.display_name"></td>
+                  <td style="padding: 12px 8px;" x-text="u.email"></td>
+                  <td style="padding: 12px 8px;">
+                    <span x-show="u.is_admin" style="color:var(--danger);font-weight:bold;">Admin</span>
+                    <span x-show="!u.is_admin" x-text="u.role || 'Member'"></span>
+                  </td>
+                  <td style="padding: 12px 8px;">
+                      <button class="secondary-btn mini" @click="openUserModal(u.id)">Sửa</button>
+                      <button class="danger-btn mini" @click="deleteUser(u.id)">Xóa</button>
+                  </td>
+              </tr>
+            </template>
+          </tbody>
+      </table>
+    </div>
+
+    <div class="section-header" style="margin-top:30px">
+      <div class="section-title">Groups & Permissions</div>
+      <button class="add-btn" @click="openGroupModal()">+ Thêm group</button>
+    </div>
+    <div id="groupsTableContainer">
+      <div x-show="isLoadingGroups" class="loading-state">Đang tải groups...</div>
+      <div x-cloak x-show="!isLoadingGroups && groups.length === 0" class="search-empty">Chưa có group nào.</div>
+      <div x-cloak x-show="!isLoadingGroups && groups.length > 0" style="display:flex; flex-wrap:wrap; gap:12px;">
+        <template x-for="g in groups" :key="g.id">
+          <div style="border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; background: var(--bg2);">
+              <div style="font-weight:bold; margin-bottom: 4px;" x-text="g.name"></div>
+              <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;" x-text="'ID: ' + g.id"></div>
+              <button class="secondary-btn mini" @click="deleteGroup(g.id)">Xóa</button>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>

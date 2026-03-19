@@ -26,7 +26,8 @@
 <link rel="stylesheet" href="/static/css/modules/tasks.css">
 <link rel="stylesheet" href="/static/css/modules/prompts.css">
 </head>
-<body>
+<!-- Bọc toàn bộ ứng dụng bằng basketModule để Nút FAB và Drawer ở mọi nơi đều gọi được Giỏ Hàng -->
+<body x-data="basketModule">
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
   <div class="login-card">
@@ -42,8 +43,7 @@
     <div class="login-error" id="loginError">Email hoặc mật khẩu không đúng</div>
     <div class="login-field">
       <label>EMAIL</label>
-      <input id="loginEmail" type="email" placeholder="you@technica.vn" autocomplete="email"
-        onkeydown="if(event.key==='Enter') document.getElementById('loginPwd').focus()">
+      <input id="loginEmail" type="email" placeholder="you@technica.vn" autocomplete="email">
     </div>
     <div class="login-field">
       <label>MẬT KHẨU</label>
@@ -67,41 +67,42 @@
 
   <nav class="nav">
     <div class="nav-section">Workspace</div>
-    <div class="nav-item active" onclick="navigate('chat', this)">
+    <a href="/chat" class="nav-item active" data-navigo>
       <span class="nav-icon">💬</span> Chat AI
-    </div>
-    <div class="nav-item" onclick="navigate('search', this)">
+    </a>
+    <a href="/search" class="nav-item" data-navigo>
       <span class="nav-icon">🔍</span> Search
-    </div>
-    <div class="nav-item" id="nav-basket" onclick="navigate('basket', this)">
+    </a>
+    <!-- Giỏ hàng là Drawer, không chuyển trang, chỉ bật cờ isDrawerOpen của Alpine -->
+    <div class="nav-item" id="nav-basket" style="cursor:pointer" @click="isDrawerOpen = true">
       <span class="nav-icon">📌</span> Giỏ ngữ cảnh
-      <span class="nav-badge" id="basketBadge" style="display:none">0</span>
+      <span class="nav-badge" x-cloak x-show="$store.badges.basket > 0" x-text="$store.badges.basket"></span>
     </div>
-    <div class="nav-item" id="nav-drafts" onclick="navigate('drafts', this)">
+    <a href="/drafts" class="nav-item" id="nav-drafts" data-navigo>
       <span class="nav-icon">📝</span> Drafts
-      <span class="nav-badge" id="draftsBadge" style="display:none">0</span>
-    </div>
-    <div class="nav-item" id="nav-tasks" onclick="navigate('tasks', this)">
+      <span class="nav-badge" x-cloak x-show="$store.badges.drafts > 0" x-text="$store.badges.drafts"></span>
+    </a>
+    <a href="/tasks" class="nav-item" id="nav-tasks" data-navigo>
       <span class="nav-icon">🤖</span> Tasks
-      <span class="nav-badge" id="tasksBadge" style="display:none">0</span>
-    </div>
-    <div class="nav-item" id="nav-memory" onclick="navigate('memory', this)">
+      <span class="nav-badge" x-data x-cloak x-show="$store.badges.tasks > 0" x-text="$store.badges.tasks"></span>
+    </a>
+    <a href="/memory" class="nav-item" id="nav-memory" data-navigo>
       <span class="nav-icon">🧠</span> Project Memory
-    </div>
+    </a>
 
     <div class="nav-section">Quản trị</div>
-    <div class="nav-item" id="nav-connectors" onclick="navigate('connectors', this)">
+    <a href="/connectors" class="nav-item" id="nav-connectors" data-navigo>
       <span class="nav-icon">🔗</span> Connectors
-    </div>
-    <div class="nav-item" id="nav-graph" onclick="navigate('graph', this)">
+    </a>
+    <a href="/graph" class="nav-item" id="nav-graph" data-navigo>
       <span class="nav-icon">🕸️</span> Knowledge Graph
-    </div>
-    <div class="nav-item" id="nav-users" onclick="navigate('users', this)">
+    </a>
+    <a href="/users" class="nav-item" id="nav-users" data-navigo>
       <span class="nav-icon">👥</span> Users
-    </div>
-    <div class="nav-item" id="nav-prompts" onclick="navigate('prompts', this)">
+    </a>
+    <a href="/prompts" class="nav-item" id="nav-prompts" data-navigo>
       <span class="nav-icon">🗂️</span> Skill Prompts
-    </div>
+    </a>
   </nav>
 
   <div class="sidebar-bottom">
@@ -111,7 +112,7 @@
         <div class="user-name" id="sidebarUsername">Account</div>
         <div class="user-role">Member</div>
       </div>
-      <button class="logout-btn" onclick="doLogout()" title="Đăng xuất">&#128682;</button>
+      <button class="logout-btn" id="logoutBtn" title="Đăng xuất">&#128682;</button>
     </div>
   </div>
 </aside>
@@ -132,7 +133,7 @@
       <div class="status-dot" id="statusDot"></div>
       <div class="status-text" id="statusText">Đang kết nối...</div>
     </div>
-    <button class="theme-toggle" onclick="toggleTheme()" id="themeToggle" title="Đổi theme">🌙</button>
+    <button class="theme-toggle" id="themeToggle" title="Đổi theme">🌙</button>
   </div>
 
   <!-- ── CHAT PAGE ── -->
@@ -140,7 +141,7 @@
     <div class="chat-wrapper" style="display: flex; height: 100%; width: 100%; overflow: hidden;">
       <div class="chat-history-sidebar" id="chatHistorySidebar">
         <div class="chat-history-header">
-          <button class="new-chat-btn" onclick="if(window.startNewChat) window.startNewChat()">
+          <button class="new-chat-btn" id="newChatBtn">
             <span style="font-size: 16px">+</span> Cuộc hội thoại mới
           </button>
           <div class="chat-history-search">
@@ -161,10 +162,10 @@
               <div class="empty-title">Knowledge Platform AI</div>
               <div class="empty-sub">Hỏi xuyên suốt Confluence, Jira, Slack và tài liệu nội bộ với hybrid search + graph boost.</div>
               <div class="suggestions">
-                <div class="suggestion-chip" onclick="useSuggestion(this)">API lấy thông tin xe là gì?</div>
-                <div class="suggestion-chip" onclick="useSuggestion(this)">Quy trình deploy production?</div>
-                <div class="suggestion-chip" onclick="useSuggestion(this)">Các bug đang mở trong project Jira hiện tại?</div>
-                <div class="suggestion-chip" onclick="useSuggestion(this)">Tóm tắt meeting notes gần đây</div>
+                <div class="suggestion-chip">API lấy thông tin xe là gì?</div>
+                <div class="suggestion-chip">Quy trình deploy production?</div>
+                <div class="suggestion-chip">Các bug đang mở trong project Jira hiện tại?</div>
+                <div class="suggestion-chip">Tóm tắt meeting notes gần đây</div>
               </div>
             </div>
             <div class="hero-grid">
@@ -190,9 +191,8 @@
 
       <div class="chat-input-area">
         <div class="input-wrapper">
-          <textarea id="chatInput" placeholder="Hỏi về tài liệu nội bộ..." rows="1"
-            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-          <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+          <textarea id="chatInput" placeholder="Hỏi về tài liệu nội bộ..." rows="1"></textarea>
+          <button class="send-btn" id="sendBtn">➤</button>
         </div>
         <div class="input-footer">
           <div class="composer-status"><span class="composer-ping"></span>Graph-aware retrieval online</div>
@@ -216,51 +216,18 @@
       </div>
       <div class="search-bar-wrapper">
         <span class="search-icon-pos">🔍</span>
-        <input id="searchInput" type="text" placeholder="Tìm kiếm tài liệu..." autocomplete="off"
-          onkeydown="if(event.key==='Enter') doSearch()">
+        <input id="searchInput" type="text" placeholder="Tìm kiếm tài liệu..." autocomplete="off">
       </div>
       <div class="search-results" id="searchResults"></div>
     </div>
   </div>
 
   <!-- ── BASKET PAGE ── -->
-  <div class="page" id="page-basket">
-    <div class="connectors-content">
-      <div class="page-intro">
-        <div>
-          <div class="intro-kicker">Context curation</div>
-          <div class="intro-title">Giỏ Ngữ Cảnh</div>
-          <div class="intro-sub">Quản trị các tài liệu đã ghim, lọc “rác” trước khi chạy Skill để tránh Garbage In/Garbage Out.</div>
-        </div>
-        <div class="connectors-toolbar-actions">
-          <button class="secondary-btn" onclick="refreshBasketDetails()">Refresh</button>
-          <button class="danger-btn" onclick="clearBasket()">Xóa giỏ</button>
-          <button class="primary-btn" onclick="basketRunSkill()">🚀 Chạy Skill</button>
-        </div>
-      </div>
-
-      <div class="basket-token" style="margin:0 18px 18px;border-radius:18px;border:1px solid var(--border);background:rgba(255,255,255,0.65)">
-        <div class="basket-token-row">
-          <div class="basket-token-label">Dung lượng não AI</div>
-          <div class="basket-token-value" id="basketPageTokenText">0 / 32000</div>
-        </div>
-        <div class="basket-progress">
-          <div class="basket-progress-fill" id="basketPageProgressFill" style="width:0%"></div>
-        </div>
-        <div class="basket-token-hint" id="basketPageTokenHint" style="display:none"></div>
-        <div class="basket-sub" id="basketPageSub" style="margin-top:8px">0 items</div>
-      </div>
-
-      <div class="graph-panel" style="margin:0 18px 18px">
-        <div class="connector-section-title" style="margin:0 0 10px">Danh sách item</div>
-        <div id="basketPageList" class="basket-list" style="padding:0"></div>
-      </div>
-    </div>
-  </div>
+  <!-- Note: Page Basket đã được tích hợp chung vào Drawer (bên dưới body), có thể xóa page-basket dư thừa này đi -->
 
   <!-- ── DRAFTS PAGE ── -->
-  <div class="page" id="page-drafts">
-    <div class="connectors-content">
+  <div class="page" id="page-drafts" x-data="draftsModule">
+    <div class="connectors-content" x-show="!currentDraftId">
       <div class="page-intro">
         <div>
           <div class="intro-kicker">Draft management</div>
@@ -268,7 +235,7 @@
           <div class="intro-sub">Danh sách tài liệu nháp do AI sinh ra (lưu trong database). Bạn có thể mở để edit hoặc xóa.</div>
         </div>
         <div class="connectors-toolbar-actions">
-          <select id="draftsTypeFilter" class="time-input" onchange="loadDraftsPage(true)">
+          <select class="time-input" x-model="filterType" @change="loadDraftsPage(true)">
             <option value="">All types</option>
             <option value="srs">SRS</option>
             <option value="brd">BRD</option>
@@ -281,16 +248,69 @@
             <option value="deployment_spec">Deployment Spec</option>
             <option value="change_request">Change Request</option>
           </select>
-          <button class="secondary-btn" onclick="loadDraftsPage(true)">Refresh</button>
+          <button class="secondary-btn" @click="loadDraftsPage(true)">Refresh</button>
         </div>
       </div>
 
-      <div class="search-results" id="draftsList"></div>
+      <div class="search-results">
+        <div x-show="isLoading" class="drafts-loading">Đang tải...</div>
+        <div x-cloak x-show="!isLoading && drafts.length === 0" class="drafts-empty">Chưa có bản nháp nào. Tạo draft từ Chat để bắt đầu.</div>
+        
+        <div x-cloak x-show="!isLoading && drafts.length > 0" class="drafts-list">
+          <template x-for="draft in drafts" :key="draft.id">
+            <div class="draft-card">
+              <div class="draft-header">
+                <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                  <div class="draft-type" x-text="(draft.doc_type || 'srs').toUpperCase()"></div>
+                  <div :style="\`font-size:10px;padding:4px 10px;border-radius:20px;background:\${getStatusColor(draft.status)}15;color:\${getStatusColor(draft.status)};font-weight:700;text-transform:uppercase;border:1px solid \${getStatusColor(draft.status)}30\`" x-text="draft.status || 'draft'"></div>
+                </div>
+                <div class="draft-title" x-text="draft.title || 'Untitled'"></div>
+              </div>
+              <div class="draft-meta">
+                <p x-text="(draft.content || '').substring(0, 150) + ((draft.content?.length || 0) > 150 ? '...' : '')"></p>
+                <span x-text="'Cập nhật: ' + formatDate(draft.updated_at || draft.created_at)"></span>
+              </div>
+              <div class="draft-actions">
+                <button class="primary-btn mini" style="flex:1; justify-content:center" @click="openDocDraftEditor(draft.id)">📄 Mở Editor</button>
+                <button class="secondary-btn mini" @click="deleteDraft(draft.id)" title="Xóa">🗑</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Draft Editor View -->
+    <div class="connectors-content" x-cloak x-show="currentDraftId">
+      <div class="draft-editor-wrap" style="height: calc(100vh - 160px);" x-show="currentDraft">
+        <div class="draft-editor">
+          <div class="draft-editor-header" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+            <button class="secondary-btn mini btn-back" @click="closeDraftEditor()">← Quay lại</button>
+            <span class="draft-type" style="font-size:11px;padding:6px 12px;border-radius:8px" x-text="(currentDraft?.doc_type || 'srs').toUpperCase()"></span>
+            <input type="text" x-model="currentDraft.title" style="flex:1;min-width:200px;font-size:18px;font-weight:800;border:none;background:transparent;outline:none;color:var(--text)" placeholder="Tiêu đề...">
+            
+            <div style="display:flex;align-items:center;gap:8px">
+              <select class="time-input" x-model="currentDraft.status" style="font-size:12px;padding:6px 10px;border-radius:10px">
+                <option value="draft">Draft</option>
+                <option value="review">Đang review</option>
+                <option value="approved">Approved</option>
+                <option value="published">Published</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <button class="primary-btn" @click="saveDraft()">💾 Lưu</button>
+            </div>
+          </div>
+          <div class="draft-split-view">
+            <textarea id="draftContentEditor" class="draft-textarea" spellcheck="false" x-model="currentDraft.content" placeholder="Nhập nội dung Markdown tại đây..."></textarea>
+            <div id="draftContentPreview" class="draft-preview"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- ── CONNECTORS PAGE ── -->
-  <div class="page" id="page-tasks">
+  <div class="page" id="page-tasks" x-data="tasksModule">
     <div class="tasks-shell">
       <div class="tasks-header">
         <div>
@@ -299,33 +319,53 @@
           <div class="intro-sub">Review task drafts từ Slack và Confluence trước khi đẩy sang Jira.</div>
         </div>
         <div class="tasks-actions">
-          <span id="tasksPanelCount" class="count-pill">0 open</span>
-          <input id="slackDaysInput" class="time-input" type="number" min="1" max="30" value="1" title="Slack days">
-          <input id="confluenceDaysInput" class="time-input" type="number" min="1" max="30" value="1" title="Confluence days">
-          <button onclick="loadTasks()" class="secondary-btn">Refresh</button>
+          <span class="count-pill" x-text="$store.badges.tasks + ' open'">0 open</span>
+          <input class="time-input" type="number" min="1" max="30" x-model.number="slackDays" title="Slack days">
+          <input class="time-input" type="number" min="1" max="30" x-model.number="confluenceDays" title="Confluence days">
+          <button @click="loadTasks()" class="secondary-btn">Refresh</button>
           <label class="toggle-chip" title="Include submitted Jira drafts">
-            <input id="tasksIncludeSubmitted" type="checkbox" onchange="loadTasks()">
+            <input type="checkbox" x-model="includeSubmitted" @change="loadTasks()">
             <span>Show submitted</span>
           </label>
-          <button onclick="syncJiraStatuses()" id="syncJiraStatusBtn" class="secondary-btn" style="display:none">Sync Jira status</button>
-          <button onclick="triggerScan()" id="scanBtn" class="primary-btn">Scan Slack + Confluence</button>
+          <button id="syncJiraStatusBtn" class="secondary-btn" style="display:none">Sync Jira status</button>
+          <button @click="triggerScan()" class="primary-btn">Scan Slack + Confluence</button>
         </div>
       </div>
-      <div class="tasks-actions" id="tasksBulkBar" style="display:none;margin-top:10px">
-        <span id="tasksBulkCount" class="count-pill">0 selected</span>
-        <button onclick="bulkConfirmTasks()" class="secondary-btn">Confirm selected</button>
-        <button onclick="bulkRejectTasks()" class="secondary-btn">Dismiss selected</button>
+      <div class="tasks-actions" x-cloak x-show="selectedIds.length > 0" style="margin-top:10px">
+        <span class="count-pill" x-text="selectedIds.length + ' selected'"></span>
+        <button @click="bulkConfirmTasks()" class="secondary-btn">Confirm selected</button>
+        <button @click="bulkRejectTasks()" class="secondary-btn">Dismiss selected</button>
         <input id="bulkIssueTypeInput" class="time-input" type="text" placeholder="Issue type (Task/Story/Bug/Epic)" title="Bulk issue type">
-        <button onclick="bulkSetIssueType()" class="secondary-btn">Set type</button>
+        <button id="bulkSetTypeBtn" class="secondary-btn">Set type</button>
         <input id="bulkAssigneeInput" class="time-input" type="text" placeholder="Assignee (email/name)" title="Bulk assign">
-        <button onclick="bulkAssignTasks()" class="primary-btn">Assign</button>
-        <button onclick="clearTaskSelection()" class="secondary-btn">Clear selection</button>
+        <button id="bulkAssignBtn" class="primary-btn">Assign</button>
+        <button @click="clearSelection()" class="secondary-btn">Clear selection</button>
       </div>
       <div class="tasks-banner">
         AI quét Slack và Confluence tự động lúc <b>11:00 PM</b> mỗi ngày. Bạn có thể bấm <b>Scan</b> để lấy draft task mới ngay.
       </div>
-      <div id="tasksList" class="tasks-list">
-        <div class="tasks-empty">Chưa có draft tasks. Bấm "Scan" để bắt đầu.</div>
+      <div class="tasks-list">
+        <div x-show="isLoading" class="tasks-loading">Đang tải...</div>
+        <div x-cloak x-show="!isLoading && tasks.length === 0" class="tasks-empty">Chưa có draft tasks. Bấm "Scan" để bắt đầu.</div>
+        
+        <div x-cloak x-show="!isLoading && tasks.length > 0" class="tasks-grid">
+          <template x-for="task in tasks" :key="task.id">
+            <div class="task-card" :class="selectedIds.includes(task.id) ? 'selected' : ''" @click="toggleSelection(task.id)">
+              <div class="task-status" :class="task.status === 'approved' ? 'approved' : (task.status === 'rejected' ? 'rejected' : 'pending')" x-text="task.status || 'pending'"></div>
+              <div class="task-title">
+                <span class="draft-type-badge" x-text="(task.source || 'system').toUpperCase()"></span>
+                <span x-text="task.title || 'Untitled'"></span>
+              </div>
+              <div class="task-meta">
+                <span class="task-time" x-text="'Tạo lúc: ' + formatDate(task.created_at)"></span>
+              </div>
+              <div class="task-actions">
+                <button class="secondary-btn mini btn-approve" @click.stop="approveTask(task.id)">✅ Duyệt</button>
+                <button class="secondary-btn mini btn-delete" @click.stop="deleteTask(task.id)">🗑 Xóa</button>
+              </div>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -364,7 +404,7 @@
           <div class="intro-sub">Theo dõi độ phủ dữ liệu theo nguồn, độ tươi mới, và khám phá knowledge graph theo entities và relations.</div>
         </div>
         <div class="connectors-toolbar-actions">
-          <button class="secondary-btn" onclick="loadGraphDashboard(true)">Refresh</button>
+          <button class="secondary-btn" id="refreshGraphBtn">Refresh</button>
         </div>
       </div>
 
@@ -383,8 +423,8 @@
             <div class="connectors-toolbar-sub">Kéo node để khám phá. Dùng search để highlight thực thể.</div>
           </div>
           <div class="graph-toolbar-actions">
-            <input id="graphSearchInput" class="time-input" type="text" placeholder="Search entity..." oninput="graphSearchChanged()">
-            <button class="secondary-btn" onclick="resetGraphView()">Reset view</button>
+            <input id="graphSearchInput" class="time-input" type="text" placeholder="Search entity...">
+            <button class="secondary-btn" id="resetGraphBtn">Reset view</button>
           </div>
         </div>
         <div id="graphInsights" class="graph-insights" style="display:none"></div>
@@ -397,22 +437,59 @@
     </div>
   </div>
 
-  <div class="page" id="page-users">
+  <div class="page" id="page-users" x-data="adminModule">
     <div class="users-content">
       <div class="section-header">
         <div class="section-title">Danh sách Users</div>
-        <button class="add-btn" onclick="window.openCreateUser()">+ Thêm user</button>
+        <button class="add-btn" @click="openUserModal(null)">+ Thêm user</button>
       </div>
       <div id="usersTableContainer">
-        <div class="loading-state">Đang tải users...</div>
+        <div x-show="isLoadingUsers" class="loading-state">Đang tải users...</div>
+        <div x-cloak x-show="!isLoadingUsers && users.length === 0" class="search-empty">Chưa có người dùng nào.</div>
+        <table x-cloak x-show="!isLoadingUsers && users.length > 0" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border); color: var(--text-dim);">
+                    <th style="padding: 12px 8px;">Tên hiển thị</th>
+                    <th style="padding: 12px 8px;">Email</th>
+                    <th style="padding: 12px 8px;">Vai trò</th>
+                    <th style="padding: 12px 8px;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+              <template x-for="u in users" :key="u.id">
+                <tr style="border-bottom: 1px solid var(--border-light);">
+                    <td style="padding: 12px 8px; font-weight: 600;" x-text="u.display_name"></td>
+                    <td style="padding: 12px 8px;" x-text="u.email"></td>
+                    <td style="padding: 12px 8px;">
+                      <span x-show="u.is_admin" style="color:var(--danger);font-weight:bold;">Admin</span>
+                      <span x-show="!u.is_admin" x-text="u.role || 'Member'"></span>
+                    </td>
+                    <td style="padding: 12px 8px;">
+                        <button class="secondary-btn mini" @click="openUserModal(u.id)">Sửa</button>
+                        <button class="danger-btn mini" @click="deleteUser(u.id)">Xóa</button>
+                    </td>
+                </tr>
+              </template>
+            </tbody>
+        </table>
       </div>
 
       <div class="section-header" style="margin-top:30px">
         <div class="section-title">Groups & Permissions</div>
-        <button class="add-btn" onclick="window.openCreateGroup()">+ Thêm group</button>
+        <button class="add-btn" @click="openGroupModal()">+ Thêm group</button>
       </div>
       <div id="groupsTableContainer">
-        <div class="loading-state">Loading groups...</div>
+        <div x-show="isLoadingGroups" class="loading-state">Đang tải groups...</div>
+        <div x-cloak x-show="!isLoadingGroups && groups.length === 0" class="search-empty">Chưa có group nào.</div>
+        <div x-cloak x-show="!isLoadingGroups && groups.length > 0" style="display:flex; flex-wrap:wrap; gap:12px;">
+          <template x-for="g in groups" :key="g.id">
+            <div style="border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; background: var(--bg2);">
+                <div style="font-weight:bold; margin-bottom: 4px;" x-text="g.name"></div>
+                <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;" x-text="'ID: ' + g.id"></div>
+                <button class="secondary-btn mini" @click="deleteGroup(g.id)">Xóa</button>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -430,7 +507,7 @@
           <div class="intro-sub">Dưới đây là những <strong>Actors</strong>, <strong>Thuật ngữ</strong> và <strong>Quy tắc</strong> mà AI đã tự động học được từ các tài liệu đã sinh. Chúng sẽ được bơm vào mọi lần sinh tài liệu tiếp theo.</div>
         </div>
         <div class="connectors-toolbar-actions">
-          <button class="secondary-btn" onclick="window._memRefresh && window._memRefresh()">Refresh</button>
+          <button class="secondary-btn" id="refreshMemoryBtn">Refresh</button>
         </div>
       </div>
       <div id="memoryContent" style="padding:0 20px 24px"></div>
@@ -440,37 +517,46 @@
 </main>
 
 <!-- Context Basket (Pin ngữ cảnh) -->
-<div id="basketOverlay" class="basket-overlay" onclick="closeBasketDrawer()" style="display:none"></div>
-<div id="basketDrawer" class="basket-drawer" style="display:none" aria-label="Context basket">
+<div class="basket-overlay" x-cloak x-show="isDrawerOpen" @click="closeDrawer()"></div>
+<div class="basket-drawer" x-cloak x-show="isDrawerOpen" aria-label="Context basket">
   <div class="basket-header">
     <div>
       <div class="basket-title">Giỏ Ngữ Cảnh</div>
-      <div class="basket-sub" id="basketSub">0 items</div>
+      <div class="basket-sub" x-text="items.length + ' items'"></div>
     </div>
     <div class="basket-header-actions">
-      <button class="secondary-btn mini" onclick="clearBasket()">Xóa</button>
-      <button class="secondary-btn mini" onclick="closeBasketDrawer()">Đóng</button>
+      <button class="secondary-btn mini" @click="clearBasket()">Xóa</button>
+      <button class="secondary-btn mini" @click="closeDrawer()">Đóng</button>
     </div>
   </div>
   <div class="basket-token">
     <div class="basket-token-row">
       <div class="basket-token-label">Dung lượng não AI</div>
-      <div class="basket-token-value" id="basketTokenText">0 / 32000</div>
+      <div class="basket-token-value" x-text="currentTokens + ' / ' + maxTokens" :style="currentTokens > maxTokens ? 'color:var(--danger)' : ''"></div>
     </div>
     <div class="basket-progress">
-      <div class="basket-progress-fill" id="basketProgressFill" style="width:0%"></div>
+      <div class="basket-progress-fill" :style="\`width: \${Math.min(100, (currentTokens / maxTokens) * 100)}%; background-color: \${currentTokens > maxTokens ? 'var(--danger)' : (currentTokens/maxTokens > 0.8 ? 'var(--warning)' : 'var(--primary)')}\`"></div>
     </div>
-    <div class="basket-token-hint" id="basketTokenHint" style="display:none"></div>
   </div>
-  <div id="basketList" class="basket-list">
-    <div class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
+  <div class="basket-list">
+    <div x-show="items.length === 0" class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
+    <template x-for="item in items" :key="item.id">
+      <div class="basket-item">
+          <div class="basket-item-icon">📄</div>
+          <div class="basket-item-info">
+              <div class="basket-item-title" x-text="item.title || item.id"></div>
+              <div class="basket-item-id" style="font-size:11px;color:var(--text-dim);" x-text="item.id"></div>
+          </div>
+          <button class="secondary-btn mini" style="color:var(--danger); border-color:var(--danger)" title="Xóa" @click="removeFromBasket(item.id)">✕</button>
+      </div>
+    </template>
   </div>
   <div class="basket-actions">
-    <button class="secondary-btn" onclick="refreshBasketDetails()">Refresh</button>
-    <button class="primary-btn" onclick="basketRunSkill()">🚀 Chạy Skill</button>
+    <button class="secondary-btn" @click="refreshBasketDetails()">Refresh</button>
+    <button class="primary-btn" @click="basketRunSkill()">🚀 Chạy Skill</button>
   </div>
 </div>
-<button id="basketFab" class="basket-fab" onclick="toggleBasketDrawer()" title="Giỏ ngữ cảnh">📌</button>
+<button class="basket-fab" @click="toggleDrawer()" title="Giỏ ngữ cảnh">📌</button>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
@@ -485,6 +571,6 @@
     }
   }, true);
 </script>
-<script type="module" src="/static/app.js?v=5"></script>
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>

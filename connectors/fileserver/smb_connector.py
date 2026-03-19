@@ -74,7 +74,8 @@ class SMBConnector(BaseConnector):
 
                     # Top-level folder làm permission key
                     path_parts = file_info["path"].replace("/", "\\").split("\\")
-                    top_folder = path_parts[0] if path_parts else "General"
+                    # Nếu len > 1 tức là có thư mục (VD: folder/file.txt), nếu = 1 tức là file nằm ở root
+                    top_folder = path_parts[0] if len(path_parts) > 1 else "General"
                     if self._folders and top_folder not in self._folders:
                         continue
 
@@ -122,7 +123,7 @@ class SMBConnector(BaseConnector):
 
                 # Top-level folder làm permission key
                 path_parts = file_info["path"].replace("/", "\\").split("\\")
-                top_folder = path_parts[0] if path_parts else "General"
+                top_folder = path_parts[0] if len(path_parts) > 1 else "General"
                 if self._folders and top_folder not in self._folders:
                     continue
 

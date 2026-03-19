@@ -6,6 +6,7 @@ Vector search using Qdrant
 from typing import List, Optional
 
 import structlog
+from qdrant_client import models
 
 from utils.embeddings import get_embedding
 from storage.vector.vector_store import get_qdrant
@@ -47,15 +48,14 @@ class VectorSearch:
             qfilter = None
 
             if allowed_document_ids:
-
-                qfilter = {
-                    "must": [
-                        {
-                            "key": "document_id",
-                            "match": {"any": allowed_document_ids}
-                        }
+                qfilter = models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="document_id",
+                            match=models.MatchAny(any=allowed_document_ids)
+                        )
                     ]
-                }
+                )
 
             # ─────────────────────────
             # qdrant query_points (v1.7+)

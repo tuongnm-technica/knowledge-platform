@@ -107,7 +107,14 @@ class ConfluenceParser:
             "ac:structured-macro",
         ]
 
+        # Lọc bỏ các tag bị lồng bên trong tag khác (vd: <p> nằm trong <table>) để tránh lặp text
+        matched_tags = []
         for tag in soup.find_all(tags):
+            if any((p.name or "").lower() in tags for p in tag.parents):
+                continue
+            matched_tags.append(tag)
+
+        for tag in matched_tags:
             name = (tag.name or "").lower()
 
             # Keep image placeholders inside the block where they appear.
@@ -166,7 +173,7 @@ class ConfluenceParser:
             text = tag.get_text("\n", strip=True)
             if not text:
                 return ""
-            return f"```\\n{text}\\n```"
+            return f"```\n{text}\n```"
 
         if tag.name == "blockquote":
             text = tag.get_text(" ", strip=True)
@@ -195,7 +202,7 @@ class ConfluenceParser:
             if not text:
                 return ""
             lang_hint = language.strip() if language else ""
-            return f"```{lang_hint}\\n{text}\\n```"
+            return f"```{lang_hint}\n{text}\n```"
 
         # Info/panel/tip/warning/note macro: flatten text.
         if macro in {"info", "panel", "tip", "warning", "note"}:
@@ -221,7 +228,10 @@ class ConfluenceParser:
     def _extract_structured(self, soup) -> str:
         """Extract toàn bộ text theo thứ tự DOM."""
         parts = []
-        for tag in soup.find_all(["h1", "h2", "h3", "h4", "p", "ul", "ol", "table", "pre", "blockquote", "ac:structured-macro"]):
+        tags = ["h1", "h2", "h3", "h4", "p", "ul", "ol", "table", "pre", "blockquote", "ac:structured-macro"]
+        for tag in soup.find_all(tags):
+            if any((p.name or "").lower() in tags for p in tag.parents):
+                continue
             text = self._extract_tag_text(tag)
             if text:
                 parts.append(text)

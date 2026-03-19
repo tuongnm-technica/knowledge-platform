@@ -27,7 +27,7 @@ class SlackParser:
                                        "channel_archive", "channel_unarchive"):
                 continue
 
-            text = self._clean_text(msg.get("text", ""))
+            text = self._clean_text(msg.get("text", ""), user_cache)
             if not text:
                 continue
 
@@ -63,12 +63,27 @@ class SlackParser:
 
         return "\n".join(parts)
 
-    def _clean_text(self, text: str) -> str:
+    def _clean_text(self, text: str, user_cache: dict = None) -> str:
         if not text:
             return ""
 
-        # Chuyển mention <@U123> thành @username nếu có thể
-        text = re.sub(r"<@([A-Z0-9]+)>", r"@\1", text)
+        # Chuyển mention <@U123> thành @username thật nếu có user_cache
+        if user_cache:
+            def resolve_mention(match):
+                uid = match.group(1)
+                info = user_cache.get(uid, {})
+                name = info.get("display_name") or info.get("real_name") or info.get("name") or uid
+                return f"@{name}"
+            text = re.sub(r"<@([A-Z0-9]+)>", resolve_mention, text)
+        else:
+            text = re.sub(r"<@([A-Z0-9]+)>", r"@\1", text)
+
+        # Bắt các tag nhắc tên Nhóm (User Group) dạng <!subteam^ID|@handle> hoặc <!subteam^ID>
+        text = re.sub(r"<!subteam\^[A-Z0-9]+\|@?([^>]+)>", r"@\1", text)
+        text = re.sub(r"<!subteam\^([A-Z0-9]+)>", r"@\1", text)
+
+        # Bắt luôn các special mention phổ biến khác trên Slack (như <!here>, <!channel>, <!everyone>)
+        text = re.sub(r"<!(here|channel|everyone)(?:\|[^>]+)?>", r"@\1", text)
 
         # Giữ lại URL dạng readable: <https://example.com|tên> → tên (https://example.com)
         text = re.sub(r"<(https?://[^|>]+)\|([^>]+)>", r"\2 (\1)", text)
