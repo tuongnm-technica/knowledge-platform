@@ -5,18 +5,18 @@ POST /ask — ReAct agentic pipeline.
 
 import uuid
 import asyncio
-import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
 
 from storage.db.db import get_db
 from orchestration.agent import Agent
 from apps.api.auth.dependencies import get_current_user, CurrentUser
 from models.chat import ChatSession, ChatMessage
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/ask", tags=["ask"])
 
 

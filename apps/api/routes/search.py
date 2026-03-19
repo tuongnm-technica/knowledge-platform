@@ -1,4 +1,4 @@
-import logging
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from query.query_parser import QueryParser
 from apps.api.auth.dependencies import get_current_user, CurrentUser
 from persistence.document_repository import DocumentRepository
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/search", tags=["search"])
 parser = QueryParser()
 
