@@ -43,7 +43,6 @@ services:
   worker_ingestion:
     image: knowledge-platform-core:latest
     container_name: kp_worker_ingestion
-    # Dùng chung environment với API, chỉ ghi đè RUN_WORKER
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
       - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
@@ -52,6 +51,7 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=True
+      - ARQ_WORKER_TYPE=ingestion
     volumes:
       - .:/app
     depends_on:
@@ -61,7 +61,7 @@ services:
         condition: service_started
       qdrant:
         condition: service_started
-    command: arq arq_worker.IngestionWorkerSettings
+    command: python run_worker.py
 
   worker_default:
     image: knowledge-platform-core:latest
@@ -74,6 +74,7 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=True
+      - ARQ_WORKER_TYPE=default
     volumes:
       - .:/app
     depends_on:
@@ -83,7 +84,7 @@ services:
         condition: service_started
       qdrant:
         condition: service_started
-    command: arq arq_worker.DefaultWorkerSettings
+    command: python run_worker.py
 
 volumes:
   pgdata:

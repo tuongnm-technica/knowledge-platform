@@ -27,9 +27,17 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         status["qdrant"] = f"error: {e}"
 
-    llm = LLMService()
-    ollama_ok = await llm.is_available()
-    status["ollama"] = "ok" if ollama_ok else "unavailable — chạy: ollama serve"
+    try:
+        llm = LLMService()
+        ollama_ok = await llm.is_available()
+        status["ollama"] = "ok" if ollama_ok else "unavailable"
+    except Exception as e:
+        status["ollama"] = f"error: {str(e)}"
+        import sys
+        sys.stderr.write(f"HEALTH CHECK ERROR: {str(e)}\n")
+        import traceback
+        traceback.print_exc()
+
     status["ollama_model"] = settings.OLLAMA_LLM_MODEL
     status["embedding_model"] = settings.EMBEDDING_MODEL
 

@@ -73,8 +73,10 @@ async def ask(
         # Update updated_at
         from sqlalchemy import select
         session_obj = (await db.execute(select(ChatSession).where(ChatSession.id == session_id))).scalar_one_or_none()
-        if session_obj:
-            session_obj.updated_at = datetime.now(timezone.utc)
+        if not session_obj:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+        
+        session_obj.updated_at = datetime.now(timezone.utc)
     
     # Save user message
     db.add(ChatMessage(session_id=session_id, role="user", content=question))

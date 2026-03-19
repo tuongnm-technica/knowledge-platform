@@ -571,6 +571,22 @@ async def create_tables():
             "CREATE INDEX IF NOT EXISTS idx_skill_prompts_doc_type ON skill_prompts (doc_type)"
         ))
 
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS project_memories (
+                id UUID PRIMARY KEY,
+                memory_type VARCHAR(50) NOT NULL,
+                key VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                created_by VARCHAR(255),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE (memory_type, key)
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_project_memories_type_key ON project_memories (memory_type, key)"
+        ))
+
     # Seed default prompts (only inserts rows that don't exist yet)
     async with AsyncSessionLocal() as session:
         from persistence.skill_prompt_repository import SkillPromptRepository

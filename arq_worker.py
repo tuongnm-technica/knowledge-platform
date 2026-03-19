@@ -1,4 +1,5 @@
 import asyncio
+import os
 import structlog
 from arq import Worker
 from arq.connections import RedisSettings
@@ -11,6 +12,9 @@ from tasks.scanner import scan_and_create_drafts
 from orchestration.agent_tasks import run_agent_job
 
 log = structlog.get_logger()
+
+# Standard Redis DSN for Docker environment
+REDIS_URL = "redis://redis:6379/0"
 
 async def sync_connector_job(ctx, connector_type: str, instance_id: str, incremental: bool):
     """Task được xử lý ở background, tách bạch hoàn toàn với API server"""
@@ -57,7 +61,7 @@ async def shutdown(ctx):
 
 class BaseWorkerSettings:
     """Cấu hình dùng chung cho tất cả các queue"""
-    redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
+    redis_settings = RedisSettings.from_dsn(REDIS_URL)
     health_check_interval = 60
     on_startup = startup
     on_shutdown = shutdown

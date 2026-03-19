@@ -145,6 +145,28 @@ class TaskDraftRepository:
         )
         return [dict(r) for r in result.mappings().all()]
 
+    async def get_all(self, limit: int = 50, source: str | None = None) -> list[dict]:
+        """Lấy tất cả task drafts với tùy chọn lọc theo nguồn (source_type)."""
+        where_clause = ""
+        params = {"limit": limit}
+        if source:
+            where_clause = "WHERE source_type = :source"
+            params["source"] = source
+
+        result = await self._session.execute(
+            text(
+                f"""
+                SELECT *
+                FROM ai_task_drafts
+                {where_clause}
+                ORDER BY created_at DESC
+                LIMIT :limit
+                """
+            ),
+            params
+        )
+        return [dict(r) for r in result.mappings().all()]
+
     async def get_by_id(self, draft_id: str) -> dict | None:
         result = await self._session.execute(text("""
             SELECT * FROM ai_task_drafts WHERE id = :id

@@ -1,4 +1,5 @@
 from typing import Optional
+import os
 
 from pydantic_settings import BaseSettings
 
@@ -8,10 +9,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
 
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/knowledge_platform"
-    DATABASE_SYNC_URL: str = "postgresql://postgres:postgres@localhost:5432/knowledge_platform"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:Abcd%401234%21@localhost:5432/knowledge_platform"
+    DATABASE_SYNC_URL: str = "postgresql://postgres:Abcd%401234%21@localhost:5432/knowledge_platform"
 
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Default to 'redis' for docker, will be overridden by .env or ENV VAR
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     RUN_WORKER: bool = False
 
     # ── ARQ Queue & Worker Settings ──
@@ -25,12 +27,12 @@ class Settings(BaseSettings):
 
     ARQ_AI_QUEUE_NAME: str = "arq:ai"
 
-    QDRANT_HOST: str = "localhost"
+    QDRANT_HOST: str = "qdrant"
     QDRANT_PORT: int = 6333
     QDRANT_COLLECTION: str = "knowledge_chunks"
     QDRANT_API_KEY: Optional[str] = None
 
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
     OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
     OLLAMA_EMBED_MODEL: str = "bge-m3"
 
