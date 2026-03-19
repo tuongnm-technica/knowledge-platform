@@ -18,6 +18,11 @@ let _hoveredNode = null;
 let _simAlpha = 1;
 let _animationFrameId = null;
 
+// Xuất hàm ra global window để index.html có thể gọi bằng onclick=""
+window.loadGraphDashboard = loadGraphDashboard;
+window.graphSearchChanged = graphSearchChanged;
+window.resetGraphView = resetGraphView;
+
 export async function loadGraphDashboard() {
   console.log('[Graph] loadGraphDashboard');
   renderViewToolbar();
@@ -146,8 +151,8 @@ function updateCanvasWithData(data) {
   
   // Ánh xạ trước object node vào edge để physics chạy nhanh O(E) thay vì O(E*N)
   _edges.forEach(e => {
-    e.sourceNode = _nodes.find(n => n.id === e.source);
-    e.targetNode = _nodes.find(n => n.id === e.target);
+    e.sourceNode = _nodes.find(n => n.id === (e.source || e.from));
+    e.targetNode = _nodes.find(n => n.id === (e.target || e.to));
   });
   
   _panX = 0;
@@ -494,8 +499,8 @@ export async function loadHealthStats() {
 
     const grid = document.getElementById('graphHealthGrid');
     if (grid) {
-      const totalDocs = (d.documents_by_source || []).reduce((sum, s) => sum + (s.count || 0), 0);
-      const sources = (d.documents_by_source || []).length;
+      const totalDocs = d.totalDocuments || 0;
+      const sources = Object.keys(d.statusByConnector || {}).length;
       
       let staleHTML = '';
       if (d.stale_sources_30d && d.stale_sources_30d.length > 0) {

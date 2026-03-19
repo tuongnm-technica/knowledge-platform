@@ -97,6 +97,21 @@ async def graph_health(
             except Exception:
                 pass
 
+        # Calculate graph stats
+        entities_count = 0
+        relations_count = 0
+        doc_links_count = 0
+        
+        if allowed_docs is not None and not allowed_docs:
+            pass
+        else:
+            try:
+                entities_count = await session.scalar(text("SELECT count(*) FROM entities"))
+                relations_count = await session.scalar(text("SELECT count(*) FROM entity_relations"))
+                doc_links_count = await session.scalar(text("SELECT count(*) FROM document_links"))
+            except Exception:
+                pass
+
         return {
             "totalDocuments": total_docs,
             "lastUpdated": max(latest_map.values()).isoformat() if latest_map else None,
@@ -112,6 +127,9 @@ async def graph_health(
             },
             "staleSources": stale_sources,
             "missingConnectors": missing_connectors,
+            "entities": entities_count or 0,
+            "relations": relations_count or 0,
+            "document_links": doc_links_count or 0,
         }
     except Exception as e:
         log.exception("graph.health.error", user_id=current_user.user_id, error=str(e))
