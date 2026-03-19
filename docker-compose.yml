@@ -31,6 +31,8 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=False
+    volumes:
+      - .:/app
     depends_on:
       redis:
         condition: service_started
@@ -50,6 +52,8 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=True
+    volumes:
+      - .:/app
     depends_on:
       api:
         condition: service_started
@@ -70,6 +74,8 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
       - RUN_WORKER=True
+    volumes:
+      - .:/app
     depends_on:
       api:
         condition: service_started
