@@ -29,6 +29,8 @@ class PermissionFilter:
             pass
         return await self._acl.get_allowed_document_ids(user_id)
 
-    def filter_results(self, results: list[dict], allowed_ids: list[str]) -> list[dict]:
+    def filter_results(self, results: list[dict], allowed_ids: list[str] | None) -> list[dict]:
+        if allowed_ids is None:
+            return results
         allowed_set = set(str(i) for i in allowed_ids)
         return [r for r in results if str(r.get("document_id", "")) in allowed_set]

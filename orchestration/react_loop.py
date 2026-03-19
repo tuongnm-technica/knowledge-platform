@@ -96,7 +96,7 @@ class ReActLoop:
         if hasattr(self._llm, "_client") and self._llm._managed_client:
             await self._llm._client.aclose()
 
-    async def run(self, question: str, user_id: str = "") -> ReActResult:
+    async def run(self, question: str, user_id: str = "", on_thought: Any | None = None) -> ReActResult:
         # Fast path: semantic cache
         if settings.SEMANTIC_CACHE_ENABLED:
             try:
@@ -131,8 +131,18 @@ class ReActLoop:
 
         log.info(
             "planner.plan",
-            steps=[f"{p.query[:30]}" for p in plan],
+            steps=[f"{str(p.query or '')[:30]}" for p in plan],
         )
+        
+        if on_thought:
+            try:
+                await on_thought({
+                    "step": "planning",
+                    "plan": [p.__dict__ for p in plan],
+                    "thought": f"Tôi đã lập kế hoạch với {len(plan)} bước tìm kiếm."
+                })
+            except Exception:
+                pass
 
         sources: list[dict] = []
         source_urls: set[str] = set()
@@ -170,6 +180,18 @@ class ReActLoop:
                         observation=str(obs),
                     )
                 )
+                
+                if on_thought:
+                    try:
+                        await on_thought({
+                            "step": "tool_execution",
+                            "index": p.step,
+                            "tool": "search_all",
+                            "query": p.query,
+                            "thought": f"Đang thực hiện tìm kiếm cho: {p.query[:50]}..."
+                        })
+                    except Exception:
+                        pass
 
         # ─────────────────────────────
         # Self-correction & reranking (Search Agent + Critic)
@@ -228,6 +250,15 @@ class ReActLoop:
         # ─────────────────────────────
         # LLM Summarize
         # ─────────────────────────────
+
+        if on_thought:
+            try:
+                await on_thought({
+                    "step": "summarizing",
+                    "thought": "Đang tổng hợp thông tin từ các nguồn tìm được..."
+                })
+            except Exception:
+                pass
 
         answer = await self._summarize(question, compressed_context)
 
@@ -347,7 +378,17 @@ class ReActLoop:
         except Exception:
             return sources
 
-        grades = {int(g.get("i")): float(g.get("score") or 0) for g in (data.get("grades") or []) if isinstance(g, dict)}
+        grades = {}
+        for g in (data.get("grades") or []):
+            if not isinstance(g, dict):
+                continue
+            idx = g.get("i")
+            score = g.get("score")
+            if idx is not None and score is not None:
+                try:
+                    grades[int(idx)] = float(score)
+                except (ValueError, TypeError):
+                    continue
 
         for i, s in enumerate(candidates):
             g = grades.get(i, None)
@@ -404,16 +445,16 @@ class ReActLoop:
             steps = []
 
             for p in data.get("plan", [])[:MAX_PLAN_STEPS]:
-
-                steps.append(
-                    PlanStep(
-                        step=p["step"],
-                        tool="search_all",
-                        query=p.get("query", question),
-                        reason=p.get("reason", ""),
-                        parallel=bool(p.get("parallel", False)),
+                if isinstance(p, dict) and "step" in p:
+                    steps.append(
+                        PlanStep(
+                            step=int(p["step"]),
+                            tool="search_all",
+                            query=str(p.get("query") or question),
+                            reason=str(p.get("reason") or ""),
+                            parallel=bool(p.get("parallel", False)),
+                        )
                     )
-                )
 
             if steps:
                 return steps

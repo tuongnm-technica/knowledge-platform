@@ -43,12 +43,32 @@ function updateSummaryGrid(summary) {
   const grid = document.getElementById('connectorsSummaryGrid');
   if (!grid) return;
   grid.innerHTML = `
-    <div class="connector-summary-card"><span>Tổng source</span><strong>${summary.total || 0}</strong><small>Connectors cấu hình</small></div>
-    <div class="connector-summary-card"><span>Healthy</span><strong>${summary.healthy || 0}</strong><small>Kết nối hoạt động</small></div>
-    <div class="connector-summary-card"><span>Tài liệu</span><strong>${(summary.documents || 0).toLocaleString()}</strong><small>Chunks trong KB</small></div>
-    <div class="connector-summary-card"><span>Syncing</span><strong>${summary.syncing || 0}</strong><small>Đang đồng bộ</small></div>
-    <div class="connector-summary-card" style="cursor:pointer" onclick="window.syncAllConnectors()">
-      <span>🔄 Sync All</span><strong style="color:var(--accent)">Run</strong><small>Kích hoạt tất cả</small>
+    <div class="connectors-summary-header">
+      <div class="summary-header-main">
+        <h3>Tổng quan hệ thống</h3>
+        <p>Thống kê trạng thái kết nối và dữ liệu trong Knowledge Base</p>
+      </div>
+      <div class="summary-header-grid">
+        <div class="summary-stat">
+          <label>Tổng nguồn</label>
+          <div class="value">${summary.total || 0}</div>
+        </div>
+        <div class="summary-stat">
+          <label>Healthy</label>
+          <div class="value" style="color:var(--accent3)">${summary.healthy || 0}</div>
+        </div>
+        <div class="summary-stat">
+          <label>Tài liệu</label>
+          <div class="value">${(summary.documents || 0).toLocaleString()}</div>
+        </div>
+        <div class="summary-stat">
+          <label>Đang Sync</label>
+          <div class="value" style="color:var(--accent)">${summary.syncing || 0}</div>
+        </div>
+        <button class="secondary-btn" style="padding:10px 18px;border-radius:12px;font-weight:700" onclick="window.syncAllConnectors()">
+          🔄 Sync All
+        </button>
+      </div>
     </div>
   `;
 }
@@ -86,15 +106,14 @@ function renderConnectorGrid(tabs) {
 
   const currentTab = tabs.find(t => t.type === _activeTab);
 
-  // Render "Add instance" toolbar SEPARATELY, outside the css grid
   if (toolbar) {
     toolbar.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;padding:0 0 12px">
+      <div style="display:flex;align-items:center;gap:12px;padding:0 0 16px">
         <button class="primary-btn" onclick="window.openCreateConnector('${escapeHtml(_activeTab)}')">
-          + Thêm kết nối ${escapeHtml(_activeTab)}
+          <span style="font-size:16px;margin-right:6px">+</span> Thêm kết nối
         </button>
         <button class="secondary-btn" onclick="window.syncAllForType('${escapeHtml(_activeTab)}')">
-          🔄 Sync tất cả ${escapeHtml(_activeTab)}
+          🔄 Sync tất cả ${_activeTab}
         </button>
       </div>
     `;
@@ -102,59 +121,60 @@ function renderConnectorGrid(tabs) {
 
   if (!currentTab?.instances?.length) {
     grid.innerHTML = '<div class="connectors-empty">Chưa có kết nối nào. Thêm kết nối mới để bắt đầu.</div>';
+    grid.className = 'connectors-grid'; // Reset to default if empty
     return;
   }
 
+  grid.className = 'connector-list';
   grid.innerHTML = currentTab.instances.map(inst => renderConnectorCard(inst)).join('');
 }
 
 function renderConnectorCard(inst) {
   const status = inst.status || {};
-  const sync   = (inst.sync || {}).latest_completed_run || {};
+  const sync   = (inst.sync || {}).latest_run || (inst.sync || {}).latest_completed_run || {};
   const data   = inst.data || {};
   const cfg    = inst.config || {};
   const type   = inst.connector_type || '';
   const iid    = inst.instance_id;
   const badgeClass = status.code || 'neutral';
   const syncTime = formatSyncTime(sync.finished_at || sync.last_sync_at);
-  const hasSyncRun = !!(sync.started_at || sync.finished_at);
   const docsVal = (data.documents || 0).toLocaleString();
   const chunksVal = (data.chunks || 0).toLocaleString();
   const isEnabled = cfg.enabled !== false;
   const autoSync  = !!cfg.auto_sync;
 
   return `
-    <article class="connector-card connector-card-rich accent-${escapeHtml(type)}">
-      <div class="connector-card-top">
-        <div class="connector-header" style="display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0">
-          <div class="connector-icon connector-icon-default">${getLargeIcon(type)}</div>
-          <div style="flex:1;min-width:0">
-            <div class="connector-name-row">
-              <div class="connector-name" style="font-family:var(--font-family-title, 'Syne', sans-serif);font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(inst.instance_name)}</div>
-              <span class="connector-kind">${escapeHtml(type)}</span>
+    <article class="connector-card-list accent-${escapeHtml(type)}">
+      ${sync.status === 'running' ? '<div class="sync-status-bar running"></div>' : ''}
+      
+      <div class="connector-header">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="connector-icon">${getLargeIcon(type)}</div>
+          <div style="min-width:0;flex:1">
+            <div class="connector-name" style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(inst.instance_name)}">
+              ${escapeHtml(inst.instance_name)}
             </div>
-            <div class="connector-desc" style="font-size:11px;color:var(--text-muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(inst.base_url || type)}</div>
+            <div class="connector-desc" style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${escapeHtml(inst.base_url || type)}
+            </div>
           </div>
-        </div>
-        <div class="connector-status-badge ${badgeClass}">
-          <div class="status-dot-sm"></div>
-          <span>${escapeHtml(status.label || status.code || '—')}</span>
         </div>
       </div>
 
       <div class="connector-body">
         <div class="connector-config-grid">
-          <div class="connector-config-item">
-            <span>Trạng thái</span>
-            <strong>${isEnabled ? '✅ Enabled' : '⏸ Disabled'}</strong>
+          <div class="connector-status-badge ${badgeClass}" style="margin-right:8px">
+            <div class="status-dot-sm"></div>
+            <span>${escapeHtml(status.label || status.code || '—')}</span>
           </div>
+          
           <div class="connector-config-item">
-            <span>Auto sync</span>
-            <strong>${autoSync ? `🕐 ${cfg.schedule_hour ?? '?'}:${String(cfg.schedule_minute ?? 0).padStart(2,'0')}` : '⛔ Tắt'}</strong>
+            <span>Sync</span>
+            <strong>${autoSync ? '🕐 Auto' : '⛔ Manual'}</strong>
           </div>
         </div>
 
-        <div class="connector-stats connector-stats-rich">
+        <div class="connector-stats">
           <div class="stat-item">
             <div class="stat-value">${docsVal}</div>
             <div class="stat-label">Tài liệu</div>
@@ -163,33 +183,19 @@ function renderConnectorCard(inst) {
             <div class="stat-value">${chunksVal}</div>
             <div class="stat-label">Chunks</div>
           </div>
-          <div class="stat-item">
-            <div class="stat-value stat-value-small">${syncTime}</div>
+          <div class="stat-item" style="min-width:110px">
+            <div class="stat-value-small">${syncTime}</div>
             <div class="stat-label">Last sync</div>
           </div>
         </div>
 
-        ${hasSyncRun ? `<div class="connector-run-strip ${sync.status === 'running' ? 'running' : ''}">
-          <div>
-            <strong>Lần sync gần nhất</strong>
-            <span>${sync.status === 'running' ? '🔄 Đang chạy...' : escapeHtml(sync.status || 'completed')}</span>
-          </div>
-          <div class="connector-run-metrics">
-            <span style="font-size:11px;color:var(--text-dim)">${formatSyncTime(sync.started_at)}</span>
-            ${sync.documents_synced ? `<span style="font-size:11px;color:var(--accent)">${sync.documents_synced} docs</span>` : ''}
-          </div>
-        </div>` : ''}
-
-        <div class="connector-actions-row" style="margin-top:auto;padding-top:14px;border-top:1px solid var(--border)">
-          <button class="primary-btn connector-action-btn" onclick="window.syncConnector('${type}', '${iid}')">🔄 Sync</button>
-          <button class="secondary-btn connector-action-btn" onclick="window.testConnection('${type}', '${iid}')">🔌 Test</button>
-          
-          <div style="flex-basis:100%;height:0"></div> <!-- line break for many buttons -->
-          
-          <button class="secondary-btn mini" onclick="window.openConnectorConfig('${type}', '${iid}')">⚙️ Config</button>
-          <button class="secondary-btn mini" onclick="window.openEditConnector('${type}', '${iid}')">✏️ Sửa</button>
-          <button class="secondary-btn mini" onclick="window.discoverConnector('${type}', '${iid}')">🔍 Scope</button>
-          <button class="danger-btn mini" style="margin-left:auto" onclick="window.deleteConnectorInstance('${type}', '${iid}')">🗑</button>
+        <div class="connector-actions-row">
+          <button class="primary-btn mini" style="padding:6px 12px" onclick="window.syncConnector('${type}', '${iid}')" title="Sync">🔄 Sync</button>
+          <button class="secondary-btn mini" style="padding:6px" onclick="window.testConnection('${type}', '${iid}')" title="Test">🔌</button>
+          <button class="secondary-btn mini" style="padding:6px" onclick="window.openConnectorConfig('${type}', '${iid}')" title="Config">⚙️</button>
+          <button class="secondary-btn mini" style="padding:6px" onclick="window.openEditConnector('${type}', '${iid}')" title="Sửa">✏️</button>
+          <button class="secondary-btn mini" style="padding:6px" onclick="window.discoverConnector('${type}', '${iid}')" title="Scope">🔍</button>
+          <button class="danger-btn mini" style="padding:6px" onclick="window.deleteConnectorInstance('${type}', '${iid}')" title="Xóa">🗑</button>
         </div>
       </div>
     </article>

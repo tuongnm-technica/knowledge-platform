@@ -90,7 +90,7 @@ class HybridSearch:
 
             scores[cid] = scores.get(cid, 0) + score
 
-            item["vector_score"] = float(item.get("score", 0))
+            item["vector_score"] = float(item.get("score") or 0.0)
             item["keyword_score"] = 0.0
 
             meta[cid] = item
@@ -105,12 +105,12 @@ class HybridSearch:
 
             if cid in meta:
 
-                meta[cid]["keyword_score"] = float(item.get("score", 0))
+                meta[cid]["keyword_score"] = float(item.get("score") or 0.0)
 
             else:
 
                 item["vector_score"] = 0.0
-                item["keyword_score"] = float(item.get("score", 0))
+                item["keyword_score"] = float(item.get("score") or 0.0)
 
                 meta[cid] = item
 

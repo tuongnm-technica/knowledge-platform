@@ -39,11 +39,11 @@ class RankingScorer:
             s_pop = popularity_signal(meta.get("click_count", 0))
 
             final = (
-                settings.HYBRID_ALPHA      * s_sem +
-                settings.BM25_WEIGHT       * s_kw  +
-                settings.GRAPH_WEIGHT      * s_graph +
-                settings.RECENCY_WEIGHT    * s_rec +
-                settings.POPULARITY_WEIGHT * s_pop
+                (settings.HYBRID_ALPHA or 0.5)      * (s_sem or 0.0) +
+                (settings.BM25_WEIGHT or 0.3)       * (s_kw or 0.0)  +
+                (settings.GRAPH_WEIGHT or 0.2)      * (s_graph or 0.0) +
+                (settings.RECENCY_WEIGHT or 0.1)    * (s_rec or 0.0) +
+                (settings.POPULARITY_WEIGHT or 0.1) * (s_pop or 0.0)
             )
 
             final *= source_weight
@@ -55,12 +55,12 @@ class RankingScorer:
             item["final_score"] = round(final, 4)
 
             item["score_breakdown"] = {
-                "semantic": round(s_sem, 4),
-                "keyword":  round(s_kw, 4),
-                "graph": round(s_graph, 4),
-                "recency":  round(s_rec, 4),
-                "popularity": round(s_pop, 4),
-                "source_weight": source_weight,
+                "semantic": round(float(s_sem or 0), 4),
+                "keyword":  round(float(s_kw or 0), 4),
+                "graph": round(float(s_graph or 0), 4),
+                "recency":  round(float(s_rec or 0), 4),
+                "popularity": round(float(s_pop or 0), 4),
+                "source_weight": float(source_weight or 0.7),
             }
 
             scored.append(item)

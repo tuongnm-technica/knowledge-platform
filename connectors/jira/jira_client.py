@@ -74,12 +74,13 @@ class JiraClient:
             "attachment",
         ]
 
-    def get_projects(self) -> list[dict]:
+    def get_projects(self, filter_allowed: bool = True) -> list[dict]:
         try:
             projects = self._client.projects()
-            allowed_project_keys = _allowed_project_keys()
-            if allowed_project_keys:
-                projects = [project for project in projects if project["key"] in allowed_project_keys]
+            if filter_allowed:
+                allowed_project_keys = _allowed_project_keys()
+                if allowed_project_keys:
+                    projects = [project for project in projects if project["key"] in allowed_project_keys]
             return projects
         except Exception as exc:
             log.error("jira.get_projects.failed", error=str(exc))

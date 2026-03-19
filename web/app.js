@@ -3,16 +3,16 @@ import { formatTime, safeHostname, parseThinking, getSourceIcon, getBadgeClass, 
 import { API, AUTH, authFetch, tryRefresh, setAuthExpiredHandler } from './api/client.js?v=3';
 import { readApiError, escapeHtml, formatDateTime, formatNumber, showToast, kpOpenModal, kpConfirm, kpPrompt, _kpBuildModalField } from './utils/ui.js?v=3';
 
-import * as Basket from './modules/basket.js?v=3';
-import * as Graph from './modules/graph.js?v=3';
-import * as Admin from './modules/admin.js?v=3';
-import * as Connectors from './modules/connectors.js?v=3';
-import * as Tasks from './modules/tasks.js?v=3';
-import * as Chat from './modules/chat.js?v=3';
-import * as Drafts from './modules/drafts.js?v=3';
-import * as PromptsModule from './modules/prompts.js?v=3';
-import * as Memory from './modules/memory.js?v=3';
-import * as History from './modules/history.js?v=3';
+import * as Basket from './modules/basket.js?v=4';
+import * as Graph from './modules/graph.js?v=4';
+import * as Admin from './modules/admin.js?v=4';
+import * as Connectors from './modules/connectors.js?v=4';
+import * as Tasks from './modules/tasks.js?v=4';
+import * as Chat from './modules/chat.js?v=4';
+import * as Drafts from './modules/drafts.js?v=4';
+import * as PromptsModule from './modules/prompts.js?v=4';
+import * as Memory from './modules/memory.js?v=4';
+import * as History from './modules/history.js?v=4';
 
 console.log('[App] Starting v3.2');
 

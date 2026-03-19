@@ -14,7 +14,10 @@ import structlog
 from storage.db.db import get_db
 from orchestration.agent import Agent
 from apps.api.auth.dependencies import get_current_user, CurrentUser
-from models.chat import ChatSession, ChatMessage
+from models.chat import ChatSession, ChatMessage, ChatJob
+from utils.queue_client import get_redis_pool
+from config.settings import settings
+
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/ask", tags=["ask"])
@@ -23,6 +26,11 @@ router = APIRouter(prefix="/ask", tags=["ask"])
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=1000)
     session_id: str | None = None
+
+
+class AskJobResponse(BaseModel):
+    job_id: str
+    session_id: str
 
 
 class AskResponse(BaseModel):
@@ -35,122 +43,98 @@ class AskResponse(BaseModel):
     session_id:      str | None = None
 
 
-@router.post("", response_model=AskResponse)
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    progress: int
+    thoughts: list[dict] = Field(default_factory=list)
+    result: dict | None = None
+    error: str | None = None
+
+
+@router.post("", response_model=AskJobResponse)
 async def ask(
     req: AskRequest,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    POST /ask — Execute ReAct agent pipeline with proper error handling
-    
-    Returns:
-      - 200: AskResponse with answer and sources
-      - 400: Invalid question format
-      - 503: LLM service unavailable
-      - 504: LLM service timeout (too slow)
-      - 500: Internal server error
+    POST /ask — Enqueue a ReAct agent job and return job_id immediately.
     """
-    
-    # 1. Validate input
     question = req.question.strip()
-    if len(question) < 3 or len(question) > 1000:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Question must be 3-1000 characters"
-        )
+    session_id = req.session_id
     
+    # 1. Ensure Chat Session
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        title = question[:50] + ("..." if len(question) > 50 else "")
+        db.add(ChatSession(id=session_id, user_id=current_user.user_id, title=title))
+    else:
+        # Update updated_at
+        from sqlalchemy import select
+        session_obj = (await db.execute(select(ChatSession).where(ChatSession.id == session_id))).scalar_one_or_none()
+        if session_obj:
+            session_obj.updated_at = datetime.now(timezone.utc)
+    
+    # Save user message
+    db.add(ChatMessage(session_id=session_id, role="user", content=question))
+    
+    # 2. Create ChatJob
+    job_id = str(uuid.uuid4())
+    job = ChatJob(
+        id=job_id,
+        session_id=session_id,
+        user_id=current_user.user_id,
+        question=question,
+        status="queued"
+    )
+    db.add(job)
+    await db.commit()
+    
+    # 3. Enqueue to arq
     try:
-        # 2. Create agent with user context from the start
-        agent = Agent(db, current_user.user_id)
-        
-        # 3. Execute with timeout wrapper (3 minutes)
-        result = await asyncio.wait_for(
-            agent.ask(question),
-            timeout=180
+        redis = await get_redis_pool()
+        await redis.enqueue_job(
+            "run_agent_job", 
+            job_id, 
+            current_user.user_id, 
+            question, 
+            session_id,
+            _queue_name=settings.ARQ_AI_QUEUE_NAME
         )
-
-        # Đảm bảo result luôn là dictionary để tránh lỗi AttributeError khi gọi result.get()
-        if not result:
-            result = {}
-        elif not isinstance(result, dict):
-            result = {"answer": str(result)}
-
-        # 3.5. Lưu lịch sử chat vào Database
-        try:
-            session_id = req.session_id
-            if not session_id:
-                session_id = str(uuid.uuid4())
-                title = question[:50] + ("..." if len(question) > 50 else "")
-                db.add(ChatSession(id=session_id, user_id=current_user.user_id, title=title))
-            else:
-                # Cập nhật thời gian updated_at để session trồi lên đầu danh sách Lịch sử
-                from sqlalchemy import select
-                session_obj = (await db.execute(select(ChatSession).where(ChatSession.id == session_id))).scalar_one_or_none()
-                if session_obj:
-                    session_obj.updated_at = datetime.now(timezone.utc)
-            
-            # Lưu câu hỏi của User và câu trả lời của AI
-            db.add(ChatMessage(session_id=session_id, role="user", content=question))
-            db.add(ChatMessage(session_id=session_id, role="assistant", content=result.get("answer", ""), sources=result.get("sources", [])))
-            
-            await db.commit()
-        except Exception as db_err:
-            log.error("ask.save_history_failed", error=str(db_err))
-            # Không raise lỗi để người dùng vẫn nhận được câu trả lời dù db lưu xịt
-        
-        # 4. Validate response has required fields
-        return AskResponse(
-            answer=result.get("answer", ""),
-            sources=result.get("sources", []),
-            rewritten_query=result.get("rewritten_query", question),
-            agent_steps=result.get("agent_steps", []),
-            agent_plan=result.get("agent_plan", []),
-            used_tools=result.get("used_tools", []),
-            session_id=session_id,
-        )
-        
-    # 5. Handle specific errors with appropriate HTTP status codes
-    except asyncio.TimeoutError:
-        log.warning(
-            "ask.timeout",
-            user_id=current_user.user_id,
-            question=question[:100],
-        )
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="LLM service is slow. Please try again.",
-            headers={"Retry-After": "30"},
-        )
-    
-    except ConnectionError as e:
-        log.error(
-            "ask.connection_error",
-            error=str(e),
-            user_id=current_user.user_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM service is temporarily unavailable. Try again in a few minutes.",
-            headers={"Retry-After": "300"},
-        )
-    
-    except ValueError as e:
-        # Config error or similar
-        log.error("ask.config_error", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Server configuration error"
-        )
-    
+        log.info("ask.job_enqueued", job_id=job_id, user_id=current_user.user_id)
     except Exception as e:
-        log.exception(
-            "ask.unexpected_error",
-            user_id=current_user.user_id,
-            question=question[:100],
-            error_type=type(e).__name__,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error. Please try again later."
-        )
+        log.error("ask.enqueue_failed", error=str(e))
+        # Optional: update job status to failed in DB if enqueue fails
+        raise HTTPException(status_code=500, detail="Failed to enqueue background job")
+
+    return AskJobResponse(job_id=job_id, session_id=session_id)
+
+
+@router.get("/status/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    GET /ask/status/{job_id} — Polling endpoint for job status.
+    """
+    from sqlalchemy import select
+    result = await db.execute(select(ChatJob).where(ChatJob.id == job_id))
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    if job.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return JobStatusResponse(
+        job_id=job.id,
+        status=job.status,
+        progress=job.progress,
+        thoughts=job.thoughts or [],
+        result=job.result,
+        error=job.error
+    )

@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="/static/css/modules/admin.css">
 <link rel="stylesheet" href="/static/css/modules/basket.css">
 <link rel="stylesheet" href="/static/css/modules/chat.css?v=2">
-<link rel="stylesheet" href="/static/css/modules/connectors.css?v=3">
+<link rel="stylesheet" href="/static/css/modules/connectors.css?v=4">
 <link rel="stylesheet" href="/static/css/modules/drafts.css">
 <link rel="stylesheet" href="/static/css/modules/graph.css">
 <link rel="stylesheet" href="/static/css/modules/history.css">
@@ -340,34 +340,16 @@
         </div>
         <div class="count-pill" id="connectorsSummaryPill">Manual sync enabled</div>
       </div>
-      <div class="connectors-toolbar">
-        <div class="connectors-toolbar-copy">
-          <div class="connectors-toolbar-title">Operational overview</div>
-          <div class="connectors-toolbar-sub">Catalog này tách rõ trạng thái cấu hình, trạng thái sync và live connection test để tránh nhìn nhầm “có data” thành “đang khỏe”.</div>
-        </div>
-        <div class="connectors-toolbar-actions">
-          <button class="secondary-btn" onclick="loadConnectorStats(true)">Refresh</button>
-          <button class="primary-btn" id="syncTabConnectorsBtn" onclick="syncCurrentConnectorTab()">Sync tab</button>
-          <button class="danger-btn" id="clearTabDataBtn" onclick="clearCurrentConnectorTab()" style="display:none">Clear tab data</button>
-          <button class="danger-btn" id="clearAllDataBtn" onclick="clearAllKnowledgeBase()" style="display:none">Clear ALL</button>
-          <button class="secondary-btn" id="addConnectorBtn" onclick="openCreateConnectorInstance()" style="display:none">+ Add connector</button>
-        </div>
-      </div>
+      <div class="connectors-summary-grid" id="connectorsSummaryGrid"></div>
 
       <div class="connector-tabs" id="connectorTabs"></div>
 
-      <div class="connectors-summary-grid" id="connectorsSummaryGrid">
-        <div class="connector-summary-card">
-          <span>Total connectors</span>
-          <strong>—</strong>
-          <small>Loading catalog...</small>
-        </div>
+      <div id="connectorsToolbar" style="margin-bottom:14px"></div>
+      
+      <div class="connector-list" id="connectorsGrid">
+        <div class="connectors-empty">Đang tải danh sách kết nối...</div>
       </div>
 
-      <div id="connectorsToolbar" style="margin-bottom:14px"></div>
-      <div class="connectors-grid connectors-grid-rich" id="connectorsGrid">
-        <div class="connectors-empty">Loading connector catalog...</div>
-      </div>
     </div>
   </div>
 

@@ -186,7 +186,7 @@ async def _rerank_llm(
             # clamp score
             llm_score = max(0, min(llm_score, 3))
 
-            original = c.get("final_score", c.get("rrf_score", 0))
+            original = float(c.get("final_score") or c.get("rrf_score") or 0.0)
 
             norm_orig = original / max_orig
 
@@ -310,10 +310,10 @@ async def _rerank_cross_encoder(
     max_orig = max(orig_scores) or 1
 
     for c, ce_score in zip(to_rerank, scores_list):
-        original = c.get("final_score", c.get("rrf_score", 0))
-        norm_orig = (original / max_orig) if max_orig else 0
-        c["cross_encoder_relevance"] = ce_score
-        c["rerank_score"] = float(ce_score) + (0.01 * float(norm_orig))
+        original = float(c.get("final_score") or c.get("rrf_score") or 0.0)
+        norm_orig = (original / max_orig) if max_orig else 0.0
+        c["cross_encoder_relevance"] = float(ce_score or 0.0)
+        c["rerank_score"] = float(ce_score or 0.0) + (0.01 * float(norm_orig))
 
     reranked = sorted(
         to_rerank,

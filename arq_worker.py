@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from config.settings import settings
 from apps.api.services.connectors_service import _run_sync_task
 from tasks.scanner import scan_and_create_drafts
+from orchestration.agent_tasks import run_agent_job
 
 log = structlog.get_logger()
 
@@ -76,3 +77,11 @@ class DefaultWorkerSettings(BaseWorkerSettings):
     functions = [fast_background_job]
     job_timeout = settings.ARQ_DEFAULT_JOB_TIMEOUT  # Timeout ngắn (2 phút)
     max_jobs = settings.ARQ_DEFAULT_MAX_JOBS      # Cho phép xử lý đồng thời nhiều task nhẹ
+
+
+class AIWorkerSettings(BaseWorkerSettings):
+    """Worker chuyên xử lý các tác vụ AI/Agent nặng (ReAct loops)."""
+    queue_name = "arq:ai"
+    functions = [run_agent_job]
+    job_timeout = 600  # 10 phút
+    max_jobs = 3    # Giới hạn chạy song song ít để bảo vệ GPU

@@ -1,6 +1,6 @@
 from models.document import Chunk
 from storage.vector.vector_store import VectorStore
-from utils.embeddings import get_embeddings_batch
+from services.embedding_service import get_embedding_service
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import structlog
@@ -21,6 +21,7 @@ class VectorIndex:
     def __init__(self, session: AsyncSession):
         self._session = session
         self._store = _get_store()
+        self._embedding_service = get_embedding_service()
 
     async def index_chunks(self, chunks: list[Chunk], source="", title="") -> None:
         if not chunks:
@@ -29,7 +30,7 @@ class VectorIndex:
         texts = [c.content for c in chunks]
         log.info("vector_index.embedding", count=len(texts))
         try:
-            vectors = await get_embeddings_batch(texts)
+            vectors = await self._embedding_service.get_embeddings_batch(texts)
         except Exception as e:
             log.error("vector_index.embedding_failed", error=str(e))
             return

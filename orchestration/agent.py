@@ -19,20 +19,22 @@ from persistence.document_repository import DocumentRepository
 from persistence.asset_repository import AssetRepository
 from ranking.scorer import RankingScorer
 from retrieval.hybrid.hybrid_search import HybridSearch
+from services.rag_service import RAGService
 from utils.vision_answer import answer_with_images
-from utils.ollama_api import ollama_chat
+from apps.api.clients import get_llm_provider, BaseLLMProvider
 
 
 log = structlog.get_logger()
 
 
-class OllamaLLM:
+class LLMService:
     def __init__(self):
+        self._provider: BaseLLMProvider = get_llm_provider()
         self._model = settings.OLLAMA_LLM_MODEL
 
     async def chat(self, system: str, user: str, max_tokens: int = 800) -> str:
         try:
-            return await ollama_chat(
+            return await self._provider.chat(
                 model=self._model,
                 messages=[
                     {"role": "system", "content": system},
@@ -42,32 +44,14 @@ class OllamaLLM:
                 timeout=settings.LLM_TIMEOUT,
             )
         except asyncio.TimeoutError:
-            # Re-raise timeout so it can be caught at higher level
-            log.warning("ollama.timeout", model=self._model)
+            log.warning("llm.timeout", model=self._model)
             raise
-        except httpx.TimeoutException:
-            # Convert httpx timeout to asyncio.TimeoutError
-            log.warning("ollama.httpx_timeout", model=self._model)
-            raise asyncio.TimeoutError(f"Ollama timed out ({settings.LLM_TIMEOUT}s)")
-        except (httpx.ConnectError, httpx.NetworkError) as e:
-            log.error("ollama.connection_error", error=str(e))
-            raise ConnectionError(f"LLM service unreachable: {str(e)}")
-        except httpx.HTTPStatusError as e:
-            log.error("ollama.http_error", status=e.response.status_code)
-            if e.response.status_code == 503:
-                raise ConnectionError("LLM service unavailable")
-            raise RuntimeError(f"Ollama error {e.response.status_code}")
         except Exception as e:
-            log.exception("ollama.unexpected_error", error=str(e))
+            log.error("llm.error", error=str(e), model=self._model)
             raise
 
     async def is_available(self) -> bool:
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
-                return resp.status_code == 200
-        except Exception:
-            return False
+        return await self._provider.is_available()
 
 
 class Agent:
@@ -82,40 +66,38 @@ class Agent:
         self._session = session
         self._user_id = user_id
         
-        # Pass user_id to all components for proper isolation
-        self._search = HybridSearch(session, user_id=user_id)
-        self._permissions = PermissionFilter(session, user_id=user_id)
+        # Components — user_id is passed at call-time, not init-time
+        self._search = HybridSearch(session)
+        self._permissions = PermissionFilter(session)
         self._scorer = RankingScorer()
-        self._repo = DocumentRepository(session, user_id=user_id)
-        self._graph = KnowledgeGraph(session, user_id=user_id)
-        self._llm = OllamaLLM()
+        self._repo = DocumentRepository(session)
+        self._graph = KnowledgeGraph(session)
+        self._llm = LLMService()
+        self._rag = RAGService(session, user_id)
         
         log.info(
             "agent.initialized",
             user_id=user_id,
         )
 
-    async def ask(self, question: str) -> dict:
+    async def ask(self, question: str, on_thought: Any | None = None) -> dict:
         """
         Process a question through the ReAct agent pipeline.
         
         Args:
             question: User's question
+            on_thought: Optional callback for each agent thought/step
             
         Returns:
             Dictionary with answer, sources, and metadata
-            
-        Raises:
-            asyncio.TimeoutError: If LLM processing times out
-            ConnectionError: If LLM service is unavailable
         """
-        # Build tools with user context
-        tools = build_tool_registry(self._session, user_id=self._user_id)
-        loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS)
+        # Build tools
+        tools = build_tool_registry(self._session)
+        loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS, llm_client=self._llm)
         
         try:
-            # Note: user_id is already in self, no need to pass again
-            result: ReActResult = await loop.run(question, user_id=self._user_id)
+            # Pass callback if ReActLoop supports it (need to update ReActLoop too)
+            result: ReActResult = await loop.run(question, user_id=self._user_id, on_thought=on_thought)
         except asyncio.TimeoutError:
             # Re-raise to be caught by API endpoint
             raise
@@ -207,46 +189,7 @@ class Agent:
         }
 
     async def search(self, query: SearchQuery) -> list[SearchResult]:
-        log.info("agent.search.start", q=query.raw, limit=query.limit, offset=query.offset)
-        allowed_ids = await self._permissions.allowed_docs(query.user_id)
-        # If the user is not admin and has no ACL matches, return no results (permission-aware retrieval).
-        if allowed_ids is not None and len(allowed_ids) == 0:
-            return []
-        graph_doc_ids = await self._graph.find_related_documents(
-            query.entities,
-            limit=max(query.limit * 5, 20),
-        )
-        if allowed_ids:
-            allowed_set = {str(doc_id) for doc_id in allowed_ids}
-            graph_doc_ids = [doc_id for doc_id in graph_doc_ids if str(doc_id) in allowed_set]
-
-        raw = await self._search.search(
-            query.effective,
-            top_k=max(query.offset + query.limit + 40, 100),
-            allowed_document_ids=allowed_ids,
-        )
-        raw = self._apply_graph_boost(raw, query, graph_doc_ids)
-
-        doc_ids = list({str(item["document_id"]) for item in raw if item.get("document_id")})
-        doc_ids.extend([doc_id for doc_id in graph_doc_ids if doc_id not in doc_ids])
-        doc_meta = await self._fetch_doc_meta(doc_ids)
-        raw.extend(self._supplement_graph_results(graph_doc_ids, raw, doc_meta, query))
-
-        scored = self._scorer.score(raw, doc_meta)
-
-        # De-duplicate by document_id: only keep the best ranked chunk for each document
-        unique_results = []
-        seen_docs = set()
-        for item in scored:
-            doc_id = str(item.get("document_id", ""))
-            if not doc_id or doc_id not in seen_docs:
-                unique_results.append(item)
-                if doc_id:
-                    seen_docs.add(doc_id)
-
-        start = query.offset
-        end = start + query.limit
-        return self._to_results(unique_results[start:end], doc_meta)
+        return await self._rag.search(query)
 
     async def health(self) -> dict:
         ollama_ok = await self._llm.is_available()
@@ -303,7 +246,7 @@ class Agent:
                     "title": source.get("title", "Untitled"),
                     "url": source.get("url", ""),
                     "source": source.get("source", ""),
-                    "score": round(source.get("score", 0), 3),
+                    "score": round(float(source.get("score") or 0.0), 3),
                     "snippet": source.get("content", "")[:150],
                     "document_id": source.get("document_id", ""),
                     "chunk_id": source.get("chunk_id", ""),
@@ -318,7 +261,7 @@ class Agent:
                 "thought": step.thought,
                 "action": step.action,
                 "action_input": step.action_input,
-                "observation": step.observation[:300] if step.observation else "",
+                "observation": str(step.observation or "")[:300],
                 "is_final": step.is_final,
             }
             for step in steps

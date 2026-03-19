@@ -98,75 +98,29 @@ export async function sendMessage() {
       }),
     });
 
-    removeThinking(thinkId);
-
-    // Determine action based on status
-    if (resp.status === 504) {
-      // Gateway timeout - LLM is slow
-      showToast('LLM service slow, retrying in 5s...', 'warning');
-      setTimeout(() => {
-        _isSending = false;
-        sendMessage();
-      }, 5000);
-      return;
-    }
-
-    if (resp.status === 503) {
-      // Service unavailable
-      showToast('LLM service unavailable, try again in 10 minutes', 'error');
-      const errDiv = document.createElement('div');
-      errDiv.textContent = '⛔ Dịch vụ LLM tạm thời không khả dụng. Vui lòng thử lại sau.';
-      appendBubble('ai', errDiv);
-      scrollChatBottom();
-      return;
-    }
-
     if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}));
-      let msg = errData.detail || `Lỗi hệ thống (${resp.status})`;
-      if (Array.isArray(msg)) {
-        msg = msg.map(m => (typeof m === 'string' ? m : (m.msg || JSON.stringify(m)))).join(', ');
-      } else if (typeof msg === 'object') {
-        msg = msg.message || JSON.stringify(msg);
-      }
-      throw new Error(String(msg));
+        removeThinking(thinkId);
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.detail || `Lỗi hệ thống (${resp.status})`);
     }
 
-    const data = await resp.json();
+    const jobData = await resp.json();
+    const jobId = jobData.job_id;
     
-    // Cập nhật session_id cho các câu hỏi tiếp theo
-    if (data.session_id) {
-      window.currentSessionId = data.session_id;
+    // Cập nhật session_id ngay lập tức
+    if (jobData.session_id) {
+      window.currentSessionId = jobData.session_id;
     }
 
-    const answerHtml = formatAnswer(data);
-    appendBubble('ai', answerHtml, data);
-    scrollChatBottom();
-    input.focus();
-
-    // Cập nhật lại lịch sử (nếu hàm loadHistoryPage có sẵn)
-    if (typeof window.loadHistoryPage === 'function') window.loadHistoryPage();
+    // Start polling
+    await pollJobStatus(jobId, window.currentSessionId, thinkId, input);
 
   } catch (e) {
     console.error('Chat error:', e);
-    let errorMsg = 'Unknown error';
-    if (typeof e === 'string') {
-      errorMsg = e;
-    } else if (e instanceof Error) {
-      errorMsg = e.message;
-    } else {
-      try {
-        errorMsg = JSON.stringify(e);
-      } catch (jsonErr) {
-        errorMsg = String(e);
-      }
-    }
-    if (errorMsg === '[object Object]') {
-      errorMsg = 'Lỗi không xác định (hãy kiểm tra console)';
-    }
+    // ... error handling remains similar ...
     const errorDiv = document.createElement('div');
     errorDiv.className = 'chat-error';
-    errorDiv.textContent = `⚠️ Lỗi: ${errorMsg}`;
+    errorDiv.textContent = `⚠️ Lỗi: ${e.message || e}`;
     appendBubble('ai', errorDiv);
     scrollChatBottom();
   } finally {
@@ -174,6 +128,74 @@ export async function sendMessage() {
     if (sendBtn) sendBtn.disabled = false;
     input.focus();
   }
+}
+
+async function pollJobStatus(jobId, session_id, thinkId, input) {
+  const pollInterval = 1500; // 1.5s
+  let attempts = 0;
+  const maxAttempts = 120; // 3 minutes total
+
+  while (attempts < maxAttempts) {
+    try {
+      const resp = await authFetch(`${API}/ask/status/${jobId}`);
+      if (!resp.ok) throw new Error('Không thể kiểm tra trạng thái job');
+      
+      const data = await resp.json();
+      
+      // Cập nhật giao diện với thoughts mới nhất
+      updateThinkingStatus(thinkId, data.thoughts);
+
+      if (data.status === 'completed') {
+        removeThinking(thinkId);
+        if (data.result) {
+          const answerHtml = formatAnswer(data.result);
+          appendBubble('ai', answerHtml, { ...data.result, session_id });
+          scrollChatBottom();
+          // Cập nhật lại lịch sử
+          if (typeof window.loadHistoryPage === 'function') window.loadHistoryPage();
+        }
+        return;
+      }
+
+      if (data.status === 'failed') {
+        removeThinking(thinkId);
+        throw new Error(data.error || 'Lỗi không xác định trong lúc xử lý');
+      }
+
+    } catch (e) {
+      console.error('Polling error:', e);
+      // Wait and continue polling unless it's a critical failure
+    }
+
+    await new Promise(r => setTimeout(r, pollInterval));
+    attempts++;
+  }
+
+  removeThinking(thinkId);
+  throw new Error('Hết thời gian chờ xử lý (Timeout)');
+}
+
+function updateThinkingStatus(id, thoughts) {
+    const el = document.getElementById(id);
+    if (!el || !thoughts || !thoughts.length) return;
+    
+    const latestThought = thoughts[thoughts.length - 1];
+    const text = latestThought.thought || "Đang xử lý...";
+    
+    const bubble = el.querySelector('.chat-thinking');
+    if (bubble) {
+        // Find or create thought label
+        let label = bubble.querySelector('.thinking-text');
+        if (!label) {
+            label = document.createElement('span');
+            label.className = 'thinking-text';
+            label.style.marginLeft = '8px';
+            label.style.fontSize = '12px';
+            label.style.opacity = '0.8';
+            bubble.appendChild(label);
+        }
+        label.textContent = text;
+    }
 }
 
 // ─── Reset Chat ──────────────────────────────────────────────────────────────
@@ -292,7 +314,7 @@ function scrollChatBottom() {
   }
 }
 
-function formatAnswer(data) {
+export function formatAnswer(data) {
   if (!data) return document.createElement('div');
   
   const container = document.createElement('div');

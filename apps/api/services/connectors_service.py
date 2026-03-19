@@ -25,7 +25,7 @@ from connectors.slack.slack_client import SlackClient
 from connectors.slack.slack_connector import SlackConnector
 from ingestion.pipeline import IngestionPipeline
 from storage.db.db import AsyncSessionLocal
-from storage.vector.vector_store import VectorStore, recreate_collection
+from services.rag_service import RAGService
 
 
 log = structlog.get_logger()
@@ -761,6 +761,9 @@ async def build_connectors_dashboard(session: AsyncSession, *, can_manage: bool)
                     "icon": definition.icon,
                     "accent": definition.accent,
                     "configured": configured,
+                    "base_url": inst.get("base_url") or "",
+                    "scope_label": definition.scope_label,
+                    "scope_value": _selection_summary(definition.key, config_state.get("selection") or {}),
                     "missing_settings": missing,
                     "status": status,
                     "state": {
@@ -969,7 +972,7 @@ async def discover_connector_scopes(session: AsyncSession, connector_type: str, 
             username=inst.get("username"),
             auth_type=inst.get("auth_type"),
         )
-        projects = await asyncio.to_thread(client.get_projects)
+        projects = await asyncio.to_thread(client.get_projects, filter_allowed=False)
         items = [{"key": p.get("key", ""), "name": p.get("name", p.get("key", ""))} for p in projects if p.get("key")]
         return {"connector": connector_type, "items": items}
 
@@ -1017,8 +1020,7 @@ async def clear_all_synced_data(session: AsyncSession) -> dict[str, Any]:
     await session.execute(text("TRUNCATE TABLE ai_task_drafts RESTART IDENTITY CASCADE"))
     await session.commit()
 
-    recreate_collection(settings.QDRANT_COLLECTION, size=settings.VECTOR_DIM)
-    recreate_collection("semantic_cache", size=settings.VECTOR_DIM)
+    RAGService.clear_all()
     return {"status": "cleared"}
 
 
@@ -1028,7 +1030,7 @@ async def clear_connector_data(session: AsyncSession, connector_type: str) -> di
     await session.execute(text("DELETE FROM sync_logs WHERE connector LIKE :p"), {"p": f"{connector_type}:%"})
     await session.commit()
     try:
-        VectorStore().delete_by_sources([definition.source])
+        RAGService.delete_by_sources([definition.source])
     except Exception as exc:
         log.warning("connectors.clear.vectors_failed", error=str(exc))
     return {"status": "cleared", "connector": connector_type}

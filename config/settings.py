@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     ARQ_INGESTION_MAX_JOBS: int = 2
     ARQ_INGESTION_JOB_TIMEOUT: int = 1200
 
+    ARQ_AI_QUEUE_NAME: str = "arq:ai"
+
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
     QDRANT_COLLECTION: str = "knowledge_chunks"
@@ -31,6 +33,10 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
     OLLAMA_EMBED_MODEL: str = "bge-m3"
+
+    LLM_PROVIDER: str = "ollama"  # ollama | vllm | openai
+    INFERENCE_BASE_URL: Optional[str] = None # For vLLM/OpenAI compatible services
+
     EMBEDDING_MODEL: str = OLLAMA_EMBED_MODEL
     EMBEDDING_CONCURRENCY: int = 2  # Concurrency limit for embedding API calls
     LLM_TIMEOUT: int = 800

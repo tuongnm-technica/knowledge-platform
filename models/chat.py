@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -29,3 +29,19 @@ class ChatMessage(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     session = relationship("ChatSession", back_populates="messages")
+
+
+class ChatJob(Base):
+    __tablename__ = "chat_jobs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    session_id = Column(String(36), ForeignKey("chat_sessions.id", ondelete="CASCADE"), index=True, nullable=True)
+    user_id = Column(String, index=True, nullable=False)
+    question = Column(Text, nullable=False)
+    status = Column(String(20), default="queued", index=True)  # queued, running, completed, failed
+    progress = Column(Integer, default=0)
+    thoughts = Column(JSONB, default=list)  # List of ReAct steps / thoughts
+    result = Column(JSONB, default=dict)    # {answer: "", sources: []}
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
