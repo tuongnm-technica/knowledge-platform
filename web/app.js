@@ -226,6 +226,19 @@ window.addEventListener('DOMContentLoaded', () => {
     if (AUTH.token && !AUTH.isExpired()) {
         hideLoginScreen();
     }
+    
+    // Gắn sự kiện đăng nhập an toàn từ phía JS
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', doLogin);
+    }
+    
+    const loginPwd = document.getElementById('loginPwd');
+    if (loginPwd) {
+        loginPwd.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') doLogin();
+        });
+    }
 });
 
 // Expose globals for HTML inline call

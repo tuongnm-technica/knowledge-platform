@@ -48,10 +48,9 @@
     <div class="login-field">
       <label>MẬT KHẨU</label>
       <input id="loginPwd" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
-        autocomplete="current-password"
-        onkeydown="if(event.key==='Enter') doLogin()">
+        autocomplete="current-password">
     </div>
-    <button class="login-btn" id="loginBtn" onclick="doLogin()">
+    <button class="login-btn" id="loginBtn">
       <span id="loginBtnText">Đăng nhập</span>
     </button>
     <div class="login-footer">Technica Internal &mdash; Confidential</div>
@@ -492,6 +491,18 @@
 <button id="basketFab" class="basket-fab" onclick="toggleBasketDrawer()" title="Giỏ ngữ cảnh">📌</button>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  // Bắt lỗi module không load được (do thiếu file import) và báo ra màn hình
+  window.addEventListener('error', function(e) {
+    if (e.message && (e.message.includes('module') || e.message.includes('import'))) {
+      const err = document.getElementById('loginError');
+      if (err) {
+        err.textContent = 'Lỗi nạp file giao diện. Bấm F12 mở tab Console để xem file nào đang bị thiếu (lỗi 404).';
+        err.style.display = 'block';
+      }
+    }
+  }, true);
+</script>
 <script type="module" src="/static/app.js?v=5"></script>
 </body>
 </html>
