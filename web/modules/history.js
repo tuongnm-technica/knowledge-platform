@@ -59,33 +59,49 @@ window.viewChatSession = async function(sessionId) {
     if (!response.ok) throw new Error('Không thể tải phiên chat');
     const data = await response.json();
     
-    let html = `
-      <div style="margin-bottom: 20px;">
-        <button class="secondary-btn mini" onclick="window.loadHistoryPage()">← Quay lại danh sách</button>
-        <h3 style="margin:16px 0 8px;color:var(--text)">${escapeHtml(data.session.title)}</h3>
-      </div>
-      <div class="chat-thread" style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:20px;">
-    `;
+    // Chuyển dữ liệu sang màn hình Chat chính
+    window.currentSessionId = sessionId;
     
-    data.messages.forEach(m => {
-      const isUser = m.role === 'user';
-      const align = isUser ? 'flex-end' : 'flex-start';
-      const bg = isUser ? 'var(--accent)' : 'var(--bg3)';
-      const color = isUser ? '#fff' : 'var(--text)';
-      
-      let contentHtml = `<div style="white-space:pre-wrap;">${escapeHtml(m.content)}</div>`;
-      
-      html += `
-        <div style="display:flex; flex-direction:column; align-items:${align};">
-          <div style="max-width:85%;background:${bg};color:${color};padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.6;">
-            ${contentHtml}
-          </div>
-        </div>
-      `;
-    });
+    const chatMessages = document.getElementById('chatMessages');
+    const emptyState = document.getElementById('emptyState');
+    const newChatBtn = document.getElementById('newChatBtn');
     
-    html += `</div>`;
-    container.innerHTML = html;
+    if (chatMessages) {
+      // Xóa các tin nhắn cũ
+      Array.from(chatMessages.querySelectorAll('.chat-message')).forEach(msg => msg.remove());
+      if (emptyState) emptyState.style.display = 'none';
+      if (newChatBtn) newChatBtn.style.display = 'inline-block';
+      
+      // Render lại từng tin nhắn từ DB lên giao diện Chat AI
+      data.messages.forEach(m => {
+        const roleClass = m.role === 'assistant' ? 'ai' : 'user';
+        const wrap = document.createElement('div');
+        wrap.className = `chat-message chat-message-${roleClass}`;
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble chat-bubble-${roleClass}`;
+        
+        if (roleClass === 'ai' && typeof marked !== 'undefined') {
+          bubble.innerHTML = marked.parse(m.content || '');
+        } else {
+          bubble.textContent = m.content || '';
+        }
+        wrap.appendChild(bubble);
+        chatMessages.appendChild(wrap);
+      });
+      
+      // Cuộn xuống cuối cùng
+      setTimeout(() => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }, 50);
+    }
+    
+    // Tự động chuyển tab sang trang Chat
+    if (window.navigate) {
+      window.navigate('chat');
+    }
+    
+    // Tải lại list history ở background để làm mới trạng thái
+    loadHistoryPage();
     
   } catch (e) {
     showToast(e.message, 'error');

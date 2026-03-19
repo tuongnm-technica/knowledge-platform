@@ -7,6 +7,9 @@ let _isSending = false;  // Race condition prevention
 const TEXTAREA_MAX_HEIGHT = 180;
 const MAX_QUESTION_LENGTH = 1000;
 
+// Lưu trữ session hiện tại để nối tiếp hội thoại
+window.currentSessionId = null;
+
 export function setChatCallbacks(callbacks) {
   _callbacks = callbacks || {};
 }
@@ -17,6 +20,7 @@ export function autoResize(el) {
   if (!el) return;
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT) + 'px';
+  scrollChatBottom(); // Cuộn theo khi khung nhập liệu to ra
 }
 
 // ─── Keyboard handler ───────────────────────────────────────────────────────
@@ -88,7 +92,10 @@ export async function sendMessage() {
     // Handle different HTTP status codes
     const resp = await authFetch(`${API}/ask`, {
       method: 'POST',
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ 
+        question, 
+        session_id: window.currentSessionId 
+      }),
     });
 
     removeThinking(thinkId);
@@ -126,6 +133,15 @@ export async function sendMessage() {
     }
 
     const data = await resp.json();
+    
+    // Cập nhật session_id cho các câu hỏi tiếp theo
+    if (data.session_id) {
+      window.currentSessionId = data.session_id;
+    }
+    // Hiển thị nút New Chat
+    const newChatBtn = document.getElementById('newChatBtn');
+    if (newChatBtn) newChatBtn.style.display = 'inline-block';
+
     const answerHtml = formatAnswer(data);
     appendBubble('ai', answerHtml, data);
     scrollChatBottom();
@@ -159,6 +175,60 @@ export async function sendMessage() {
     input.focus();
   }
 }
+
+// ─── Reset Chat ──────────────────────────────────────────────────────────────
+
+const GREETINGS = [
+  "Xin chào! Tôi có thể giúp gì cho bạn hôm nay?",
+  "Chào bạn! Bạn cần tìm thông tin gì từ hệ thống?",
+  "Knowledge AI đã sẵn sàng. Bạn muốn hỏi gì?",
+  "Bạn cần hỗ trợ gì từ kho tài liệu nội bộ?",
+  "Xin chào! Hãy đặt câu hỏi để tôi tìm kiếm giúp bạn."
+];
+
+window.startNewChat = function() {
+  window.currentSessionId = null;
+  const container = document.getElementById('chatMessages');
+  const emptyState = document.getElementById('emptyState');
+  
+  if (container) {
+    // Xóa tất cả tin nhắn cũ
+    Array.from(container.querySelectorAll('.chat-message')).forEach(msg => msg.remove());
+  }
+  if (emptyState) {
+    emptyState.style.display = 'flex'; // Hiển thị lại empty state
+    
+    // Hiệu ứng đổi lời chào ngẫu nhiên
+    const titleEl = emptyState.querySelector('.empty-title');
+    if (titleEl) {
+      const text = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+      titleEl.textContent = text;
+      
+      // Xóa animation cũ và ép trình duyệt vẽ lại (reflow) để chạy lại animation
+      titleEl.style.animation = 'none';
+      void titleEl.offsetWidth; 
+      titleEl.style.animation = 'fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+    }
+  }
+  
+  const newChatBtn = document.getElementById('newChatBtn');
+  if (newChatBtn) newChatBtn.style.display = 'none';
+  
+  const input = document.getElementById('chatInput');
+  if (input) {
+    input.value = ''; // Xóa chữ còn dang dở ở input (nếu có)
+    autoResize(input);
+    input.focus();
+  }
+};
+
+// Thiết lập lời chào ngẫu nhiên ngay lần đầu tiên khi vừa mở trang
+setTimeout(() => {
+  const titleEl = document.querySelector('.empty-title');
+  if (titleEl) {
+    titleEl.textContent = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+  }
+}, 100);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -214,7 +284,12 @@ function removeThinking(id) {
 
 function scrollChatBottom() {
   const c = document.getElementById('chatMessages');
-  if (c) c.scrollTop = c.scrollHeight;
+  if (c) {
+    // Sử dụng setTimeout để đảm bảo DOM đã vẽ xong các thẻ Markdown/HTML rồi mới cuộn
+    setTimeout(() => {
+      c.scrollTop = c.scrollHeight;
+    }, 50);
+  }
 }
 
 function formatAnswer(data) {

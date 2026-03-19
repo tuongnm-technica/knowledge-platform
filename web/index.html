@@ -128,7 +128,10 @@
   <div class="topbar">
     <div class="page-context">
       <div class="page-eyebrow">Technica Internal</div>
-      <div class="page-title" id="pageTitle">Chat AI</div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="page-title" id="pageTitle">Chat AI</div>
+        <button class="secondary-btn mini" onclick="if(window.startNewChat) window.startNewChat()" id="newChatBtn" style="display:none; padding: 4px 8px; font-size: 11px;">+ Cuộc hội thoại mới</button>
+      </div>
     </div>
     <div class="topbar-badge">Graph-aware retrieval</div>
     <div class="status-panel">

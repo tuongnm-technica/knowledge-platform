@@ -17,6 +17,24 @@
   scroll-behavior: smooth;
 }
 
+/* Custom Scrollbar cho Chat Messages */
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 10px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+
 .chat-messages::before {
   content: '';
   flex: 1;
