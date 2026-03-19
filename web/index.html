@@ -86,10 +86,6 @@
       <span class="nav-icon">🤖</span> Tasks
       <span class="nav-badge" id="tasksBadge" style="display:none">0</span>
     </div>
-    <div class="nav-item" id="nav-history" onclick="navigate('history', this)">
-      <span class="nav-icon">🕘</span> Lịch sử
-      <span class="nav-badge" id="historyBadge" style="display:none">0</span>
-    </div>
     <div class="nav-item" id="nav-memory" onclick="navigate('memory', this)">
       <span class="nav-icon">🧠</span> Project Memory
     </div>
@@ -130,7 +126,6 @@
       <div class="page-eyebrow">Technica Internal</div>
       <div style="display: flex; align-items: center; gap: 12px;">
         <div class="page-title" id="pageTitle">Chat AI</div>
-        <button class="secondary-btn mini" onclick="if(window.startNewChat) window.startNewChat()" id="newChatBtn" style="display:none; padding: 4px 8px; font-size: 11px;">+ Cuộc hội thoại mới</button>
       </div>
     </div>
     <div class="topbar-badge">Graph-aware retrieval</div>
@@ -143,6 +138,20 @@
 
   <!-- ── CHAT PAGE ── -->
   <div class="page active" id="page-chat">
+    <div class="chat-wrapper" style="display: flex; height: 100%; width: 100%; overflow: hidden;">
+      <div class="chat-history-sidebar" id="chatHistorySidebar">
+        <div class="chat-history-header">
+          <button class="new-chat-btn" onclick="if(window.startNewChat) window.startNewChat()">
+            <span style="font-size: 16px">+</span> Cuộc hội thoại mới
+          </button>
+          <div class="chat-history-search">
+            <input type="text" id="chatHistorySearchInput" placeholder="Tìm kiếm đoạn chat..." autocomplete="off">
+          </div>
+        </div>
+        <div class="chat-history-list" id="chatHistoryList">
+          <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Đang tải...</div>
+        </div>
+      </div>
     <div class="chat-container">
       <div class="chat-messages" id="chatMessages">
         <div class="empty-state" id="emptyState">
@@ -191,6 +200,7 @@
           <div class="input-hint">Enter gửi · Shift+Enter xuống dòng</div>
         </div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -359,23 +369,6 @@
       <div class="connectors-grid connectors-grid-rich" id="connectorsGrid">
         <div class="connectors-empty">Loading connector catalog...</div>
       </div>
-    </div>
-  </div>
-
-  <!-- ── HISTORY PAGE ── -->
-  <div class="page" id="page-history">
-    <div class="connectors-content">
-      <div class="page-intro">
-        <div>
-          <div class="intro-kicker">Conversations</div>
-          <div class="intro-title">Lịch sử Chat</div>
-          <div class="intro-sub">Xem lại các cuộc hội thoại trước đây của bạn với AI.</div>
-        </div>
-        <div class="connectors-toolbar-actions">
-          <button class="secondary-btn" onclick="window.loadHistoryPage()">Refresh</button>
-        </div>
-      </div>
-      <div id="historyContainer" class="history-container"></div>
     </div>
   </div>
 

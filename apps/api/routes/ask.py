@@ -6,6 +6,7 @@ POST /ask — ReAct agentic pipeline.
 import uuid
 import asyncio
 import logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,6 +83,12 @@ async def ask(
                 session_id = str(uuid.uuid4())
                 title = question[:50] + ("..." if len(question) > 50 else "")
                 db.add(ChatSession(id=session_id, user_id=current_user.user_id, title=title))
+            else:
+                # Cập nhật thời gian updated_at để session trồi lên đầu danh sách Lịch sử
+                from sqlalchemy import select
+                session_obj = (await db.execute(select(ChatSession).where(ChatSession.id == session_id))).scalar_one_or_none()
+                if session_obj:
+                    session_obj.updated_at = datetime.now(timezone.utc)
             
             # Lưu câu hỏi của User và câu trả lời của AI
             db.add(ChatMessage(session_id=session_id, role="user", content=question))

@@ -599,6 +599,13 @@ function navigate(page, el) {
   } else {
     document.getElementById('pageTitle').textContent = titles[targetPage] || targetPage;
   }
+
+  // Quản lý hiển thị nút "New Chat" trên Topbar: Chỉ hiện ở trang Chat nếu đang có phiên chat
+  const newChatBtn = document.getElementById('newChatBtn');
+  if (newChatBtn) {
+    newChatBtn.style.display = (targetPage === 'chat' && window.currentSessionId) ? 'inline-block' : 'none';
+  }
+
   if (targetPage === 'history') renderHistory();
 }
 

@@ -138,14 +138,14 @@ export async function sendMessage() {
     if (data.session_id) {
       window.currentSessionId = data.session_id;
     }
-    // Hiển thị nút New Chat
-    const newChatBtn = document.getElementById('newChatBtn');
-    if (newChatBtn) newChatBtn.style.display = 'inline-block';
 
     const answerHtml = formatAnswer(data);
     appendBubble('ai', answerHtml, data);
     scrollChatBottom();
     input.focus();
+
+    // Cập nhật lại lịch sử (nếu hàm loadHistoryPage có sẵn)
+    if (typeof window.loadHistoryPage === 'function') window.loadHistoryPage();
 
   } catch (e) {
     console.error('Chat error:', e);
@@ -211,15 +211,15 @@ window.startNewChat = function() {
     }
   }
   
-  const newChatBtn = document.getElementById('newChatBtn');
-  if (newChatBtn) newChatBtn.style.display = 'none';
-  
   const input = document.getElementById('chatInput');
   if (input) {
     input.value = ''; // Xóa chữ còn dang dở ở input (nếu có)
     autoResize(input);
     input.focus();
   }
+
+  // Cập nhật lại sidebar lịch sử (bỏ chọn active)
+  if (typeof window.loadHistoryPage === 'function') window.loadHistoryPage();
 };
 
 // Thiết lập lời chào ngẫu nhiên ngay lần đầu tiên khi vừa mở trang
@@ -232,7 +232,7 @@ setTimeout(() => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function appendBubble(role, element, data) {
+export function appendBubble(role, element, data) {
   const container = document.getElementById('chatMessages');
   if (!container) return;
 
@@ -384,7 +384,9 @@ function formatAnswer(data) {
       pinBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (typeof window.addToBasket === 'function') {
+        if (typeof window.basketAddDocument === 'function') {
+          window.basketAddDocument(docId, { openDrawer: true });
+        } else if (typeof window.addToBasket === 'function') {
           window.addToBasket(docId, docTitle);
         } else {
           showToast('Tính năng giỏ tài liệu (Basket) chưa sẵn sàng', 'warning');
