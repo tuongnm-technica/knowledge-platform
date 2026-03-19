@@ -3,6 +3,7 @@ apps/api/routes/ask.py
 POST /ask — ReAct agentic pipeline.
 """
 
+import uuid
 import asyncio
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from storage.db.db import get_db
 from orchestration.agent import Agent
 from apps.api.auth.dependencies import get_current_user, CurrentUser
+from models.chat import ChatSession, ChatMessage
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/ask", tags=["ask"])
@@ -19,6 +21,7 @@ router = APIRouter(prefix="/ask", tags=["ask"])
 
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=1000)
+    session_id: str | None = None
 
 
 class AskResponse(BaseModel):
@@ -28,6 +31,7 @@ class AskResponse(BaseModel):
     agent_steps:     list[dict] = Field(default_factory=list)
     agent_plan:      list[dict] = Field(default_factory=list)
     used_tools:      list[str]  = Field(default_factory=list)
+    session_id:      str | None = None
 
 
 @router.post("", response_model=AskResponse)
@@ -64,6 +68,23 @@ async def ask(
             agent.ask(question),
             timeout=180
         )
+
+        # 3.5. Lưu lịch sử chat vào Database
+        try:
+            session_id = req.session_id
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                title = question[:50] + ("..." if len(question) > 50 else "")
+                db.add(ChatSession(id=session_id, user_id=current_user.user_id, title=title))
+            
+            # Lưu câu hỏi của User và câu trả lời của AI
+            db.add(ChatMessage(session_id=session_id, role="user", content=question))
+            db.add(ChatMessage(session_id=session_id, role="assistant", content=result.get("answer", ""), sources=result.get("sources", [])))
+            
+            await db.commit()
+        except Exception as db_err:
+            log.error("ask.save_history_failed", error=str(db_err))
+            # Không raise lỗi để người dùng vẫn nhận được câu trả lời dù db lưu xịt
         
         # 4. Validate response has required fields
         return AskResponse(
@@ -73,6 +94,7 @@ async def ask(
             agent_steps=result.get("agent_steps", []),
             agent_plan=result.get("agent_plan", []),
             used_tools=result.get("used_tools", []),
+            session_id=session_id,
         )
         
     # 5. Handle specific errors with appropriate HTTP status codes

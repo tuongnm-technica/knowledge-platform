@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
 from storage.db.db import create_tables
-from apps.api.routes import search, ask, ingest, health, connectors, auth, users, graph, docs, documents, assets, prompts, tasks
+from apps.api.routes import search, ask, ingest, health, connectors, auth, users, graph, docs, documents, assets, prompts, tasks, history
 from config.settings import settings
 from utils.logging import configure_logging
 from scheduler.sync_scheduler import start_scheduler, stop_scheduler
@@ -68,6 +68,7 @@ app.include_router(documents.router)
 app.include_router(assets.router)
 app.include_router(prompts.router)
 app.include_router(tasks.router)
+app.include_router(history.router)
 
 @app.get("/", include_in_schema=False)
 async def serve_ui():

@@ -12,6 +12,7 @@ import * as Chat from './modules/chat.js?v=3';
 import * as Drafts from './modules/drafts.js?v=3';
 import * as PromptsModule from './modules/prompts.js?v=3';
 import * as Memory from './modules/memory.js?v=3';
+import * as History from './modules/history.js?v=3';
 
 console.log('[App] Starting v3.2');
 
@@ -197,6 +198,7 @@ function navigate(target, navEl) {
     if (target === 'tasks') Tasks.loadTasks();
     if (target === 'basket') Basket.renderBasket();
     if (target === 'prompts') PromptsModule.loadPromptsPage();
+    if (target === 'history') History.loadHistoryPage();
     if (target === 'memory') {
       Memory.loadMemoryPage();
       window._memRefresh = Memory.loadMemoryPage;
@@ -236,6 +238,7 @@ Object.assign(window, {
   ...Chat,
   ...Drafts,
   ...PromptsModule,
+  ...History,
   navigate,
   doLogin,
   doLogout,

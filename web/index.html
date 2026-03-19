@@ -86,9 +86,9 @@
       <span class="nav-icon">🤖</span> Tasks
       <span class="nav-badge" id="tasksBadge" style="display:none">0</span>
     </div>
-    <div class="nav-item" onclick="navigate('history', this)">
+    <div class="nav-item" id="nav-history" onclick="navigate('history', this)">
       <span class="nav-icon">🕘</span> Lịch sử
-      <span class="nav-badge" id="historyBadge">0</span>
+      <span class="nav-badge" id="historyBadge" style="display:none">0</span>
     </div>
     <div class="nav-item" id="nav-memory" onclick="navigate('memory', this)">
       <span class="nav-icon">🧠</span> Project Memory
@@ -361,7 +361,19 @@
 
   <!-- ── HISTORY PAGE ── -->
   <div class="page" id="page-history">
-    <div class="history-content" id="historyList"></div>
+    <div class="connectors-content">
+      <div class="page-intro">
+        <div>
+          <div class="intro-kicker">Conversations</div>
+          <div class="intro-title">Lịch sử Chat</div>
+          <div class="intro-sub">Xem lại các cuộc hội thoại trước đây của bạn với AI.</div>
+        </div>
+        <div class="connectors-toolbar-actions">
+          <button class="secondary-btn" onclick="window.loadHistoryPage()">Refresh</button>
+        </div>
+      </div>
+      <div id="historyContainer" class="history-container"></div>
+    </div>
   </div>
 
   <!-- ── USERS PAGE ── -->
