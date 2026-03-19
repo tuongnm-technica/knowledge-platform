@@ -90,13 +90,24 @@ export async function sendMessage() {
     if (sendBtn) sendBtn.disabled = true;
 
     // Handle different HTTP status codes
-    const resp = await authFetch(`${API}/ask`, {
+    let resp = await authFetch(`${API}/ask`, {
       method: 'POST',
       body: JSON.stringify({ 
         question, 
         session_id: window.currentSessionId 
       }),
     });
+
+    // Nếu Server trả về 404, tức là session_id cũ trên trình duyệt đã bị xóa khỏi DB.
+    // Ta thiết lập lại session_id = null và thử gửi lại yêu cầu để tự động tạo phiên mới.
+    if (resp.status === 404) {
+        console.warn('Session không tồn tại trên Server. Đang khởi tạo session mới...');
+        window.currentSessionId = null;
+        resp = await authFetch(`${API}/ask`, {
+          method: 'POST',
+          body: JSON.stringify({ question, session_id: null }),
+        });
+    }
 
     if (!resp.ok) {
         removeThinking(thinkId);

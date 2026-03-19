@@ -30,6 +30,7 @@ services:
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
+      - RAG_SERVICE_URL=http://rag_service:8001
       - RUN_WORKER=False
     volumes:
       - .:/app
@@ -39,6 +40,22 @@ services:
       qdrant:
         condition: service_started
     command: python run.py
+    
+  rag_service:
+    build: .
+    image: knowledge-platform-core:latest
+    container_name: kp_rag_service
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+    depends_on:
+      qdrant:
+        condition: service_started
+    command: uvicorn apps.rag.main:app --host 0.0.0.0 --port 8001
 
   worker_ingestion:
     image: knowledge-platform-core:latest

@@ -4,26 +4,77 @@ Main agent orchestration.
 
 import asyncio
 import httpx
-from typing import Any, List
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
 import re
 
 from config.settings import settings
-from graph.knowledge_graph import KnowledgeGraph
 from models.query import SearchQuery, SearchResult
 from orchestration.react_loop import ReActLoop, ReActResult
 from orchestration.tools import build_tool_registry
-from permissions.filter import PermissionFilter
-from persistence.document_repository import DocumentRepository
 from persistence.asset_repository import AssetRepository
-from ranking.scorer import RankingScorer
-from retrieval.hybrid.hybrid_search import HybridSearch
-from services.llm_service import LLMService
-from services.rag_service import RAGService
+from utils.vision_answer import answer_with_images
+
 
 log = structlog.get_logger()
+
+
+class InferenceClient:
+    """
+    Phase 1: Decoupled LLM Inference Gateway.
+    Communicates with vLLM, LiteLLM, or any OpenAI-compatible endpoint.
+    """
+    def __init__(self):
+        # Fallback về OLLAMA_BASE_URL để tương thích ngược nếu chưa thiết lập Gateway
+        self._base_url = getattr(settings, "INFERENCE_BASE_URL", settings.OLLAMA_BASE_URL).rstrip("/")
+        self._model = getattr(settings, "INFERENCE_MODEL", getattr(settings, "OLLAMA_LLM_MODEL", "gpt-3.5-turbo"))
+
+    async def chat(self, system: str, user: str, max_tokens: int = 800) -> str:
+        try:
+            async with httpx.AsyncClient(timeout=getattr(settings, "LLM_TIMEOUT", 120.0)) as client:
+                payload = {
+                    "model": self._model,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": 0.1,
+                }
+                # Gọi tới LiteLLM / vLLM gateway (Chuẩn cấu trúc OpenAI API)
+                resp = await client.post(f"{self._base_url}/v1/chat/completions", json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+        except asyncio.TimeoutError:
+            log.warning("inference.timeout", model=self._model)
+            raise
+        except httpx.TimeoutException:
+            log.warning("inference.httpx_timeout", model=self._model)
+            raise asyncio.TimeoutError(f"Inference service timed out")
+        except (httpx.ConnectError, httpx.NetworkError) as e:
+            log.error("inference.connection_error", error=str(e))
+            raise ConnectionError(f"LLM service unreachable: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            log.error("inference.http_error", status=e.response.status_code, text=e.response.text)
+            if e.response.status_code == 503:
+                raise ConnectionError("LLM service unavailable")
+            raise RuntimeError(f"Inference error {e.response.status_code}")
+        except Exception as e:
+            log.exception("inference.unexpected_error", error=str(e))
+            raise
+
+    async def is_available(self) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(f"{self._base_url}/health")
+                return resp.status_code == 200
+        except Exception:
+            return False
+
+# Trỏ Alias tạm thời để các tools/plugins nếu có import OllamaLLM cũ không bị gãy
+OllamaLLM = InferenceClient
 
 
 class Agent:
@@ -38,38 +89,38 @@ class Agent:
         self._session = session
         self._user_id = user_id
         
-        # Components — user_id is passed at call-time, not init-time
-        self._search = HybridSearch(session)
-        self._permissions = PermissionFilter(session)
-        self._scorer = RankingScorer()
-        self._repo = DocumentRepository(session)
-        self._graph = KnowledgeGraph(session)
-        self._llm = LLMService()
-        self._rag = RAGService(session, user_id)
+        # Phase 1: Decoupled LLM
+        self._llm = InferenceClient()
+        
+        # Phase 3: Dedicated RAG Service Base URL
+        self._rag_service_url = getattr(settings, "RAG_SERVICE_URL", "http://rag-service:8000").rstrip("/")
         
         log.info(
             "agent.initialized",
             user_id=user_id,
         )
 
-    async def ask(self, question: str, on_thought: Any | None = None) -> dict:
+    async def ask(self, question: str) -> dict:
         """
         Process a question through the ReAct agent pipeline.
         
         Args:
             question: User's question
-            on_thought: Optional callback for each agent thought/step
             
         Returns:
             Dictionary with answer, sources, and metadata
+            
+        Raises:
+            asyncio.TimeoutError: If LLM processing times out
+            ConnectionError: If LLM service is unavailable
         """
-        # Build tools
-        tools = build_tool_registry(self._session)
-        loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS, llm_client=self._llm)
+        # Build tools with user context
+        tools = build_tool_registry(self._session, user_id=self._user_id)
+        loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS)
         
         try:
-            # Pass callback if ReActLoop supports it (need to update ReActLoop too)
-            result: ReActResult = await loop.run(question, user_id=self._user_id, on_thought=on_thought)
+            # Note: user_id is already in self, no need to pass again
+            result: ReActResult = await loop.run(question, user_id=self._user_id)
         except asyncio.TimeoutError:
             # Re-raise to be caught by API endpoint
             raise
@@ -161,53 +212,38 @@ class Agent:
         }
 
     async def search(self, query: SearchQuery) -> list[SearchResult]:
-        return await self._rag.search(query)
+        log.info("agent.search.delegated", q=query.raw, limit=query.limit, offset=query.offset)
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                payload = {
+                    "raw": query.raw,
+                    "effective": query.effective,
+                    "limit": query.limit,
+                    "offset": query.offset,
+                    "user_id": query.user_id,
+                    "entities": query.entities
+                }
+                # Ủy quyền toàn bộ RAG search + Reranking sang service chuyên biệt
+                resp = await client.post(f"{self._rag_service_url}/search", json=payload)
+                resp.raise_for_status()
+                
+                data = resp.json()
+                results = data.get("results", [])
+                return [SearchResult(**item) for item in results]
+                
+        except Exception as e:
+            log.exception("agent.rag_service.failed", error=str(e))
+            return []
 
     async def health(self) -> dict:
-        ollama_ok = await self._llm.is_available()
+        llm_ok = await self._llm.is_available()
         return {
-            "ollama": "ok" if ollama_ok else "unavailable",
-            "ollama_model": settings.OLLAMA_LLM_MODEL,
-            "ollama_url": settings.OLLAMA_BASE_URL,
+            "inference_gateway": "ok" if llm_ok else "unavailable",
+            "inference_model": self._llm._model,
+            "inference_url": self._llm._base_url,
             "embedding_model": settings.EMBEDDING_MODEL,
         }
-
-    def _apply_graph_boost(self, raw: list[dict], query: SearchQuery, graph_doc_ids: list[str]) -> list[dict]:
-        graph_hits = {str(doc_id) for doc_id in graph_doc_ids}
-        for item in raw:
-            item["query"] = query.effective
-            item["graph_score"] = 1.0 if str(item.get("document_id", "")) in graph_hits else 0.0
-        return raw
-
-    def _supplement_graph_results(
-        self,
-        graph_doc_ids: list[str],
-        raw: list[dict],
-        doc_meta: dict[str, dict],
-        query: SearchQuery,
-    ) -> list[dict]:
-        existing_doc_ids = {str(item.get("document_id", "")) for item in raw}
-        supplemented = []
-        for doc_id in graph_doc_ids:
-            if doc_id in existing_doc_ids:
-                continue
-            meta = doc_meta.get(doc_id)
-            if not meta:
-                continue
-            supplemented.append(
-                {
-                    "document_id": doc_id,
-                    "chunk_id": "",
-                    "content": (meta.get("content") or "")[:500],
-                    "source": meta.get("source", ""),
-                    "title": meta.get("title", ""),
-                    "vector_score": 0.0,
-                    "keyword_score": 0.0,
-                    "graph_score": 1.0,
-                    "query": query.effective,
-                }
-            )
-        return supplemented
 
     def _format_sources(self, raw_sources: list[dict]) -> list[dict]:
         seen: dict[str, dict] = {}
@@ -218,7 +254,7 @@ class Agent:
                     "title": source.get("title", "Untitled"),
                     "url": source.get("url", ""),
                     "source": source.get("source", ""),
-                    "score": round(float(source.get("score") or 0.0), 3),
+                    "score": round(source.get("score", 0), 3),
                     "snippet": source.get("content", "")[:150],
                     "document_id": source.get("document_id", ""),
                     "chunk_id": source.get("chunk_id", ""),
@@ -233,74 +269,8 @@ class Agent:
                 "thought": step.thought,
                 "action": step.action,
                 "action_input": step.action_input,
-                "observation": str(step.observation or "")[:300],
+                "observation": step.observation[:300] if step.observation else "",
                 "is_final": step.is_final,
             }
             for step in steps
         ]
-
-    async def _fetch_doc_meta(self, doc_ids: list[str]) -> dict[str, dict]:
-        if not doc_ids:
-            return {}
-        rows = await self._repo.get_by_ids(doc_ids)
-        return {row["id"]: row for row in rows}
-
-    def _to_results(self, scored: list[dict], doc_meta: dict[str, dict]) -> list[SearchResult]:
-        import json
-        import re
-
-        slack_ts_re = re.compile(r"^\[\d{2}:\d{2}\|([0-9]+\.[0-9]+)\]", re.MULTILINE)
-
-        def _jsonish(value):
-            if isinstance(value, dict):
-                return value
-            if isinstance(value, str):
-                try:
-                    return json.loads(value) if value else {}
-                except Exception:
-                    return {}
-            return {}
-
-        def _slack_deep_link(channel_id: str, ts: str) -> str:
-            ts = str(ts or "").strip()
-            if not ts:
-                return f"https://slack.com/archives/{channel_id}"
-            if "." in ts:
-                sec, frac = ts.split(".", 1)
-                frac = (frac + "000000")[:6]
-                ts_digits = f"{sec}{frac}"
-            else:
-                ts_digits = "".join([c for c in ts if c.isdigit()])
-            return f"https://slack.com/archives/{channel_id}/p{ts_digits}"
-
-        results: list[SearchResult] = []
-        for item in scored:
-            doc_id = str(item.get("document_id", ""))
-            meta = doc_meta.get(doc_id, {})
-
-            url = meta.get("url", "")
-            source = meta.get("source", "")
-            content = item.get("content", "")
-
-            # Slack: override doc.url with per-chunk deep link if we can extract ts from the chunk content.
-            if source == "slack" and content:
-                md = _jsonish(meta.get("metadata"))
-                channel_id = str(md.get("channel_id") or "").strip()
-                m = slack_ts_re.search(content)
-                if channel_id and m:
-                    url = _slack_deep_link(channel_id, m.group(1))
-
-            results.append(
-                SearchResult(
-                    document_id=doc_id,
-                    chunk_id=str(item.get("chunk_id", "")),
-                    title=meta.get("title", "Unknown"),
-                    content=content,
-                    url=url,
-                    source=source,
-                    author=meta.get("author", ""),
-                    score=item.get("final_score", 0.0),
-                    score_breakdown=item.get("score_breakdown", {}),
-                )
-            )
-        return results

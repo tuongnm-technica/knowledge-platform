@@ -69,6 +69,7 @@ async def ask(
         session_id = str(uuid.uuid4())
         title = question[:50] + ("..." if len(question) > 50 else "")
         db.add(ChatSession(id=session_id, user_id=current_user.user_id, title=title))
+        await db.flush()  # Ép DB tạo record ChatSession trước để đảm bảo khóa ngoại cho ChatMessage và ChatJob
     else:
         # Update updated_at
         from sqlalchemy import select
