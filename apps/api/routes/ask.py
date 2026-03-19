@@ -69,6 +69,12 @@ async def ask(
             timeout=180
         )
 
+        # Đảm bảo result luôn là dictionary để tránh lỗi AttributeError khi gọi result.get()
+        if not result:
+            result = {}
+        elif not isinstance(result, dict):
+            result = {"answer": str(result)}
+
         # 3.5. Lưu lịch sử chat vào Database
         try:
             session_id = req.session_id
