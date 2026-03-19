@@ -4,8 +4,8 @@ Tool registry — đăng ký tất cả tools.
 """
 from orchestration.tools.base import BaseTool, ToolSpec, ToolResult
 from orchestration.tools.search import (
-    SearchConfluenceTool, SearchJiraTool, SearchSlackTool,
-    SearchFilesTool, SearchAllTool,
+    ConfluenceSearchTool, JiraSearchTool, SlackSearchTool,
+    FileSearchTool, GlobalSearchTool,
 )
 from orchestration.tools.jira_tool import GetJiraIssueTool, ListJiraIssuesTool
 from orchestration.tools.slack_tool import GetSlackMessagesTool
@@ -16,11 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 def build_tool_registry(session: AsyncSession) -> dict[str, BaseTool]:
     tools = [
         # Search by source
-        SearchConfluenceTool(session),
-        SearchJiraTool(session),
-        SearchSlackTool(session),
-        SearchFilesTool(session),
-        SearchAllTool(session),
+        ConfluenceSearchTool(session),
+        JiraSearchTool(session),
+        SlackSearchTool(session),
+        FileSearchTool(session),
+        GlobalSearchTool(session),
         # Direct API tools
         GetJiraIssueTool(),
         ListJiraIssuesTool(),

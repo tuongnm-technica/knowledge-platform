@@ -1,5 +1,5 @@
 import structlog
-from orchestration.agent import OllamaLLM
+from services.llm_service import LLMService
 
 log = structlog.get_logger()
 
@@ -16,8 +16,8 @@ If the draft is excellent and requires no changes, output exactly: "NO CHANGES N
 """
 
 class DocOrchestrator:
-    def __init__(self, llm: OllamaLLM = None):
-        self.llm = llm or OllamaLLM()
+    def __init__(self, llm: LLMService = None):
+        self.llm = llm or LLMService()
 
     async def generate_document_pipeline(self, system: str, user: str, max_tokens: int = 1800) -> str:
         """

@@ -24,9 +24,9 @@ import re
 import time
 import httpx
 import structlog
+from services.llm_service import LLMService
 
 from config.settings import settings
-from llm.ollama import OllamaLLMClient
 from prompts.retrieval_prompt import RERANK_SYSTEM
 
 log = structlog.get_logger()
@@ -95,6 +95,7 @@ async def rerank(
     if not candidates:
         return []
 
+    llm = LLMService()
     if len(candidates) <= top_k:
         return candidates
 
@@ -374,10 +375,7 @@ async def _llm_score(
         for c in candidates
     }
 
-    llm_client = OllamaLLMClient(
-        http_client=_get_http_client(),
-        timeout=120
-    )
+    llm_client = LLMService()
     raw = await llm_client.chat(
         system=RERANK_SYSTEM,
         user=prompt,

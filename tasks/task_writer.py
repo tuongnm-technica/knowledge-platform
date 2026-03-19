@@ -7,13 +7,12 @@ from typing import Any
 import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
+from services.llm_service import LLMService
 
 from config.settings import settings
 from persistence.document_repository import DocumentRepository
 from persistence.asset_repository import AssetRepository
 from tasks.repository import TaskDraftRepository
-from llm.base import ILLMClient
-from llm.ollama import OllamaLLMClient
 from prompts.task_prompt import TASK_SYSTEM
 
 
@@ -51,7 +50,7 @@ async def build_task_from_answer(
     answer: str,
     sources: list[dict],
     created_by: str | None = None,
-    llm_client: ILLMClient | None = None,
+    llm_client: LLMService | None = None,
 ) -> dict:
     repo = TaskDraftRepository(session)
     doc_repo = DocumentRepository(session)
@@ -214,8 +213,8 @@ async def build_task_from_answer(
             model = str(settings.OLLAMA_VISION_MODEL or "").strip() or model
             user_msg["images"] = vision_images
 
-        client = llm_client or OllamaLLMClient(
-            model=model, 
+        client = llm_client or LLMService(
+            model=model,
             timeout=180
         )
         raw = await client.chat(

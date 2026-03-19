@@ -3,11 +3,11 @@ from __future__ import annotations
 import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
+from services.llm_service import LLMService
 
 from config.settings import settings
 from tasks.repository import TaskDraftRepository
 from .scanner_registry import SCANNERS
-from llm.ollama import OllamaLLMClient
 
 
 log = structlog.get_logger()
@@ -30,10 +30,8 @@ async def scan_and_create_drafts(
 
     # A single HTTP client is shared for both LLM calls and other API calls.
     async with httpx.AsyncClient(timeout=60) as http_client:
-        llm_client = OllamaLLMClient(
-            base_url=settings.OLLAMA_BASE_URL,
+        llm_client = LLMService(
             model=settings.OLLAMA_LLM_MODEL,
-            http_client=http_client,
         )
 
         for source, scanner_cls in SCANNERS.items():

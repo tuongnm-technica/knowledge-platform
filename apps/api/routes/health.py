@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from storage.db.db import get_db
-from orchestration.agent import OllamaLLM
+from services.llm_service import LLMService
 from storage.vector.vector_store import get_qdrant_client
 from config.settings import settings
 
@@ -27,7 +27,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         status["qdrant"] = f"error: {e}"
 
-    llm = OllamaLLM()
+    llm = LLMService()
     ollama_ok = await llm.is_available()
     status["ollama"] = "ok" if ollama_ok else "unavailable — chạy: ollama serve"
     status["ollama_model"] = settings.OLLAMA_LLM_MODEL

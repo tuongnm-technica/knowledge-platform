@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.auth.dependencies import CurrentUser, get_current_user
-from orchestration.agent import OllamaLLM
+from services.llm_service import LLMService
 from persistence.doc_draft_repository import DocDraftRepository
 from persistence.document_repository import DocumentRepository
 from persistence.project_memory_repository import ProjectMemoryRepository

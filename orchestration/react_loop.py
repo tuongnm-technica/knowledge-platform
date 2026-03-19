@@ -19,7 +19,7 @@ from retrieval.context_compressor import compress_context
 from retrieval.semantic_cache import SemanticCache
 from config.settings import settings
 from llm.base import ILLMClient
-from llm.ollama import OllamaLLMClient
+from services.llm_service import LLMService
 from prompts.agent_prompt import (
     SELF_CORRECT_SYSTEM,
     RELEVANCE_GRADE_SYSTEM,
@@ -82,11 +82,7 @@ class ReActLoop:
         self._cache = SemanticCache()
 
         if llm_client is None:
-            self._llm = OllamaLLMClient(
-                base_url=settings.OLLAMA_BASE_URL, 
-                model=settings.OLLAMA_LLM_MODEL,
-                timeout=REACT_TIMEOUT
-            )
+            self._llm = LLMService()
         else:
             self._llm = llm_client
 

@@ -4,6 +4,7 @@ Main agent orchestration.
 
 import asyncio
 import httpx
+from typing import Any, List
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
@@ -19,39 +20,10 @@ from persistence.document_repository import DocumentRepository
 from persistence.asset_repository import AssetRepository
 from ranking.scorer import RankingScorer
 from retrieval.hybrid.hybrid_search import HybridSearch
+from services.llm_service import LLMService
 from services.rag_service import RAGService
-from utils.vision_answer import answer_with_images
-from apps.api.clients import get_llm_provider, BaseLLMProvider
-
 
 log = structlog.get_logger()
-
-
-class LLMService:
-    def __init__(self):
-        self._provider: BaseLLMProvider = get_llm_provider()
-        self._model = settings.OLLAMA_LLM_MODEL
-
-    async def chat(self, system: str, user: str, max_tokens: int = 800) -> str:
-        try:
-            return await self._provider.chat(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                options={"num_predict": max_tokens, "temperature": 0.1},
-                timeout=settings.LLM_TIMEOUT,
-            )
-        except asyncio.TimeoutError:
-            log.warning("llm.timeout", model=self._model)
-            raise
-        except Exception as e:
-            log.error("llm.error", error=str(e), model=self._model)
-            raise
-
-    async def is_available(self) -> bool:
-        return await self._provider.is_available()
 
 
 class Agent:
