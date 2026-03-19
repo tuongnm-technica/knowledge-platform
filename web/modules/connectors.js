@@ -198,103 +198,117 @@ function renderConnectorCard(inst) {
 
 // ── Create Instance ───────────────────────────────────────────────────────────
 
-window.openCreateConnector = function (connectorType) {
-  const body = document.createElement('div');
-  body.className = 'kp-modal-form';
+window.openConnectorForm = async function (connectorType, instanceId = null) {
+  const isEdit = !!instanceId;
+  const isSMB = connectorType === 'file_server';
+  const isSlack = connectorType === 'slack';
+  const isAtlassian = connectorType === 'confluence' || connectorType === 'jira';
 
-  const { wrap: w1, input: nameIn } = _kpBuildModalField({ id: 'cName', label: 'Tên kết nối', placeholder: 'vd: Confluence Production', required: true });
-  const { wrap: w2, input: urlIn } = _kpBuildModalField({ id: 'cUrl', label: 'Base URL', type: 'url', placeholder: 'https://mycompany.atlassian.net' });
-  const { wrap: w3, input: authTypeIn } = _kpBuildModalField({
-    id: 'cAuthType', label: 'Kiểu xác thực', type: 'select',
-    options: [{ value: 'token', label: 'Token' }, { value: 'basic', label: 'Basic (Username + Password)' }],
-  });
-  const { wrap: w4, input: usernameIn } = _kpBuildModalField({ id: 'cUsername', label: 'Username (nếu Basic)', placeholder: 'Username' });
-  const { wrap: w5, input: secretIn } = _kpBuildModalField({ id: 'cSecret', label: 'Secret / Token / Password', type: 'password', placeholder: 'API Token hoặc Password' });
-
-  w4.style.display = 'none';
-  authTypeIn.addEventListener('change', () => {
-    w4.style.display = authTypeIn.value === 'basic' ? '' : 'none';
-  });
-
-  body.append(w1, w2, w3, w4, w5);
-
-  kpOpenModal({
-    title: `Thêm kết nối ${connectorType}`,
-    subtitle: 'Cấu hình kết nối mới',
-    content: body,
-    okText: 'Tạo kết nối',
-    onOk: async () => {
-      const name     = nameIn.value.trim();
-      const base_url = urlIn.value.trim();
-      const auth_type= authTypeIn.value;
-      const username = usernameIn.value.trim() || undefined;
-      const secret   = secretIn.value;
-      if (!name) return { error: 'Vui lòng nhập tên kết nối' };
-      try {
-        const res = await authFetch(`${API}/connectors/${connectorType}/instances`, {
-          method: 'POST',
-          body: JSON.stringify({ name, base_url, auth_type, username, secret }),
-        });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi tạo connector'); }
-        showToast('Đã tạo kết nối thành công', 'success');
-        loadConnectorCatalog();
-        return true;
-      } catch (e) { return { error: e.message }; }
-    },
-  });
-};
-
-// ── Edit Instance ─────────────────────────────────────────────────────────────
-
-window.openEditConnector = function (connectorType, instanceId) {
-  const tabs = (_dashboardData?.tabs || []);
-  const tab = tabs.find(t => t.type === connectorType);
-  const inst = (tab?.instances || []).find(i => String(i.instance_id) === String(instanceId));
+  let inst = null;
+  if (isEdit) {
+    const tabs = (_dashboardData?.tabs || []);
+    const tab = tabs.find(t => t.type === connectorType);
+    inst = (tab?.instances || []).find(i => String(i.instance_id) === String(instanceId));
+  }
 
   const body = document.createElement('div');
   body.className = 'kp-modal-form';
 
-  const { wrap: w1, input: nameIn } = _kpBuildModalField({ id: 'cName', label: 'Tên kết nối', value: inst?.instance_name || '' });
-  const { wrap: w2, input: urlIn } = _kpBuildModalField({ id: 'cUrl', label: 'Base URL', type: 'url', value: inst?.base_url || '' });
-  const { wrap: w3, input: authTypeIn } = _kpBuildModalField({
-    id: 'cAuthType', label: 'Kiểu xác thực', type: 'select',
-    value: inst?.auth_type || 'token',
-    options: [{ value: 'token', label: 'Token' }, { value: 'basic', label: 'Basic' }],
-  });
-  const { wrap: w4, input: usernameIn } = _kpBuildModalField({ id: 'cUsername', label: 'Username', value: inst?.username || '' });
-  const { wrap: w5, input: secretIn } = _kpBuildModalField({ id: 'cSecret', label: 'Secret mới (để trống = không đổi)', type: 'password', placeholder: '••••••••' });
+  const { wrap: wName, input: nameIn } = _kpBuildModalField({ id: 'cName', label: 'Tên kết nối', value: inst?.instance_name || '', placeholder: 'vd: ' + connectorType, required: true });
+  body.appendChild(wName);
 
-  body.append(w1, w2, w3, w4, w5);
+  let urlIn, authTypeIn, usernameIn, secretIn, hostIn, shareIn, pathIn;
+  const extra = inst?.config?.extra || {};
+
+  if (isAtlassian) {
+    const { wrap: wUrl, input: uIn } = _kpBuildModalField({ id: 'cUrl', label: 'Base URL', type: 'url', value: inst?.config?.target_value || '', placeholder: 'https://mycompany.atlassian.net', required: true });
+    urlIn = uIn;
+    const { wrap: wAuth, input: aIn } = _kpBuildModalField({
+      id: 'cAuthType', label: 'Kiểu xác thực', type: 'select',
+      value: inst?.config?.auth_type || 'token',
+      options: [{ value: 'token', label: 'Token' }, { value: 'basic', label: 'Basic' }],
+    });
+    authTypeIn = aIn;
+    const { wrap: wUser, input: usIn } = _kpBuildModalField({ id: 'cUsername', label: 'Username', value: inst?.config?.username || '', placeholder: 'you@example.com' });
+    usernameIn = usIn;
+    const { wrap: wSecret, input: sIn } = _kpBuildModalField({ id: 'cSecret', label: isEdit ? 'API Token / Password mới (để trống nếu không đổi)' : 'API Token / Password', type: 'password', required: !isEdit });
+    secretIn = sIn;
+    
+    const syncUserVis = () => wUser.style.display = authTypeIn.value === 'basic' ? '' : 'none';
+    authTypeIn.addEventListener('change', syncUserVis);
+    syncUserVis();
+    body.append(wUrl, wAuth, wUser, wSecret);
+  } else if (isSlack) {
+    const { wrap: wSecret, input: sIn } = _kpBuildModalField({ id: 'cSecret', label: isEdit ? 'Bot Token mới (để trống nếu không đổi)' : 'Bot Token', type: 'password', placeholder: 'xoxb-...', required: !isEdit });
+    secretIn = sIn;
+    body.append(wSecret);
+  } else if (isSMB) {
+    const { wrap: wHost, input: hIn } = _kpBuildModalField({ id: 'cHost', label: 'SMB Host', value: extra.host || '', placeholder: '192.168.1.100' });
+    hostIn = hIn;
+    const { wrap: wShare, input: shIn } = _kpBuildModalField({ id: 'cShare', label: 'SMB Share', value: extra.share || '', placeholder: 'Public' });
+    shareIn = shIn;
+    const { wrap: wPath, input: pIn } = _kpBuildModalField({ id: 'cPath', label: 'Base Path', value: extra.base_path || '\\', placeholder: '\\' });
+    pathIn = pIn;
+    const { wrap: wUser, input: usIn } = _kpBuildModalField({ id: 'cUsername', label: 'SMB Username', value: inst?.config?.username || '', required: !isEdit });
+    usernameIn = usIn;
+    const { wrap: wSecret, input: sIn } = _kpBuildModalField({ id: 'cSecret', label: isEdit ? 'SMB Password mới (để trống nếu không đổi)' : 'SMB Password', type: 'password', required: !isEdit });
+    secretIn = sIn;
+    body.append(wHost, wShare, wPath, wUser, wSecret);
+  }
 
   kpOpenModal({
-    title: `Sửa kết nối: ${inst?.instance_name || instanceId}`,
+    title: isEdit ? `✏️ Sửa: ${inst?.instance_name || instanceId}` : `Thêm kết nối ${connectorType}`,
     content: body,
-    okText: 'Lưu thay đổi',
+    okText: isEdit ? 'Lưu' : 'Tạo',
     onOk: async () => {
-      const payload = {};
       const name     = nameIn.value.trim();
-      const base_url = urlIn.value.trim();
-      const auth_type= authTypeIn.value;
-      const username = usernameIn.value.trim();
-      const secret   = secretIn.value;
-      if (name) payload.name = name;
-      if (base_url) payload.base_url = base_url;
-      if (auth_type) payload.auth_type = auth_type;
-      if (username) payload.username = username;
-      if (secret) payload.secret = secret;
+      if (!name) return { error: 'Tên kết nối là bắt buộc' };
+
+      const payload = { name };
+
+      if (isAtlassian) {
+        payload.base_url = urlIn.value.trim();
+        payload.auth_type = authTypeIn.value;
+        payload.username = usernameIn.value.trim();
+        if (secretIn.value) payload.secret = secretIn.value;
+        if (!isEdit && !payload.base_url) return { error: 'Base URL là bắt buộc' };
+        if (!isEdit && !payload.secret) return { error: 'Token là bắt buộc' };
+      } else if (isSlack) {
+        if (secretIn.value) payload.secret = secretIn.value;
+        if (!isEdit && !payload.secret) return { error: 'Bot token là bắt buộc' };
+      } else if (isSMB) {
+        const host = hostIn.value.trim();
+        const share = shareIn.value.trim();
+        payload.base_url = (host && share) ? `\\\\${host}\\${share}` : (inst?.config?.target_value || '');
+        payload.auth_type = 'basic';
+        payload.username = usernameIn.value.trim() || (isEdit ? undefined : '');
+        if (secretIn.value) payload.secret = secretIn.value;
+        payload.extra = {
+          host: host,
+          share: share,
+          base_path: pathIn.value.trim() || '\\'
+        };
+      }
+
       try {
-        const res = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}`, {
-          method: 'PUT',
+        const url = isEdit 
+          ? `${API}/connectors/${connectorType}/instances/${instanceId}`
+          : `${API}/connectors/${connectorType}/instances`;
+        const res = await authFetch(url, {
+          method: isEdit ? 'PUT' : 'POST',
           body: JSON.stringify(payload),
         });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi cập nhật'); }
-        showToast('Đã cập nhật kết nối', 'success');
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Lỗi lưu connector'); }
+        showToast(isEdit ? 'Đã cập nhật kết nối' : 'Đã tạo kết nối thành công', 'success');
         loadConnectorCatalog();
         return true;
       } catch (e) { return { error: e.message }; }
     },
   });
 };
+
+window.openCreateConnector = (type) => window.openConnectorForm(type, null);
+window.openEditConnector = (type, id) => window.openConnectorForm(type, id);
 
 // ── Delete Instance ───────────────────────────────────────────────────────────
 
@@ -435,26 +449,92 @@ window.testConnection = testConnection;
 // ── Discover ──────────────────────────────────────────────────────────────────
 
 window.discoverConnector = async function (connectorType, instanceId) {
-  showToast('🔍 Đang khám phá scopes...', 'info');
+  showToast('🔍 Đang lấy danh sách scope...', 'info');
   try {
     const res = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}/discover`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const scopes = data.scopes || data.spaces || data.projects || [];
-    const panel = document.getElementById('connectorsGrid');
-    if (panel && scopes.length) {
-      const info = document.createElement('div');
-      info.style.cssText = 'margin-top:12px;padding:12px;background:var(--glow);border-radius:8px;border:1px solid var(--border)';
-      info.innerHTML = `
-        <strong style="color:var(--accent)">🔍 Tìm thấy ${scopes.length} scope(s):</strong>
-        <ul style="margin:8px 0 0;padding-left:20px;font-size:12px;color:var(--text-muted)">
-          ${scopes.slice(0, 20).map(s => `<li>${escapeHtml(JSON.stringify(s))}</li>`).join('')}
-        </ul>
-      `;
-      panel.appendChild(info);
+    const scopes = data.items || data.scopes || data.spaces || data.projects || [];
+    
+    const tabs = (_dashboardData?.tabs || []);
+    const tab = tabs.find(t => t.type === connectorType);
+    const inst = (tab?.instances || []).find(i => String(i.instance_id) === String(instanceId));
+    const currentSelection = (inst?.state?.selection || {});
+    
+    let selectedKeys = new Set();
+    if (connectorType === 'confluence') selectedKeys = new Set(currentSelection.spaces || []);
+    if (connectorType === 'jira') selectedKeys = new Set(currentSelection.projects || []);
+    if (connectorType === 'slack') selectedKeys = new Set(currentSelection.channels || []);
+    if (connectorType === 'file_server') selectedKeys = new Set(currentSelection.folders || []);
+
+    const body = document.createElement('div');
+    body.className = 'kp-modal-form';
+    
+    const hint = document.createElement('div');
+    hint.className = 'kp-modal-help';
+    hint.textContent = 'Chọn các dữ liệu bạn muốn AI sync về. Nếu không tick ô nào, hệ thống sẽ mặc định lấy TẤT CẢ.';
+    hint.style.marginBottom = '10px';
+    body.appendChild(hint);
+
+    const listWrap = document.createElement('div');
+    listWrap.className = 'connector-scope-list';
+
+    if (!scopes.length) {
+      listWrap.innerHTML = '<div class="connector-scope-empty">Không tìm thấy scope nào. Hãy kiểm tra lại kết nối.</div>';
     } else {
-      showToast(`Tìm thấy ${scopes.length} scopes`, 'success');
+      scopes.forEach(item => {
+        const key = item.id || item.key || item.name;
+        const label = item.name || key;
+        const isPrivate = item.is_private ? ' 🔒' : '';
+        
+        const lbl = document.createElement('label');
+        lbl.className = 'scope-item';
+        lbl.style.cursor = 'pointer';
+        
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = key;
+        cb.checked = selectedKeys.has(key);
+        
+        const span = document.createElement('span');
+        span.textContent = `${label}${isPrivate} [${key}]`;
+        
+        lbl.appendChild(cb);
+        lbl.appendChild(span);
+        listWrap.appendChild(lbl);
+      });
     }
+    body.appendChild(listWrap);
+
+    kpOpenModal({
+      title: `🔍 Cấu hình Scope`,
+      subtitle: inst?.instance_name || instanceId,
+      content: body,
+      okText: 'Lưu Scope',
+      onOk: async () => {
+        const checkedBoxes = listWrap.querySelectorAll('input[type="checkbox"]:checked');
+        const selected = Array.from(checkedBoxes).map(cb => cb.value);
+        
+        let selectionPayload = {};
+        if (connectorType === 'confluence') selectionPayload = { spaces: selected };
+        if (connectorType === 'jira') selectionPayload = { projects: selected };
+        if (connectorType === 'slack') selectionPayload = { channels: selected };
+        if (connectorType === 'file_server') selectionPayload = { folders: selected };
+
+        try {
+          const resConfig = await authFetch(`${API}/connectors/${connectorType}/instances/${instanceId}/config`, {
+            method: 'PUT',
+            body: JSON.stringify({ selection: selectionPayload })
+          });
+          if (!resConfig.ok) throw new Error('Lỗi lưu scope');
+          showToast('Đã lưu cấu hình scope', 'success');
+          loadConnectorCatalog();
+          return true;
+        } catch (e) {
+          return { error: e.message };
+        }
+      }
+    });
   } catch (e) { showToast(`Discover thất bại: ${e.message}`, 'error'); }
 };
 

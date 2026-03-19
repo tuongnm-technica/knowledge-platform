@@ -780,6 +780,7 @@ async def build_connectors_dashboard(session: AsyncSession, *, can_manage: bool)
                         "auth_value": inst.get("secret_preview") or "Not configured",
                         "username": inst.get("username") or "",
                         "auth_type": inst.get("auth_type") or "token",
+                        "extra": inst.get("extra") or {},
                     },
                     "sync": {
                         "schedule_label": _schedule_label(config_state, definition),
