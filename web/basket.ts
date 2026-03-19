@@ -14,6 +14,9 @@ export function BasketAlpine() {
             document.addEventListener('kp-add-to-basket', (e: any) => {
                 this.addToBasket(e.detail.id, e.detail.title, e.detail.options);
             });
+            document.addEventListener('kp-refresh-basket', () => {
+                this.loadBasket();
+            });
         },
 
         loadBasket() {
@@ -117,8 +120,8 @@ export function BasketAlpine() {
                 const goal = (document.getElementById('skillInstructionInput') as HTMLInputElement).value.trim();
                 const docIds = this.items.map(i => i.id);
 
-                this.closeBasketDrawer();
-                this.showToast('Đang khởi tạo Agent... Vui lòng đợi.', 'info');
+                this.closeDrawer();
+                showToast('Đang khởi tạo Agent... Vui lòng đợi.', 'info');
                 
                 if (runMode === 'single') {
                     const docType = (document.getElementById('skillTypeSelect') as HTMLSelectElement).value;
@@ -154,42 +157,5 @@ export function BasketAlpine() {
             }
         });
     }
-
-    // --- Drawer Controls ---
-    public toggleBasketDrawer(): void {
-        const drawer = document.getElementById('basketDrawer');
-        if (drawer && drawer.style.display === 'flex') {
-            this.closeBasketDrawer();
-        } else {
-            this.openBasketDrawer();
-        }
-    }
-
-    public openBasketDrawer(): void {
-        const drawer = document.getElementById('basketDrawer');
-        const overlay = document.getElementById('basketOverlay');
-        if (drawer) drawer.style.display = 'flex';
-        if (overlay) overlay.style.display = 'block';
-        this.renderBasket();
-    }
-
-    public closeBasketDrawer(): void {
-        const drawer = document.getElementById('basketDrawer');
-        const overlay = document.getElementById('basketOverlay');
-        if (drawer) drawer.style.display = 'none';
-        if (overlay) overlay.style.display = 'none';
-    }
-
-    // --- Helpers ---
-    private showToast(message: string, type: string): void {
-        if (typeof (window as any).showToast === 'function') {
-            (window as any).showToast(message, type);
-        } else {
-            alert(`[${type}] ${message}`);
-        }
-    }
-
-    private escapeHtml(unsafe: string): string {
-        return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
+    };
 }

@@ -1,5 +1,6 @@
-import { API, authFetch } from '../api/client';
-import { ChatMessage } from '../types/models';
+import { API, authFetch } from './client';
+import { ChatMessage } from './models';
+import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 export class ChatModule {
@@ -40,7 +41,7 @@ export class ChatModule {
             this.appendMessage({ id: 'sys', role: 'system', content: `Đã chuyển sang hội thoại: ${e.detail}. Tính năng tải tin nhắn cũ đang được backend hỗ trợ.`, created_at: new Date().toISOString() });
             const emptyState = document.getElementById('emptyState');
             if (emptyState) emptyState.style.display = 'none';
-        }
+        });
     }
 
     private autoResize(): void {
@@ -157,7 +158,8 @@ export class ChatModule {
                         content: ans,
                         created_at: new Date().toISOString()
                     });
-                    if (typeof (window as any).loadHistoryPage === 'function') (window as any).loadHistoryPage();
+                    // Bắn event để main.ts hoặc History module tự hứng lấy
+                    document.dispatchEvent(new CustomEvent('kp-refresh-history'));
                     return;
                 }
                 if (data.status === 'failed') {
@@ -191,12 +193,29 @@ export class ChatModule {
         if (label) label.textContent = thoughts[thoughts.length - 1].thought || "Đang xử lý...";
     }
 
+    private formatAnswer(content: string): string {
+        try {
+            const rawHtml = marked.parse(content) as string;
+            return DOMPurify.sanitize(rawHtml);
+        } catch (e) {
+            return this.escapeHtml(content);
+        }
+    }
+
     private appendMessage(msg: ChatMessage): void {
         if (!this.container) return;
 
         const msgEl = document.createElement('div');
         msgEl.className = `chat-message ${msg.role}`; // style via CSS based on role
-        msgEl.innerHTML = `<div class="message-content">${this.escapeHtml(msg.content)}</div>`;
+        
+        let safeContent = '';
+        if (msg.role === 'assistant') {
+            safeContent = this.formatAnswer(msg.content);
+        } else {
+            safeContent = this.escapeHtml(msg.content);
+        }
+        
+        msgEl.innerHTML = `<div class="message-content">${safeContent}</div>`;
         
         this.container.appendChild(msgEl);
         this.container.scrollTop = this.container.scrollHeight;
@@ -212,10 +231,8 @@ export class ChatModule {
     }
 
     private showToast(message: string, type: string): void {
-        if (typeof (window as any).showToast === 'function') {
-            (window as any).showToast(message, type);
-        } else {
-            alert(`[${type}] ${message}`);
-        }
+        document.dispatchEvent(new CustomEvent('kp-show-toast', { 
+            detail: { message, type } 
+        }));
     }
 }

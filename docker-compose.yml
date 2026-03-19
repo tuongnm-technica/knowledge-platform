@@ -105,6 +105,17 @@ services:
         condition: service_started
     command: python run_worker.py
 
+  web:
+    build: 
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: kp_web
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_started
+
 volumes:
   pgdata:
   qdrant_data:

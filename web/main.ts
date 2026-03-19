@@ -1,20 +1,48 @@
+// Gom toàn bộ CSS vào đây để Vite quản lý (HMR & Minify)
+import './assets/css/main.css';
+import './assets/css/components/buttons.css';
+import './assets/css/components/forms.css';
+import './assets/css/components/login.css';
+import './assets/css/components/modals.css';
+import './assets/css/components/toasts.css';
+import './assets/css/modules/admin.css';
+import './assets/css/modules/basket.css';
+import './assets/css/modules/chat.css';
+import './assets/css/modules/connectors.css';
+import './assets/css/modules/drafts.css';
+import './assets/css/modules/graph.css';
+import './assets/css/modules/history.css';
+import './assets/css/modules/search.css';
+import './assets/css/modules/tasks.css';
+import './assets/css/modules/prompts.css';
+
 import Navigo from 'navigo';
 import Alpine from 'alpinejs';
-import { AuthModule } from './auth';
-import { ThemeModule } from './theme';
-import { ChatModule } from './chat';
-import { SearchModule } from './search';
-import { TasksAlpine } from './tasks';
-import { DraftsAlpine } from './drafts';
-import { GraphModule } from './graph';
-import { BasketAlpine } from './basket';
-import { ConnectorsModule } from './connectors'; // Sẽ update Connectors sau nếu cần
-import { AdminAlpine } from './admin';
-import { HistoryModule } from './history';
-import { MemoryModule } from './memory';
-import { PromptsModule } from './prompts';
-import { showToast, escapeHtml, kpOpenModal, kpConfirm, kpPrompt } from './ui';
-import { API } from './client';
+import { AuthModule } from './modules/auth';
+import { ThemeModule } from './modules/theme';
+import { ChatModule } from './modules/chat';
+import { SearchModule } from './modules/search';
+import { TasksAlpine } from './modules/tasks';
+import { DraftsAlpine } from './modules/drafts';
+import { GraphModule } from './modules/graph';
+import { BasketAlpine } from './modules/basket'; 
+import { ConnectorsModule } from './modules/connectors';
+import { AdminAlpine } from './modules/admin'; 
+import { HistoryModule } from './modules/history';
+import { MemoryModule } from './modules/memory';
+import { PromptsModule } from './modules/prompts';
+import { API } from './modules/client';
+
+// Bắt lỗi module không load được
+window.addEventListener('error', function(e) {
+    if (e.message && (e.message.includes('module') || e.message.includes('import'))) {
+        const err = document.getElementById('loginError');
+        if (err) {
+            err.textContent = 'Lỗi nạp file giao diện. Bấm F12 mở tab Console để xem file nào bị thiếu.';
+            err.style.display = 'block';
+        }
+    }
+}, true);
 
 // --- Tính năng Health Check hệ thống ---
 async function checkHealth(): Promise<void> {
@@ -105,9 +133,9 @@ document.addEventListener('DOMContentLoaded', () => {
     (window as any).Alpine = Alpine;
     Alpine.store('badges', { tasks: 0, drafts: 0, basket: 0 }); // Lưu trữ Badge toàn cục
     Alpine.data('tasksModule', TasksAlpine); // Đăng ký module Tasks
-    Alpine.data('basketModule', BasketAlpine);
-    Alpine.data('draftsModule', DraftsAlpine);
-    Alpine.data('adminModule', AdminAlpine);
+    Alpine.data('draftsModule', DraftsAlpine); // Đăng ký module Drafts
+    Alpine.data('basketModule', BasketAlpine); // Đăng ký module Basket
+    Alpine.data('adminModule', AdminAlpine);   // Đăng ký module Admin
     Alpine.start();
 
     // Khởi tạo Router (Sử dụng History API, không dùng hash #)
@@ -130,9 +158,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target === 'tasks') { document.dispatchEvent(new CustomEvent('kp-refresh-tasks')); }
         else if (target === 'drafts') { document.dispatchEvent(new CustomEvent('kp-refresh-drafts')); }
         else if (target === 'graph') { graph.loadGraphDashboard(true); }
-        // Giỏ hàng được quản lý qua biến isDrawerOpen của BasketAlpine
+        else if (target === 'basket') { document.dispatchEvent(new CustomEvent('kp-refresh-basket')); }
         else if (target === 'connectors') { connectors.loadConnectorStats(); }
-        else if (target === 'users') { admin.loadUsersAdmin(); }
+        else if (target === 'users') { document.dispatchEvent(new CustomEvent('kp-refresh-users')); }
         else if (target === 'prompts') { prompts.loadPromptsPage(); }
         else if (target === 'history') { history.loadHistoryPage(); }
         else if (target === 'memory') { 
@@ -148,6 +176,16 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPage(page);
         })
         .resolve();
+
+    // Đăng ký EventListener thay thế cho việc gán vào window object
+    document.addEventListener('kp-refresh-history', () => {
+        history.loadHistoryPage();
+    });
+    
+    document.addEventListener('kp-show-toast', (e: any) => {
+        const { message, type } = e.detail;
+        console.log(`[${type}] ${message}`); // Thay bằng logic hiển thị Toast UI của bạn
+    });
 
     // Bắt sự kiện chuyển trang từ thanh Menu
     document.querySelectorAll('.nav-item').forEach(item => {
