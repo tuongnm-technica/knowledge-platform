@@ -67,6 +67,7 @@ services:
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
+      - RAG_SERVICE_URL=http://rag_service:8001
       - RUN_WORKER=True
       - ARQ_WORKER_TYPE=ingestion
     volumes:
@@ -90,6 +91,7 @@ services:
       - QDRANT_HOST=qdrant
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
+      - RAG_SERVICE_URL=http://rag_service:8001
       - RUN_WORKER=True
       - ARQ_WORKER_TYPE=default
     volumes:

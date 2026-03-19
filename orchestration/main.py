@@ -156,8 +156,17 @@ async def perform_rag_search(req: RAGSearchRequest, session: AsyncSession = Depe
                 if channel_id and m:
                     url = _slack_deep_link(channel_id, m.group(1))
                     
-            item["url"] = url
-            final_results.append(item)
+            final_results.append({
+                "document_id": doc_id,
+                "chunk_id": str(item.get("chunk_id", "")),
+                "title": meta.get("title", "Unknown"),
+                "content": content,
+                "url": url,
+                "source": source,
+                "author": meta.get("author", ""),
+                "score": item.get("final_score", 0.0),
+                "score_breakdown": item.get("score_breakdown", {}),
+            })
 
         return {"results": final_results}
         
