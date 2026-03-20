@@ -1,6 +1,13 @@
 import { API, authFetch } from './client';
 import { ConnectorTab, ConnectorInstance } from './models';
-import { escapeHtml, showToast, kpConfirm, kpOpenModal, _kpBuildModalField } from './ui';
+import { escapeHtml, showToast } from './ui';
+
+interface ConnectorSummary {
+    total?: number;
+    healthy?: number;
+    documents?: number;
+    syncing?: number;
+}
 
 export class ConnectorsModule {
     private dashboardData: { tabs?: ConnectorTab[] } | null = null;
@@ -24,9 +31,9 @@ export class ConnectorsModule {
                 
                 if (!action || !type || !id) return;
                 
-                if (action === 'sync') (this as any).syncConnector(type, id);
-                else if (action === 'test') (this as any).testConnection(type, id);
-                else if (action === 'delete') (this as any).deleteConnectorInstance(type, id);
+                if (action === 'sync') this.syncConnector(type, id);
+                else if (action === 'test') this.testConnection(type, id);
+                else if (action === 'delete') this.deleteConnectorInstance(type, id);
             });
         }
     }
@@ -37,7 +44,7 @@ export class ConnectorsModule {
         try {
             const res = await authFetch(`${API}/connectors/stats`);
             if (!res.ok) throw new Error('Stats API failed');
-            const data = await res.json();
+            const data = await res.json() as { summary: ConnectorSummary };
             const summary = data.summary || {};
             this.updateSummaryGrid(summary);
             
@@ -51,8 +58,9 @@ export class ConnectorsModule {
                     }
                 }, 10000);
             }
-        } catch (e: any) {
-            console.error('Lỗi tải connectors:', e);
+        } catch (err) {
+            const error = err as Error;
+            console.error('Lỗi tải connectors:', error);
             if (!refresh) this.showToast('Không tải được connector stats', 'error');
         }
     }
@@ -61,7 +69,7 @@ export class ConnectorsModule {
         try {
             const res = await authFetch(`${API}/connectors`);
             if (!res.ok) throw new Error('Catalog API failed');
-            this.dashboardData = await res.json();
+            this.dashboardData = await res.json() as { tabs?: ConnectorTab[] };
             this.renderTabs(this.dashboardData?.tabs || []);
             this.renderConnectorGrid(this.dashboardData?.tabs || []);
         } catch (e) {
@@ -69,7 +77,7 @@ export class ConnectorsModule {
         }
     }
 
-    private updateSummaryGrid(summary: any): void {
+    private updateSummaryGrid(summary: ConnectorSummary): void {
         const grid = document.getElementById('connectorsSummaryGrid');
         if (!grid) return;
         grid.innerHTML = `
@@ -94,6 +102,50 @@ export class ConnectorsModule {
                 <small>Đang sync (Running)</small>
             </div>
         `;
+    }
+
+    public async syncConnector(type: string, id: string): Promise<void> {
+        showToast(`Đang yêu cầu đồng bộ ${type}...`, 'info');
+        try {
+            const res = await authFetch(`${API}/connectors/${type}/instances/${id}/sync`, { method: 'POST' });
+            if (!res.ok) throw new Error('Yêu cầu đồng bộ thất bại');
+            showToast('Đã bắt đầu đồng bộ', 'success');
+            setTimeout(() => this.loadConnectorStats(true), 1000);
+        } catch (err) {
+            const error = err as Error;
+            showToast(error.message, 'error');
+        }
+    }
+
+    public async testConnection(type: string, id: string): Promise<void> {
+        showToast(`Đang kiểm tra kết nối ${type}...`, 'info');
+        try {
+            const res = await authFetch(`${API}/connectors/${type}/instances/${id}/test`, { method: 'POST' });
+            if (!res.ok) throw new Error('Kiểm tra kết nối thất bại');
+            const data = await res.json() as { status?: string, success?: boolean, message?: string };
+            if (data.status === 'ok' || data.success) {
+                showToast('Kết nối thành công', 'success');
+            } else {
+                showToast(`Kết nối thất bại: ${data.message || 'Lỗi không xác định'}`, 'error');
+            }
+            this.loadConnectorStats(true);
+        } catch (err) {
+            const error = err as Error;
+            showToast(error.message, 'error');
+        }
+    }
+
+    public async deleteConnectorInstance(type: string, id: string): Promise<void> {
+        if (!confirm(`Bạn có chắc muốn xóa kết nối ${type} (ID: ${id})? Toàn bộ dữ liệu liên quan sẽ bị xóa.`)) return;
+        try {
+            const res = await authFetch(`${API}/connectors/${type}/instances/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Xóa kết nối thất bại');
+            showToast('Đã xóa kết nối thành công', 'success');
+            this.loadConnectorStats(true);
+        } catch (err) {
+            const error = err as Error;
+            showToast(error.message, 'error');
+        }
     }
 
     private renderTabs(tabs: ConnectorTab[]): void {
@@ -142,13 +194,11 @@ export class ConnectorsModule {
 
     private renderConnectorCard(inst: ConnectorInstance): string {
         const status = inst.status || {};
-        const sync   = (inst.sync?.latest_run) || {};
         const data   = inst.data || {};
-        const cfg    = inst.config || {};
         const type   = inst.connector_type || '';
         const iid    = inst.instance_id;
         const docsVal = (data.documents || 0).toLocaleString();
-        const isRunning = inst.sync?.is_running || status.code === 'syncing';
+        const isRunning = inst.sync?.running || status.code === 'syncing';
 
         let badgeClass = status.code || 'neutral';
         if (isRunning) badgeClass = 'syncing';
@@ -173,7 +223,7 @@ export class ConnectorsModule {
                             <span>${escapeHtml(status.label || status.code || '—')}</span>
                         </div>
                         <div class="connector-config-item">
-                            <span>Sync</span><strong>${cfg.auto_sync ? '🕐 Auto' : '⛔ Manual'}</strong>
+                            <span>Sync</span><strong>${inst.state?.auto_sync ? '🕐 Auto' : '⛔ Manual'}</strong>
                         </div>
                     </div>
                     <div class="connector-stats">

@@ -1,3 +1,4 @@
+<!-- ── CONNECTORS PAGE ── -->
 <div class="page" id="page-tasks" x-data="tasksModule">
   <div class="tasks-shell">
     <div class="tasks-header">
@@ -15,6 +16,7 @@
           <input type="checkbox" x-model="includeSubmitted" @change="loadTasks()">
           <span>Show submitted</span>
         </label>
+        <button id="syncJiraStatusBtn" class="secondary-btn" style="display:none">Sync Jira status</button>
         <button @click="triggerScan()" class="primary-btn">Scan Slack + Confluence</button>
       </div>
     </div>
@@ -22,17 +24,30 @@
       <span class="count-pill" x-text="selectedIds.length + ' selected'"></span>
       <button @click="bulkConfirmTasks()" class="secondary-btn">Confirm selected</button>
       <button @click="bulkRejectTasks()" class="secondary-btn">Dismiss selected</button>
+      <input id="bulkIssueTypeInput" class="time-input" type="text" placeholder="Issue type (Task/Story/Bug/Epic)" title="Bulk issue type">
+      <button id="bulkSetTypeBtn" class="secondary-btn">Set type</button>
+      <input id="bulkAssigneeInput" class="time-input" type="text" placeholder="Assignee (email/name)" title="Bulk assign">
+      <button id="bulkAssignBtn" class="primary-btn">Assign</button>
       <button @click="clearSelection()" class="secondary-btn">Clear selection</button>
+    </div>
+    <div class="tasks-banner">
+      AI quét Slack và Confluence tự động lúc <b>11:00 PM</b> mỗi ngày. Bạn có thể bấm <b>Scan</b> để lấy draft task mới ngay.
     </div>
     <div class="tasks-list">
       <div x-show="isLoading" class="tasks-loading">Đang tải...</div>
       <div x-cloak x-show="!isLoading && tasks.length === 0" class="tasks-empty">Chưa có draft tasks. Bấm "Scan" để bắt đầu.</div>
+      
       <div x-cloak x-show="!isLoading && tasks.length > 0" class="tasks-grid">
         <template x-for="task in tasks" :key="task.id">
           <div class="task-card" :class="selectedIds.includes(task.id) ? 'selected' : ''" @click="toggleSelection(task.id)">
             <div class="task-status" :class="task.status === 'approved' ? 'approved' : (task.status === 'rejected' ? 'rejected' : 'pending')" x-text="task.status || 'pending'"></div>
-            <div class="task-title"><span class="draft-type-badge" x-text="(task.source || 'system').toUpperCase()"></span><span x-text="task.title || 'Untitled'"></span></div>
-            <div class="task-meta"><span class="task-time" x-text="'Tạo lúc: ' + formatDate(task.created_at)"></span></div>
+            <div class="task-title">
+              <span class="draft-type-badge" x-text="(task.source || 'system').toUpperCase()"></span>
+              <span x-text="task.title || 'Untitled'"></span>
+            </div>
+            <div class="task-meta">
+              <span class="task-time" x-text="'Tạo lúc: ' + formatDate(task.created_at)"></span>
+            </div>
             <div class="task-actions">
               <button class="secondary-btn mini btn-approve" @click.stop="approveTask(task.id)">✅ Duyệt</button>
               <button class="secondary-btn mini btn-delete" @click.stop="deleteTask(task.id)">🗑 Xóa</button>

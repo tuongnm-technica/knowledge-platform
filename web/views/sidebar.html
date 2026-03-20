@@ -4,10 +4,16 @@
     <div class="logo-text">Knowledge</div>
     <div class="logo-sub">On-Premise AI Platform</div>
   </div>
+
   <nav class="nav">
     <div class="nav-section">Workspace</div>
-    <a href="/chat" class="nav-item active" data-navigo><span class="nav-icon">💬</span> Chat AI</a>
-    <a href="/search" class="nav-item" data-navigo><span class="nav-icon">🔍</span> Search</a>
+    <a href="/chat" class="nav-item active" data-navigo>
+      <span class="nav-icon">💬</span> Chat AI
+    </a>
+    <a href="/search" class="nav-item" data-navigo>
+      <span class="nav-icon">🔍</span> Search
+    </a>
+    <!-- Giỏ hàng là Drawer, không chuyển trang, chỉ bật cờ isDrawerOpen của Alpine -->
     <div class="nav-item" id="nav-basket" style="cursor:pointer" @click="isDrawerOpen = true">
       <span class="nav-icon">📌</span> Giỏ ngữ cảnh
       <span class="nav-badge" x-cloak x-show="$store.badges.basket > 0" x-text="$store.badges.basket"></span>
@@ -20,14 +26,25 @@
       <span class="nav-icon">🤖</span> Tasks
       <span class="nav-badge" x-data x-cloak x-show="$store.badges.tasks > 0" x-text="$store.badges.tasks"></span>
     </a>
-    <a href="/memory" class="nav-item" id="nav-memory" data-navigo><span class="nav-icon">🧠</span> Project Memory</a>
+    <a href="/memory" class="nav-item" id="nav-memory" data-navigo>
+      <span class="nav-icon">🧠</span> Project Memory
+    </a>
 
     <div class="nav-section">Quản trị</div>
-    <a href="/connectors" class="nav-item" id="nav-connectors" data-navigo><span class="nav-icon">🔗</span> Connectors</a>
-    <a href="/graph" class="nav-item" id="nav-graph" data-navigo><span class="nav-icon">🕸️</span> Knowledge Graph</a>
-    <a href="/users" class="nav-item" id="nav-users" data-navigo><span class="nav-icon">👥</span> Users</a>
-    <a href="/prompts" class="nav-item" id="nav-prompts" data-navigo><span class="nav-icon">🗂️</span> Skill Prompts</a>
+    <a href="/connectors" class="nav-item" id="nav-connectors" data-navigo>
+      <span class="nav-icon">🔗</span> Connectors
+    </a>
+    <a href="/graph" class="nav-item" id="nav-graph" data-navigo>
+      <span class="nav-icon">🕸️</span> Knowledge Graph
+    </a>
+    <a href="/users" class="nav-item" id="nav-users" data-navigo>
+      <span class="nav-icon">👥</span> Users
+    </a>
+    <a href="/prompts" class="nav-item" id="nav-prompts" data-navigo>
+      <span class="nav-icon">🗂️</span> Skill Prompts
+    </a>
   </nav>
+
   <div class="sidebar-bottom">
     <div class="user-card">
       <div class="avatar" id="sidebarAvatar">A</div>

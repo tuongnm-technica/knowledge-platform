@@ -17,6 +17,8 @@ import structlog
 
 log     = structlog.get_logger()
 WEB_DIR = Path(__file__).parent.parent.parent / "web"
+if (WEB_DIR / "dist").exists():
+    WEB_DIR = WEB_DIR / "dist"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -56,22 +58,22 @@ app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION,
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
 
-app.include_router(auth.router)
-app.include_router(ask.router)
-app.include_router(search.router)
-app.include_router(ingest.router)
-app.include_router(health.router)
-app.include_router(connectors.router)
-app.include_router(groups.router)
-app.include_router(users.router)
-app.include_router(graph.router)
-app.include_router(docs.router)
-app.include_router(documents.router)
-app.include_router(assets.router)
-app.include_router(prompts.router)
-app.include_router(tasks.router)
-app.include_router(memory.router)
-app.include_router(history.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(ask.router, prefix="/api")
+app.include_router(search.router, prefix="/api")
+app.include_router(ingest.router, prefix="/api")
+app.include_router(health.router, prefix="/api")
+app.include_router(connectors.router, prefix="/api")
+app.include_router(groups.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(graph.router, prefix="/api")
+app.include_router(docs.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")
+app.include_router(assets.router, prefix="/api")
+app.include_router(prompts.router, prefix="/api")
+app.include_router(tasks.router, prefix="/api")
+app.include_router(memory.router, prefix="/api")
+app.include_router(history.router, prefix="/api")
 
 if WEB_DIR.exists():
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
@@ -82,6 +84,11 @@ async def serve_spa(request: Request, full_path: str):
     if full_path.startswith("api/"):
         from fastapi.responses import JSONResponse
         return JSONResponse({"detail": "Not found"}, status_code=404)
+        
+    # Thử tìm file thực tế trong WEB_DIR (để serve JS, CSS, images, v.v.)
+    file_path = WEB_DIR / full_path
+    if full_path and file_path.is_file():
+        return FileResponse(file_path)
         
     index = WEB_DIR / "index.html"
     return FileResponse(index) if index.exists() else {"message": "Place index.html in web/ folder"}

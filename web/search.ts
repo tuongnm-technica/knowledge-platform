@@ -1,5 +1,6 @@
 import { API, authFetch } from './client';
 import { SearchResult } from './models';
+import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 export class SearchModule {
@@ -32,8 +33,9 @@ export class SearchModule {
                 }
             });
         }
-        document.addEventListener('kp-view-document', (e: any) => {
-            this.viewDocument(e.detail.id);
+        document.addEventListener('kp-view-document', (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            this.viewDocument(detail.id);
         });
     }
 
@@ -72,8 +74,9 @@ export class SearchModule {
             const data = await response.json();
             const results: SearchResult[] = Array.isArray(data) ? data : (data.results || []);
             this.renderSearchResults(results);
-        } catch (e: any) {
-            this.showToast(`Lỗi: ${e.message}`, 'error');
+        } catch (err) {
+            const error = err as Error;
+            this.showToast(`Lỗi: ${error.message}`, 'error');
         } finally {
             this.searchPending = false;
             if (this.searchBtn) this.searchBtn.disabled = false;
@@ -118,7 +121,6 @@ export class SearchModule {
             const docAuthor = result.author ? `Bởi: ${this.escapeHtml(result.author)}` : '';
             const sourceBadge = result.source || result.source_type || 'Internal source';
 
-            // Lưu ý: Không dùng inline onclick nữa, gắn qua data-attribute
             item.innerHTML = `
                 <div class="kp-result-header">
                     <span class="kp-result-title">${this.escapeHtml(docTitle)}</span>
@@ -136,7 +138,6 @@ export class SearchModule {
                 </div>
             `;
 
-            // Gắn sự kiện click an toàn
             item.querySelector('.kp-pin-btn')?.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement;
                 const id = target.getAttribute('data-doc-id');
@@ -188,13 +189,13 @@ export class SearchModule {
         try {
             const res = await authFetch(`${API}/search/${docId}`);
             if (!res.ok) throw new Error('Không thể tải nội dung tài liệu (hoặc bạn không có quyền truy cập).');
-            const doc = await res.json();
+            const doc = await res.json() as SearchResult;
 
             let htmlContent = '';
-            if (typeof (window as any).marked !== 'undefined') {
-                const rawHtml = (window as any).marked.parse(doc.content || '');
+            try {
+                const rawHtml = marked.parse(doc.content || '') as string;
                 htmlContent = DOMPurify.sanitize(rawHtml);
-            } else {
+            } catch (e) {
                 htmlContent = this.escapeHtml(doc.content || '').replace(/\n/g, '<br>');
             }
 
@@ -210,27 +211,30 @@ export class SearchModule {
                 </div>
             `;
 
-            if (typeof (window as any).kpOpenModal === 'function') {
-                (window as any).kpOpenModal({
+            const win = window as any;
+            if (typeof win.kpOpenModal === 'function') {
+                win.kpOpenModal({
                     title: doc.title || 'Chi tiết tài liệu',
                     content: body,
                     okText: 'Đóng',
                     cancelText: null
                 });
             } else {
-                alert('Tài liệu:\n' + doc.content); // Fallback tạm thời
+                alert('Tài liệu:\n' + doc.content); 
             }
-        } catch (e: any) {
-            this.showToast(e.message, 'error');
+        } catch (err) {
+            const error = err as Error;
+            this.showToast(error.message, 'error');
         }
     }
 
     // --- Helpers ---
     private showToast(message: string, type: 'success' | 'error' | 'warning' | 'info'): void {
-        if (typeof (window as any).showToast === 'function') {
-            (window as any).showToast(message, type);
+        const win = window as any;
+        if (typeof win.showToast === 'function') {
+            win.showToast(message, type);
         } else {
-            alert(`[${type.toUpperCase()}] ${message}`);
+            console.warn(`[${type.toUpperCase()}] ${message}`);
         }
     }
 

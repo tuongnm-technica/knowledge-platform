@@ -1,7 +1,6 @@
 import { API, authFetch } from './client';
 import { ChatSession } from './models';
-import { escapeHtml, formatDateTime, showToast } from './ui';
-import { ChatModule } from './chat'; // Tùy chọn: nếu muốn tương tác trực tiếp
+import { escapeHtml, formatDateTime } from './ui';
 
 export class HistoryModule {
     public async loadHistoryPage(): Promise<void> {
@@ -12,11 +11,12 @@ export class HistoryModule {
             const res = await authFetch(`${API}/chat/history`);
             if (!res.ok) throw new Error('Không thể tải lịch sử');
             
-            const data = await res.json();
+            const data = await res.json() as ChatSession[] | { sessions: ChatSession[] };
             const sessions: ChatSession[] = Array.isArray(data) ? data : (data.sessions || []);
             this.renderHistoryList(sessions);
-        } catch(e: any) {
-            if (list) list.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--danger); font-size: 13px;">${escapeHtml(e.message)}</div>`;
+        } catch(err) {
+            const error = err as Error;
+            if (list) list.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--danger); font-size: 13px;">${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -37,9 +37,11 @@ export class HistoryModule {
             item.style.padding = '12px';
             item.style.borderBottom = '1px solid var(--border)';
             
+            const timestamp = s.updated_at || s.created_at || new Date().toISOString();
+            
             item.innerHTML = `
                 <div class="chat-history-title" style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">${escapeHtml(s.title || 'Hội thoại mới')}</div>
-                <div class="chat-history-meta" style="font-size: 11px; color: var(--text-dim);">${formatDateTime(s.updated_at || s.created_at)}</div>
+                <div class="chat-history-meta" style="font-size: 11px; color: var(--text-dim);">${formatDateTime(timestamp)}</div>
             `;
             
             item.addEventListener('click', () => {
@@ -49,4 +51,4 @@ export class HistoryModule {
             list.appendChild(item);
         });
     }
-}
+}

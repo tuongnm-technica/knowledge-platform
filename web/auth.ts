@@ -1,5 +1,5 @@
-import { API, authFetch } from '../api/client';
-import { User } from '../types/models';
+import { API, authFetch } from './client';
+import { User, AuthResponse } from './models';
 
 export class AuthModule {
     private static TOKEN_KEY = 'kp_access_token';
@@ -21,53 +21,60 @@ export class AuthModule {
     }
 
     static async login(email: string, password: string): Promise<void> {
-        const formData = new URLSearchParams();
-        formData.append('username', email);
-        formData.append('password', password);
-
         const response = await fetch(`${API}/auth/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
         });
 
         if (!response.ok) {
             throw new Error('Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
         }
 
-        const data = await response.json();
+        const data: AuthResponse = await response.json();
         this.setToken(data.access_token);
+        
+        // Save user info to local storage for quick access if needed
+        localStorage.setItem('kp_user', JSON.stringify(data));
     }
 
     static logout(): void {
         this.clearToken();
-        window.location.href = '/login.html';
+        localStorage.removeItem('kp_user');
+        window.location.href = '/';
     }
 
     static async getCurrentUser(): Promise<User> {
-        const response = await authFetch(`${API}/users/me`);
+        const response = await authFetch(`${API}/auth/me`);
         if (!response.ok) throw new Error('Không thể lấy thông tin user');
         return (await response.json()) as User;
     }
     
     // --- DOM Binding Helpers ---
-    static setupLoginForm(formId: string, emailId: string, passwordId: string, errorId: string): void {
-        const form = document.getElementById(formId) as HTMLFormElement | null;
+    static setupLoginForm(emailId: string, passwordId: string, errorId: string): void {
         const emailInput = document.getElementById(emailId) as HTMLInputElement | null;
         const passwordInput = document.getElementById(passwordId) as HTMLInputElement | null;
         const errorDiv = document.getElementById(errorId) as HTMLElement | null;
 
-        if (!form || !emailInput || !passwordInput) return;
+        // Login is handled via button click in index.html login-screen
+        const loginBtn = document.getElementById('loginBtn');
+        if (!loginBtn || !emailInput || !passwordInput) return;
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        loginBtn.addEventListener('click', async () => {
             if (errorDiv) errorDiv.style.display = 'none';
+            loginBtn.classList.add('loading');
             try {
                 await this.login(emailInput.value, passwordInput.value);
-                window.location.href = '/'; // Đăng nhập thành công
-            } catch (error: any) {
-                if (errorDiv) { errorDiv.textContent = error.message; errorDiv.style.display = 'block'; }
+                window.location.href = '/'; 
+            } catch (err) {
+                const error = err as Error;
+                if (errorDiv) { 
+                    errorDiv.textContent = error.message; 
+                    errorDiv.style.display = 'block'; 
+                }
+            } finally {
+                loginBtn.classList.remove('loading');
             }
         });
     }
-}
+}

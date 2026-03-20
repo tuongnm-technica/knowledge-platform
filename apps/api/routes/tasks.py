@@ -5,11 +5,17 @@ from pydantic import BaseModel
 
 from storage.db.db import get_db
 from tasks.repository import TaskDraftRepository
+from tasks.scanner import scan_and_create_drafts
+from apps.api.auth.dependencies import CurrentUser, require_task_manager
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 class StatusUpdateRequest(BaseModel):
     status: str
+
+class ScanRequest(BaseModel):
+    slack_days: int = 1
+    confluence_days: int = 1
 
 @router.get("")
 async def get_tasks(
@@ -59,3 +65,19 @@ async def delete_task(
     
     await repo.delete(task_id)
     return {"message": "Task deleted successfully"}
+
+@router.post("/scan")
+async def trigger_task_scan(
+    req: ScanRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_task_manager)
+) -> dict[str, Any]:
+    """Thủ công kích hoạt quét các nguồn dữ liệu để tìm task mới."""
+    stats = await scan_and_create_drafts(
+        session=db,
+        triggered_by="manual",
+        created_by=current_user.user_id,
+        slack_days=req.slack_days,
+        confluence_days=req.confluence_days
+    )
+    return {"status": "success", "stats": stats}

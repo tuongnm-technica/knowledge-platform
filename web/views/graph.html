@@ -1,0 +1,42 @@
+<!-- ── GRAPH PAGE ── -->
+<div class="page" id="page-graph">
+  <div class="connectors-content">
+    <div class="page-intro">
+      <div>
+        <div class="intro-kicker">Data quality</div>
+        <div class="intro-title">Knowledge Health Dashboard</div>
+        <div class="intro-sub">Theo dõi độ phủ dữ liệu theo nguồn, độ tươi mới, và khám phá knowledge graph theo entities và relations.</div>
+      </div>
+      <div class="connectors-toolbar-actions">
+        <button class="secondary-btn" id="refreshGraphBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="health-grid" id="graphHealthGrid">
+      <div class="connector-summary-card">
+        <span>Loading health...</span>
+        <strong>—</strong>
+        <small>Please wait</small>
+      </div>
+    </div>
+
+    <div class="graph-panel">
+      <div class="graph-toolbar">
+        <div class="graph-toolbar-left">
+          <div class="connectors-toolbar-title">Interactive graph</div>
+          <div class="connectors-toolbar-sub">Kéo node để khám phá. Dùng search để highlight thực thể.</div>
+        </div>
+        <div class="graph-toolbar-actions">
+          <input id="graphSearchInput" class="time-input" type="text" placeholder="Search entity...">
+          <button class="secondary-btn" id="resetGraphBtn">Reset view</button>
+        </div>
+      </div>
+      <div id="graphInsights" class="graph-insights" style="display:none"></div>
+      <div class="graph-canvas-wrap">
+        <canvas id="graphCanvas" width="1100" height="520" aria-label="Knowledge graph"></canvas>
+        <div id="graphHint" class="graph-hint">Tip: Wheel to zoom, drag background to pan, drag a node to pin it.</div>
+      </div>
+      <div id="graphNodeDetail" class="graph-detail" style="display:none"></div>
+    </div>
+  </div>
+</div>

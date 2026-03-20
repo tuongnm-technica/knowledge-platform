@@ -1,5 +1,5 @@
 import { API, authFetch } from './client';
-import { ChatMessage } from './models';
+import { ChatMessage, AskJobResponse, JobStatusResponse } from './models';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
@@ -22,23 +22,30 @@ export class ChatModule {
             this.sendBtn.addEventListener('click', () => this.sendMessage());
         }
         document.getElementById('newChatBtn')?.addEventListener('click', () => this.startNewChat());
-        document.querySelectorAll('#chatSuggestions .suggestion-chip').forEach(chip => {
-            chip.addEventListener('click', (e) => this.useSuggestion(e.currentTarget as HTMLElement));
+        
+        // Use event delegation for suggestions since they might be in a partial
+        document.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target.classList.contains('suggestion-chip')) {
+                this.useSuggestion(target);
+            }
         });
+
         if (this.input) {
             this.input.addEventListener('input', () => this.autoResize());
-            this.input.addEventListener('keypress', (e: KeyboardEvent) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
+            this.input.addEventListener('keypress', (e: Event) => {
+                if ((e as KeyboardEvent).key === 'Enter' && !(e as KeyboardEvent).shiftKey) {
+                    (e as KeyboardEvent).preventDefault();
                     this.sendMessage();
                 }
             });
         }
         
-        document.addEventListener('kp-switch-chat-session', (e: any) => {
-            this.currentSessionId = e.detail;
+        document.addEventListener('kp-switch-chat-session', (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            this.currentSessionId = detail;
             if (this.container) this.container.innerHTML = '';
-            this.appendMessage({ id: 'sys', role: 'system', content: `Đã chuyển sang hội thoại: ${e.detail}. Tính năng tải tin nhắn cũ đang được backend hỗ trợ.`, created_at: new Date().toISOString() });
+            this.appendMessage({ id: 'sys', role: 'system', content: `Đã chuyển sang hội thoại: ${detail}. Tính năng tải tin nhắn cũ đang được backend hỗ trợ.`, created_at: new Date().toISOString() });
             const emptyState = document.getElementById('emptyState');
             if (emptyState) emptyState.style.display = 'none';
         });
@@ -62,7 +69,7 @@ export class ChatModule {
     private startNewChat(): void {
         this.currentSessionId = null;
         if (this.container) {
-            Array.from(this.container.querySelectorAll('.chat-message')).forEach(msg => msg.remove());
+            this.container.innerHTML = '';
         }
         const emptyState = document.getElementById('emptyState');
         if (emptyState) {
@@ -70,7 +77,7 @@ export class ChatModule {
             const titleEl = emptyState.querySelector('.empty-title') as HTMLElement;
             if (titleEl) {
                 titleEl.style.animation = 'none';
-                void titleEl.offsetWidth; 
+                void (titleEl as any).offsetWidth; 
                 titleEl.style.animation = 'fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards';
             }
         }
@@ -118,12 +125,13 @@ export class ChatModule {
             }
 
             if (!response.ok) throw new Error(`Lỗi HTTP ${response.status}`);
-            const jobData = await response.json();
+            const jobData = await response.json() as AskJobResponse;
             if (jobData.session_id) this.currentSessionId = jobData.session_id;
 
             await this.pollJobStatus(jobData.job_id, thinkId);
 
-        } catch (error: any) {
+        } catch (err) {
+            const error = err as Error;
             this.removeThinking(thinkId);
             this.appendMessage({
                 id: Date.now().toString(),
@@ -145,9 +153,9 @@ export class ChatModule {
             try {
                 const resp = await authFetch(`${API}/ask/status/${jobId}`);
                 if (!resp.ok) throw new Error('Lỗi lấy trạng thái');
-                const data = await resp.json();
+                const data = await resp.json() as JobStatusResponse;
                 
-                this.updateThinkingStatus(thinkId, data.thoughts);
+                this.updateThinkingStatus(thinkId, data.thoughts || []);
 
                 if (data.status === 'completed') {
                     this.removeThinking(thinkId);
@@ -166,8 +174,9 @@ export class ChatModule {
                     this.removeThinking(thinkId);
                     throw new Error(data.error || 'Worker xử lý AI thất bại');
                 }
-            } catch (e) {
-                console.error('Polling error:', e);
+            } catch (err) {
+                const error = err as Error;
+                console.error('Polling error:', error);
             }
             await new Promise(r => setTimeout(r, pollInterval));
             attempts++;
@@ -190,7 +199,10 @@ export class ChatModule {
         const el = document.getElementById(id);
         if (!el || !thoughts || !thoughts.length) return;
         const label = el.querySelector('.thinking-text');
-        if (label) label.textContent = thoughts[thoughts.length - 1].thought || "Đang xử lý...";
+        if (label) {
+            const lastThought = thoughts[thoughts.length - 1];
+            label.textContent = (typeof lastThought === 'string' ? lastThought : lastThought.thought) || "Đang xử lý...";
+        }
     }
 
     private formatAnswer(content: string): string {
@@ -206,7 +218,7 @@ export class ChatModule {
         if (!this.container) return;
 
         const msgEl = document.createElement('div');
-        msgEl.className = `chat-message ${msg.role}`; // style via CSS based on role
+        msgEl.className = `chat-message ${msg.role}`; 
         
         let safeContent = '';
         if (msg.role === 'assistant') {
@@ -228,11 +240,5 @@ export class ChatModule {
 
     private escapeHtml(unsafe: string): string {
         return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    private showToast(message: string, type: string): void {
-        document.dispatchEvent(new CustomEvent('kp-show-toast', { 
-            detail: { message, type } 
-        }));
     }
 }

@@ -10,10 +10,12 @@ export class PromptsModule {
         try {
             const res = await authFetch(`${API}/prompts`);
             if (!res.ok) throw new Error('Không thể tải prompts');
-            const data = await res.json();
-            this.renderPrompts(data.agents || data);
-        } catch(e: any) {
-            if (container) container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--danger)">Lỗi tải Skills API: ${escapeHtml(e.message)}</div>`;
+            const data = await res.json() as PromptSkill[] | { agents: PromptSkill[] };
+            const prompts: PromptSkill[] = Array.isArray(data) ? data : (data.agents || []);
+            this.renderPrompts(prompts);
+        } catch(err) {
+            const error = err as Error;
+            if (container) container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--danger)">Lỗi tải Skills API: ${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -37,12 +39,12 @@ export class PromptsModule {
             html += '<div class="search-empty" style="grid-column:1/-1;">Chưa cấu hình skill prompt nào trên backend.</div>';
         } else {
             prompts.forEach(p => {
-                const type = (p as any).doc_type || p.type || 'System';
-                const label = (p as any).label || p.name || 'Untitled Agent';
+                const type = p.doc_type || p.type || 'System';
+                const label = p.label || p.name || 'Untitled Agent';
                 const desc = p.description || 'Hỗ trợ viết tự động tài liệu SDLC';
                 html += `<div class="connector-card"><div style="font-weight:bold; font-size:16px; margin-bottom:8px;">${escapeHtml(label)}</div><div style="font-size:13px; color:var(--text-dim); margin-bottom:16px;">${escapeHtml(desc)}</div><div style="font-size:11px; padding:4px 8px; background:var(--bg3); border-radius:4px; display:inline-block;">Skill: ${escapeHtml(type)}</div></div>`;
             });
         }
         container.innerHTML = html + '</div></div>';
     }
-}
+}

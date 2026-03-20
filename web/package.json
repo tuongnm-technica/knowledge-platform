@@ -10,11 +10,15 @@
   "devDependencies": {
     "typescript": "^5.2.2",
     "vite": "^5.0.0",
-    "vite-plugin-html-inject": "^1.1.2"
+    "vite-plugin-html-inject": "^1.1.2",
+    "@types/marked": "^5.0.2",
+    "@types/dompurify": "^3.0.5",
+    "@types/alpinejs": "^3.13.3"
   },
   "dependencies": {
     "alpinejs": "^3.13.3",
     "navigo": "^8.11.1",
-    "dompurify": "^3.0.9"
+    "dompurify": "^3.0.9",
+    "marked": "^17.0.4"
   }
 }

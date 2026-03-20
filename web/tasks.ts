@@ -28,10 +28,11 @@ export function TasksAlpine() {
                 const query = this.includeSubmitted ? '?limit=50' : '?limit=50&status=pending';
                 const res = await authFetch(`${API}/tasks${query}`);
                 if (!res.ok) throw new Error('Failed to load tasks');
-                const data = await res.json();
+                const data = await res.json() as { tasks: Task[] };
                 this.tasks = data.tasks || [];
-            } catch (e: any) {
-                console.error(e);
+            } catch (err) {
+                const error = err as Error;
+                console.error(error);
                 showToast('Lỗi tải danh sách task', 'error');
             } finally {
                 this.isLoading = false;
@@ -42,9 +43,12 @@ export function TasksAlpine() {
             try {
                 const res = await authFetch(`${API}/tasks/count`);
                 if (!res.ok) return;
-                const data = await res.json();
+                const data = await res.json() as { total_pending: number };
                 // Cập nhật State Global của Alpine
-                (window as any).Alpine.store('badges').tasks = data.total_pending || 0;
+                const alpine = (window as any).Alpine;
+                if (alpine && alpine.store('badges')) {
+                    alpine.store('badges').tasks = data.total_pending || 0;
+                }
             } catch (e) {
                 console.error('Error loading tasks count:', e);
             }
@@ -60,7 +64,10 @@ export function TasksAlpine() {
                 });
                 if (!res.ok) throw new Error('Lỗi khi quét');
                 showToast('Đã đẩy lệnh quét thành công', 'success');
-            } catch (e: any) { showToast(e.message, 'error'); }
+            } catch (err) {
+                const error = err as Error;
+                showToast(error.message, 'error');
+            }
         },
 
         toggleSelection(id: string) {
@@ -82,7 +89,10 @@ export function TasksAlpine() {
                     this.loadTasks();
                     this.loadTasksCount();
                 }
-            } catch (e: any) { showToast(e.message, 'error'); }
+            } catch (err) {
+                const error = err as Error;
+                showToast(error.message, 'error');
+            }
         },
 
         async deleteTask(id: string) {
@@ -93,32 +103,54 @@ export function TasksAlpine() {
                 showToast('Đã xóa task', 'success');
                 this.loadTasks();
                 this.loadTasksCount();
-            } catch (e: any) { showToast(e.message, 'error'); }
+            } catch (err) {
+                const error = err as Error;
+                showToast(error.message, 'error');
+            }
         },
 
         async bulkConfirmTasks() {
             if (this.selectedIds.length === 0) return;
-            if (!confirm(`Duyệt ${this.selectedIds.length} task đã chọn?`)) return;
-            await Promise.all(this.selectedIds.map(id => this.approveTask(id, true)));
-            showToast('Đã duyệt các task được chọn', 'success');
+            if (!confirm(`Duyệt ${this.selectedIds.length} tasks đã chọn?`)) return;
+            
+            showToast(`Đang duyệt ${this.selectedIds.length} tasks...`, 'info');
+            for (const id of this.selectedIds) {
+                await this.approveTask(id, true);
+            }
+            this.selectedIds = [];
+            showToast('Đã duyệt xong hàng loạt', 'success');
             this.loadTasks();
             this.loadTasksCount();
         },
 
         async bulkRejectTasks() {
             if (this.selectedIds.length === 0) return;
-            if (!confirm(`Xóa ${this.selectedIds.length} task đã chọn?`)) return;
-            await Promise.all(this.selectedIds.map(id => authFetch(`${API}/tasks/${id}`, { method: 'DELETE' })));
-            showToast('Đã xóa các task được chọn', 'success');
+            if (!confirm(`Xóa ${this.selectedIds.length} tasks đã chọn?`)) return;
+
+            showToast(`Đang xóa ${this.selectedIds.length} tasks...`, 'info');
+            for (const id of this.selectedIds) {
+                try {
+                    await authFetch(`${API}/tasks/${id}`, { method: 'DELETE' });
+                } catch (e) {
+                    console.error('Error deleting task:', id, e);
+                }
+            }
+            this.selectedIds = [];
+            showToast('Đã xóa xong hàng loạt', 'success');
             this.loadTasks();
             this.loadTasksCount();
         },
 
-        clearSelection() { this.selectedIds = []; },
+        clearSelection() {
+            this.selectedIds = [];
+        },
 
-        formatDate(d: string) {
-            if (!d) return '';
-            return new Date(d).toLocaleString('vi-VN');
+        formatDate(dateStr: string) {
+            if (!dateStr) return 'N/A';
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleString('vi-VN');
+            } catch (e) { return dateStr; }
         }
     };
 }

@@ -20,7 +20,11 @@ export function safeHostname(urlStr: string): string {
     }
 }
 
-export function parseThinking(thoughts: any[]): string {
+export interface Thought {
+    thought?: string;
+}
+
+export function parseThinking(thoughts: Thought[]): string {
     if (!thoughts || thoughts.length === 0) return '';
     return thoughts.map(t => t.thought || '').join('\n');
 }

@@ -1,3 +1,4 @@
+<!-- ── DRAFTS PAGE ── -->
 <div class="page" id="page-drafts" x-data="draftsModule">
   <div class="connectors-content" x-show="!currentDraftId">
     <div class="page-intro">
@@ -23,16 +24,18 @@
         <button class="secondary-btn" @click="loadDraftsPage(true)">Refresh</button>
       </div>
     </div>
+
     <div class="search-results">
       <div x-show="isLoading" class="drafts-loading">Đang tải...</div>
       <div x-cloak x-show="!isLoading && drafts.length === 0" class="drafts-empty">Chưa có bản nháp nào. Tạo draft từ Chat để bắt đầu.</div>
+      
       <div x-cloak x-show="!isLoading && drafts.length > 0" class="drafts-list">
         <template x-for="draft in drafts" :key="draft.id">
           <div class="draft-card">
             <div class="draft-header">
               <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
                 <div class="draft-type" x-text="(draft.doc_type || 'srs').toUpperCase()"></div>
-                <div :style="\`font-size:10px;padding:4px 10px;border-radius:20px;background:\${getStatusColor(draft.status)}15;color:\${getStatusColor(draft.status)};font-weight:700;text-transform:uppercase;border:1px solid \${getStatusColor(draft.status)}30\`" x-text="draft.status || 'draft'"></div>
+                <div :style="`font-size:10px;padding:4px 10px;border-radius:20px;background:${getStatusColor(draft.status)}15;color:${getStatusColor(draft.status)};font-weight:700;text-transform:uppercase;border:1px solid ${getStatusColor(draft.status)}30`" x-text="draft.status || 'draft'"></div>
               </div>
               <div class="draft-title" x-text="draft.title || 'Untitled'"></div>
             </div>
@@ -49,6 +52,7 @@
       </div>
     </div>
   </div>
+
   <!-- Draft Editor View -->
   <div class="connectors-content" x-cloak x-show="currentDraftId">
     <div class="draft-editor-wrap" style="height: calc(100vh - 160px);" x-show="currentDraft">
@@ -57,6 +61,7 @@
           <button class="secondary-btn mini btn-back" @click="closeDraftEditor()">← Quay lại</button>
           <span class="draft-type" style="font-size:11px;padding:6px 12px;border-radius:8px" x-text="(currentDraft?.doc_type || 'srs').toUpperCase()"></span>
           <input type="text" x-model="currentDraft.title" style="flex:1;min-width:200px;font-size:18px;font-weight:800;border:none;background:transparent;outline:none;color:var(--text)" placeholder="Tiêu đề...">
+          
           <div style="display:flex;align-items:center;gap:8px">
             <select class="time-input" x-model="currentDraft.status" style="font-size:12px;padding:6px 10px;border-radius:10px">
               <option value="draft">Draft</option>

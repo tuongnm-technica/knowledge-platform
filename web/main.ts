@@ -1,37 +1,37 @@
 // Gom toàn bộ CSS vào đây để Vite quản lý (HMR & Minify)
-import './assets/css/main.css';
-import './assets/css/components/buttons.css';
-import './assets/css/components/forms.css';
-import './assets/css/components/login.css';
-import './assets/css/components/modals.css';
-import './assets/css/components/toasts.css';
-import './assets/css/modules/admin.css';
-import './assets/css/modules/basket.css';
-import './assets/css/modules/chat.css';
-import './assets/css/modules/connectors.css';
-import './assets/css/modules/drafts.css';
-import './assets/css/modules/graph.css';
-import './assets/css/modules/history.css';
-import './assets/css/modules/search.css';
-import './assets/css/modules/tasks.css';
-import './assets/css/modules/prompts.css';
+import './css/main.css';
+import './css/components/buttons.css';
+import './css/components/forms.css';
+import './css/components/login.css';
+import './css/components/modals.css';
+import './css/components/toasts.css';
+import './css/modules/admin.css';
+import './css/modules/basket.css';
+import './css/modules/chat.css';
+import './css/modules/connectors.css';
+import './css/modules/drafts.css';
+import './css/modules/graph.css';
+import './css/modules/history.css';
+import './css/modules/search.css';
+import './css/modules/tasks.css';
+import './css/modules/prompts.css';
 
 import Navigo from 'navigo';
 import Alpine from 'alpinejs';
-import { AuthModule } from './modules/auth';
-import { ThemeModule } from './modules/theme';
-import { ChatModule } from './modules/chat';
-import { SearchModule } from './modules/search';
-import { TasksAlpine } from './modules/tasks';
-import { DraftsAlpine } from './modules/drafts';
-import { GraphModule } from './modules/graph';
-import { BasketAlpine } from './modules/basket'; 
-import { ConnectorsModule } from './modules/connectors';
-import { AdminAlpine } from './modules/admin'; 
-import { HistoryModule } from './modules/history';
-import { MemoryModule } from './modules/memory';
-import { PromptsModule } from './modules/prompts';
-import { API } from './modules/client';
+import { AuthModule } from './auth';
+import { ThemeModule } from './theme';
+import { ChatModule } from './chat';
+import { SearchModule } from './search';
+import { TasksAlpine } from './tasks';
+import { DraftsAlpine } from './drafts';
+import { GraphModule } from './graph';
+import { BasketAlpine } from './basket'; 
+import { ConnectorsModule } from './connectors';
+import { AdminAlpine } from './admin'; 
+import { HistoryModule } from './history';
+import { MemoryModule } from './memory';
+import { PromptsModule } from './prompts';
+import { API } from './client';
 
 // Bắt lỗi module không load được
 window.addEventListener('error', function(e) {
@@ -55,7 +55,7 @@ async function checkHealth(): Promise<void> {
 
         if (!r.ok) throw new Error(`HTTP Error: ${r.status}`);
 
-        const d = await r.json();
+        const d = await r.json() as { status: string, components?: any, postgresql?: string };
         const coreOk = d.status === 'ok' || (d.components?.postgresql === 'ok' && d.components?.qdrant === 'ok') || d.postgresql === 'ok';
         
         const dot = document.getElementById('statusDot');
@@ -70,7 +70,7 @@ async function checkHealth(): Promise<void> {
             if (dot) dot.style.background = 'var(--danger)';
             if (txt) txt.textContent = 'Hệ thống gặp lỗi';
         }
-    } catch (e) {
+    } catch (err) {
         const dot = document.getElementById('statusDot');
         const txt = document.getElementById('statusText');
         if (dot) dot.style.background = 'var(--danger)';
@@ -96,33 +96,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Mapping Login Form 
-    // (Lưu ý: trong HTML của bạn không có thẻ <form>, nên chúng ta gán sự kiện trực tiếp cho nút bấm)
     document.getElementById('loginBtn')?.addEventListener('click', async () => {
-        const email = (document.getElementById('loginEmail') as HTMLInputElement).value;
-        const pwd = (document.getElementById('loginPwd') as HTMLInputElement).value;
+        const emailEl = document.getElementById('loginEmail') as HTMLInputElement;
+        const pwdEl = document.getElementById('loginPwd') as HTMLInputElement;
+        const email = emailEl ? emailEl.value : '';
+        const pwd = pwdEl ? pwdEl.value : '';
         try {
             await AuthModule.login(email, pwd);
             window.location.reload(); // Tải lại trang để áp dụng token mới
-        } catch (e: any) {
-            const err = document.getElementById('loginError');
-            if (err) { err.textContent = e.message; err.style.display = 'block'; }
+        } catch (err) {
+            const error = err as Error;
+            const errEl = document.getElementById('loginError');
+            if (errEl) { errEl.textContent = error.message; errEl.style.display = 'block'; }
         }
     });
 
     document.getElementById('loginEmail')?.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Enter') document.getElementById('loginPwd')?.focus();
+        if (e.key === 'Enter') (document.getElementById('loginPwd') as HTMLInputElement)?.focus();
     });
 
     document.getElementById('loginPwd')?.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Enter') document.getElementById('loginBtn')?.click();
+        if (e.key === 'Enter') (document.getElementById('loginBtn') as HTMLButtonElement)?.click();
     });
 
     document.getElementById('logoutBtn')?.addEventListener('click', () => AuthModule.logout());
     document.getElementById('themeToggle')?.addEventListener('click', () => ThemeModule.toggleTheme());
 
     // 2. Khởi tạo Modules
-    const chat = new ChatModule('chatMessages', 'chatInput', 'sendBtn');
-    const search = new SearchModule('searchInput', 'searchBtn', 'searchResults');
+    new ChatModule('chatMessages', 'chatInput', 'sendBtn');
+    new SearchModule('searchInput', 'searchBtn', 'searchResults');
     const graph = new GraphModule();
     const connectors = new ConnectorsModule();
     const history = new HistoryModule();
@@ -130,12 +132,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const prompts = new PromptsModule();
 
     // Khởi tạo AlpineJS
-    (window as any).Alpine = Alpine;
+    const win = window as any;
+    win.Alpine = Alpine;
     Alpine.store('badges', { tasks: 0, drafts: 0, basket: 0 }); // Lưu trữ Badge toàn cục
-    Alpine.data('tasksModule', TasksAlpine); // Đăng ký module Tasks
-    Alpine.data('draftsModule', DraftsAlpine); // Đăng ký module Drafts
-    Alpine.data('basketModule', BasketAlpine); // Đăng ký module Basket
-    Alpine.data('adminModule', AdminAlpine);   // Đăng ký module Admin
+    Alpine.data('tasksModule', TasksAlpine as any); // Đăng ký module Tasks
+    Alpine.data('draftsModule', DraftsAlpine as any); // Đăng ký module Drafts
+    Alpine.data('basketModule', BasketAlpine as any); // Đăng ký module Basket
+    Alpine.data('adminModule', AdminAlpine as any);   // Đăng ký module Admin
     Alpine.start();
 
     // Khởi tạo Router (Sử dụng History API, không dùng hash #)
@@ -157,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Tải dữ liệu tương ứng khi chuyển tab
         if (target === 'tasks') { document.dispatchEvent(new CustomEvent('kp-refresh-tasks')); }
         else if (target === 'drafts') { document.dispatchEvent(new CustomEvent('kp-refresh-drafts')); }
-        else if (target === 'graph') { graph.loadGraphDashboard(true); }
+        else if (target === 'graph') { graph.loadGraphDashboard(); }
         else if (target === 'basket') { document.dispatchEvent(new CustomEvent('kp-refresh-basket')); }
         else if (target === 'connectors') { connectors.loadConnectorStats(); }
         else if (target === 'users') { document.dispatchEvent(new CustomEvent('kp-refresh-users')); }
@@ -172,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     router
         .on('/', () => { router.navigate('/chat'); }) // Trang chủ mặc định redirect về /chat
         .on('/:page', (match) => {
-            const page = match?.data?.page || 'chat';
+            const page = (match && match.data && match.data.page) || 'chat';
             renderPage(page);
         })
         .resolve();
@@ -182,9 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
         history.loadHistoryPage();
     });
     
-    document.addEventListener('kp-show-toast', (e: any) => {
-        const { message, type } = e.detail;
-        console.log(`[${type}] ${message}`); // Thay bằng logic hiển thị Toast UI của bạn
+    document.addEventListener('kp-show-toast', (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        const { message, type } = detail;
+        console.log(`[${type}] ${message}`); 
     });
 
     // Bắt sự kiện chuyển trang từ thanh Menu
@@ -197,7 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Global event để các module khác tự chuyển trang mà không cần gọi window
-    document.addEventListener('kp-navigate', (e: any) => {
-        router.navigate(`/${e.detail}`);
+    document.addEventListener('kp-navigate', (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        router.navigate(`/${detail}`);
     });
 });

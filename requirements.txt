@@ -21,6 +21,7 @@ qdrant-client>=1.7.0,<2.0.0
 sentence-transformers
 rank-bm25
 beautifulsoup4
+langchain-text-splitters
 
 # Connectors & Integrations
 slack_sdk

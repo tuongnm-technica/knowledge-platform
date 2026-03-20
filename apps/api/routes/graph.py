@@ -11,7 +11,9 @@ from storage.db.db import get_db
 from graph.graph_view import GraphViewBuilder
 from permissions.filter import PermissionFilter
 
-log = logging.getLogger(__name__)
+import structlog
+
+log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/graph", tags=["graph"])
 
 
@@ -47,7 +49,7 @@ async def graph_health(
                     "staleSources": [],
                     "missingConnectors": [],
                 }
-            base_query += " WHERE id::text = ANY(:allowed::text[])"
+            base_query += " WHERE id::text = ANY(:allowed)"
             params["allowed"] = list(allowed_docs)
         
         base_query += " GROUP BY source ORDER BY c DESC"
@@ -59,7 +61,7 @@ async def graph_health(
 
         latest_query = "SELECT source, MAX(updated_at) AS latest FROM documents"
         if allowed_docs is not None and allowed_docs:
-            latest_query += " WHERE id::text = ANY(:allowed::text[])"
+            latest_query += " WHERE id::text = ANY(:allowed)"
         latest_query += " GROUP BY source"
         
         latest_by_source = (
@@ -176,7 +178,7 @@ async def graph_snapshot(
         params = {"limit": limit}
         
         if allowed_docs is not None:
-            entity_query += " WHERE de.document_id::text = ANY(:allowed::text[])"
+            entity_query += " WHERE de.document_id::text = ANY(:allowed)"
             params["allowed"] = list(allowed_docs)
         
         entity_query += """
@@ -206,7 +208,7 @@ async def graph_snapshot(
         edges_query = """
             SELECT source_id::text AS source, target_id::text AS target, relation_type
             FROM entity_relations
-            WHERE source_id::text = ANY(:ids::text[]) AND target_id::text = ANY(:ids::text[])
+            WHERE source_id::text = ANY(:ids) AND target_id::text = ANY(:ids)
             LIMIT :edge_limit
         """
 
@@ -379,7 +381,7 @@ async def graph_node_detail(
             params = {"node_id": node_id}
             
             if allowed_docs is not None:
-                mention_query += " AND document_id::text = ANY(:allowed::text[])"
+                mention_query += " AND document_id::text = ANY(:allowed)"
                 params["allowed"] = list(allowed_docs)
             
             mention_result = await session.execute(

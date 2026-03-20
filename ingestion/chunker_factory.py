@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 
 from models.document import SourceType
 from .chunkers.base import BaseChunker
@@ -7,7 +8,6 @@ from .chunkers.confluence import ConfluenceChunker
 from .chunkers.jira import JiraChunker
 from .chunkers.slack import SlackChunker
 from .chunkers.file import FileChunker
-from .chunkers.semantic_chunker import SemanticMarkdownChunker
 
 
 # Tự động đăng ký chunker để tránh lỗi nếu một enum bị thiếu trong SourceType
@@ -15,10 +15,10 @@ from .chunkers.semantic_chunker import SemanticMarkdownChunker
 _CHUNKERS: dict[SourceType, Any] = {}
 
 for source_name, chunker_cls in [
-    ("CONFLUENCE", SemanticMarkdownChunker), # Confluence (Wiki) rất hợp với Semantic Markdown
+    ("CONFLUENCE", ConfluenceChunker), 
     ("JIRA", JiraChunker),
     ("SLACK", SlackChunker),
-    ("FILE", SemanticMarkdownChunker),       # File Word/PDF sau khi qua LlamaParse cũng dùng Semantic
+    ("FILE_SERVER", FileChunker),       
     ("TEXT", WordCountChunker),
 ]:
     if hasattr(SourceType, source_name):

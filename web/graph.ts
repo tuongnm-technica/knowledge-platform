@@ -1,6 +1,15 @@
 import { API, authFetch } from './client';
 import { GraphNode, GraphLink } from './models';
-import { showToast, kpPrompt, escapeHtml } from './ui';
+import { showToast, kpPrompt } from './ui';
+
+interface GraphData {
+    nodes: GraphNode[];
+    edges: GraphLink[];
+    detail?: {
+        nodes: GraphNode[];
+        edges: GraphLink[];
+    };
+}
 
 export class GraphModule {
     private canvas: HTMLCanvasElement | null;
@@ -20,7 +29,6 @@ export class GraphModule {
     private hoveredNode: GraphNode | null = null;
     
     private searchQuery: string = '';
-    private animationFrameId: number | null = null;
     private activeView: string = 'snapshot';
 
     constructor() {
@@ -29,14 +37,14 @@ export class GraphModule {
         
         this.initCanvasEvents();
         
-        document.getElementById('refreshGraphBtn')?.addEventListener('click', () => this.loadGraphDashboard(true));
+        document.getElementById('refreshGraphBtn')?.addEventListener('click', () => this.loadGraphDashboard());
         document.getElementById('graphSearchInput')?.addEventListener('input', () => this.graphSearchChanged());
         document.getElementById('resetGraphBtn')?.addEventListener('click', () => this.resetGraphView());
     }
 
     // ─── API & Data Loading ──────────────────────────────────────────────────
 
-    public async loadGraphDashboard(refresh = false): Promise<void> {
+    public async loadGraphDashboard(): Promise<void> {
         this.renderViewToolbar();
         this.loadHealthStats();
         this.loadGraphData();
@@ -47,10 +55,9 @@ export class GraphModule {
         if (!grid) return;
 
         try {
-            // Placeholder API call (Thay thế bằng API thực tế của backend)
             const response = await authFetch(`${API}/graph/health`);
             if (!response.ok) throw new Error('Failed to load graph health');
-            const data = await response.json();
+            const data = await response.json() as { total_nodes: number, total_edges: number };
             
             grid.innerHTML = `
                 <div class="connector-summary-card">
@@ -64,7 +71,7 @@ export class GraphModule {
                     <small>Connections</small>
                 </div>
             `;
-        } catch (e) {
+        } catch (err) {
             grid.innerHTML = '<div class="search-empty" style="grid-column: 1/-1;">Lỗi tải dữ liệu sức khỏe đồ thị</div>';
         }
     }
@@ -74,15 +81,16 @@ export class GraphModule {
         try {
             const response = await authFetch(`${API}/graph/snapshot?limit=150`);
             if (!response.ok) throw new Error('Lỗi lấy dữ liệu đồ thị');
-            const data = await response.json();
+            const data = await response.json() as GraphData;
 
             this.nodes = (data.detail && data.detail.nodes) ? data.detail.nodes : (data.nodes || []);
             this.links = (data.detail && data.detail.edges) ? data.detail.edges : (data.edges || []);
             
             this.resetGraphView();
             this.startSimulation();
-        } catch (e: any) {
-            console.error('Graph Load Error:', e);
+        } catch (err) {
+            const error = err as Error;
+            console.error('Graph Load Error:', error);
             showToast('Không tải được graph data', 'error');
         } finally {
             this.hideGraphLoading();
@@ -141,11 +149,11 @@ export class GraphModule {
             return this.loadAdvancedGraph(`${API}/graph/impact?doc_id=${encodeURIComponent(docId)}&depth=3`, 'Đã tải Impact Analysis');
         }
         if (viewId === 'trace') {
-            const docId = await kpPrompt({ title: '🔗 Trace Root Cause', message: 'Nhập ID hoặc Jira key:', placeholder: 'vd: PROJ-123' });
-            if (!docId) return;
+            const inputId = await kpPrompt({ title: '🔗 Trace Root Cause', message: 'Nhập ID hoặc Jira key:', placeholder: 'vd: PROJ-123' });
+            if (!inputId) return;
             this.activeView = viewId; this.renderViewToolbar();
-            const isJira = /^[A-Z]+-\d+$/.test(docId.trim());
-            const params = isJira ? `jira_key=${encodeURIComponent(docId)}` : `doc_id=${encodeURIComponent(docId)}`;
+            const isJira = /^[A-Z]+-\d+$/.test(inputId.trim());
+            const params = isJira ? `jira_key=${encodeURIComponent(inputId)}` : `doc_id=${encodeURIComponent(inputId)}`;
             return this.loadAdvancedGraph(`${API}/graph/trace?${params}&depth=4`, 'Đã tải Trace Root Cause');
         }
         
@@ -160,14 +168,18 @@ export class GraphModule {
         try {
             const res = await authFetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
+            const data = await res.json() as GraphData;
             this.nodes = (data.detail && data.detail.nodes) ? data.detail.nodes : (data.nodes || []);
             this.links = (data.detail && data.detail.edges) ? data.detail.edges : (data.edges || []);
             this.resetGraphView();
             this.startSimulation();
             showToast(successMsg, 'success');
-        } catch (e: any) { showToast(`Lỗi: ${e.message}`, 'error'); } 
-        finally { this.hideGraphLoading(); }
+        } catch (err) { 
+            const error = err as Error;
+            showToast(`Lỗi: ${error.message}`, 'error'); 
+        } finally { 
+            this.hideGraphLoading(); 
+        }
     }
 
     private async loadGraphGaps(): Promise<void> {
@@ -177,24 +189,27 @@ export class GraphModule {
         try {
             const res = await authFetch(`${API}/graph/gaps?since_days=30`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            // Tái sử dụng logic renderGapsResult cũ
+            const data = await res.json() as { orphanEntities?: any[] };
             panel.innerHTML = `<div class="graph-result-header"><h3>🔍 Gap Insights</h3></div>
                 <div class="gap-section">Đã tìm thấy ${data.orphanEntities?.length || 0} Orphan Entities.</div>`;
-        } catch (e: any) {
-            panel.innerHTML = `<div class="graph-error">Lỗi: ${e.message}</div>`;
+        } catch (err) {
+            const error = err as Error;
+            panel.innerHTML = `<div class="graph-error">Lỗi: ${error.message}</div>`;
         }
     }
 
     private getOrCreateResultPanel(): HTMLElement {
         let panel = document.getElementById('graphResultPanel');
         if (!panel) {
-            panel = document.createElement('div');
-            panel.id = 'graphResultPanel';
-            panel.className = 'graph-result-panel';
-            const wrap = document.querySelector('.graph-panel');
-            if (wrap) wrap.appendChild(panel);
-            else document.body.appendChild(panel);
+            panel = document.getElementById('graphResultPanel'); 
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'graphResultPanel';
+                panel.className = 'graph-result-panel';
+                const wrap = document.querySelector('.graph-panel');
+                if (wrap) wrap.appendChild(panel);
+                else document.body.appendChild(panel);
+            }
         }
         return panel;
     }
@@ -226,7 +241,6 @@ export class GraphModule {
             const wheel = e.deltaY < 0 ? 1 : -1;
             const zoomFactor = Math.exp(wheel * zoomIntensity);
             
-            // Tính toán để zoom tại vị trí con trỏ chuột
             const rect = this.canvas!.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
@@ -252,17 +266,14 @@ export class GraphModule {
             
             if (this.isDragging) {
                 if (this.draggedNode) {
-                    // Drag node
                     this.draggedNode.x = pos.x;
                     this.draggedNode.y = pos.y;
                 } else {
-                    // Pan canvas
                     this.offsetX = e.clientX - this.dragStartX;
                     this.offsetY = e.clientY - this.dragStartY;
                 }
                 this.draw();
             } else {
-                // Hover effect
                 const prevHover = this.hoveredNode;
                 this.hoveredNode = this.getNodeAt(pos.x, pos.y);
                 
@@ -298,7 +309,6 @@ export class GraphModule {
     }
 
     private getNodeAt(x: number, y: number): GraphNode | null {
-        // Tìm từ trên xuống dưới để lấy node hiển thị cao nhất
         for (let i = this.nodes.length - 1; i >= 0; i--) {
             const n = this.nodes[i];
             const r = n.radius || 15;
@@ -333,15 +343,11 @@ export class GraphModule {
     // ─── Drawing & Simulation ────────────────────────────────────────────────
 
     private startSimulation(): void {
-        // Khởi tạo tọa độ ngẫu nhiên nếu chưa có
         this.nodes.forEach(n => {
             if (n.x === undefined) n.x = (Math.random() - 0.5) * 500;
             if (n.y === undefined) n.y = (Math.random() - 0.5) * 500;
             if (!n.radius) n.radius = 15;
         });
-
-        // Nếu bạn muốn dùng thư viện d3-force, có thể implement ở đây
-        // Ở đây render tĩnh đơn giản
         this.draw();
     }
 
@@ -349,7 +355,6 @@ export class GraphModule {
         if (!this.canvas || !this.ctx) return;
         const ctx = this.ctx;
 
-        // Xóa canvas
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         ctx.save();
@@ -360,9 +365,11 @@ export class GraphModule {
         ctx.strokeStyle = '#cccccc';
         ctx.lineWidth = 1.5;
         this.links.forEach(link => {
-            // (Giả sử source/target đã được map thành object reference bởi D3 hoặc custom map)
-            const s = typeof link.source === 'object' ? link.source : this.nodes.find(n => n.id === link.source);
-            const t = typeof link.target === 'object' ? link.target : this.nodes.find(n => n.id === link.target);
+            const sId = typeof link.source === 'object' ? link.source.id : link.source;
+            const tId = typeof link.target === 'object' ? link.target.id : link.target;
+            
+            const s = this.nodes.find(n => n.id === sId);
+            const t = this.nodes.find(n => n.id === tId);
             
             if (s && t && s.x !== undefined && s.y !== undefined && t.x !== undefined && t.y !== undefined) {
                 ctx.beginPath();

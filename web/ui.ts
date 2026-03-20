@@ -104,7 +104,7 @@ export function _kpEnsureModalElements(): ModalElements {
     };
 }
 
-export function _kpCloseModal(result: any): void {
+export function _kpCloseModal<T>(result: T | null): void {
     const els = _kpEnsureModalElements();
     els.overlay.style.display = 'none';
     els.bodyEl.innerHTML = '';
@@ -127,17 +127,17 @@ export function _kpSetModalError(message: string): void {
     els.errorEl.style.display = '';
 }
 
-export interface OpenModalOptions {
+export interface OpenModalOptions<T = any> {
     title?: string;
     subtitle?: string;
     content?: string | HTMLElement;
     okText?: string;
     cancelText?: string | null;
     okClass?: string;
-    onOk?: () => Promise<any> | any;
+    onOk?: () => Promise<T | { error: string } | boolean> | T | { error: string } | boolean;
 }
 
-export function kpOpenModal({ title, subtitle, content, okText = 'OK', cancelText = 'Cancel', okClass = 'primary-btn', onOk }: OpenModalOptions = {}): Promise<any> {
+export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', cancelText = 'Cancel', okClass = 'primary-btn', onOk }: OpenModalOptions<T> = {}): Promise<T | null> {
     const els = _kpEnsureModalElements();
     if (KP_MODAL_STATE) _kpCloseModal(null);
 
@@ -167,14 +167,15 @@ export function kpOpenModal({ title, subtitle, content, okText = 'OK', cancelTex
         if (!KP_MODAL_STATE) return;
         try {
             const out = onOk ? await onOk() : true;
-            if (out && typeof out === 'object' && out.error) {
-                _kpSetModalError(out.error);
+            if (out && typeof out === 'object' && 'error' in (out as object)) {
+                _kpSetModalError((out as { error: string }).error);
                 return;
             }
             if (out === false) return;
-            _kpCloseModal(out);
-        } catch (e: any) {
-            _kpSetModalError(e && e.message ? e.message : 'Action failed.');
+            _kpCloseModal(out as T);
+        } catch (err) {
+            const error = err as Error;
+            _kpSetModalError(error.message || 'Action failed.');
         }
     };
 
@@ -345,7 +346,9 @@ export function _kpBuildModalField({ id, label, type = 'text', value = '', place
         input.className = type === 'time' ? 'time-input kp-modal-input' : 'form-input kp-modal-input';
     }
 
-    if (placeholder) input.placeholder = placeholder;
+    if (placeholder && input.tagName !== 'SELECT') {
+        (input as HTMLInputElement | HTMLTextAreaElement).placeholder = placeholder;
+    }
     if (required) input.required = true;
 
     wrap.appendChild(input);

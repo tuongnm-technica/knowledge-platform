@@ -5,5 +5,14 @@ from .jira import JiraChunker
 from .text import TextChunker
 from .slack import SlackChunker
 from .file import FileChunker
+from .default import WordCountChunker
 
-__all__ = ["BaseChunker", "ConfluenceChunker", "JiraChunker", "TextChunker", "SlackChunker", "FileChunker"]
+__all__ = [
+    "BaseChunker", 
+    "ConfluenceChunker", 
+    "JiraChunker", 
+    "TextChunker", 
+    "SlackChunker", 
+    "FileChunker",
+    "WordCountChunker"
+]

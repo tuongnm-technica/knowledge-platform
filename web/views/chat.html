@@ -1,48 +1,66 @@
+<!-- ── CHAT PAGE ── -->
 <div class="page active" id="page-chat">
   <div class="chat-wrapper" style="display: flex; height: 100%; width: 100%; overflow: hidden;">
     <div class="chat-history-sidebar" id="chatHistorySidebar">
       <div class="chat-history-header">
-        <button class="new-chat-btn" id="newChatBtn"><span style="font-size: 16px">+</span> Cuộc hội thoại mới</button>
-        <div class="chat-history-search"><input type="text" id="chatHistorySearchInput" placeholder="Tìm kiếm đoạn chat..." autocomplete="off"></div>
+        <button class="new-chat-btn" id="newChatBtn">
+          <span style="font-size: 16px">+</span> Cuộc hội thoại mới
+        </button>
+        <div class="chat-history-search">
+          <input type="text" id="chatHistorySearchInput" placeholder="Tìm kiếm đoạn chat..." autocomplete="off">
+        </div>
       </div>
       <div class="chat-history-list" id="chatHistoryList">
         <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Đang tải...</div>
       </div>
     </div>
-    <div class="chat-container">
-      <div class="chat-messages" id="chatMessages">
-        <div class="empty-state" id="emptyState">
-          <div class="empty-panel">
-            <div class="empty-copy">
-              <div class="empty-kicker">Knowledge cockpit</div>
-              <div class="empty-icon">🧠</div>
-              <div class="empty-title">Knowledge Platform AI</div>
-              <div class="empty-sub">Hỏi xuyên suốt Confluence, Jira, Slack và tài liệu nội bộ với hybrid search + graph boost.</div>
-              <div class="suggestions">
-                <div class="suggestion-chip">API lấy thông tin xe là gì?</div>
-                <div class="suggestion-chip">Quy trình deploy production?</div>
-                <div class="suggestion-chip">Các bug đang mở trong project Jira hiện tại?</div>
-                <div class="suggestion-chip">Tóm tắt meeting notes gần đây</div>
-              </div>
+  <div class="chat-container">
+    <div class="chat-messages" id="chatMessages">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-panel">
+          <div class="empty-copy">
+            <div class="empty-kicker">Knowledge cockpit</div>
+            <div class="empty-icon">🧠</div>
+            <div class="empty-title">Knowledge Platform AI</div>
+            <div class="empty-sub">Hỏi xuyên suốt Confluence, Jira, Slack và tài liệu nội bộ với hybrid search + graph boost.</div>
+            <div class="suggestions">
+              <div class="suggestion-chip">API lấy thông tin xe là gì?</div>
+              <div class="suggestion-chip">Quy trình deploy production?</div>
+              <div class="suggestion-chip">Các bug đang mở trong project Jira hiện tại?</div>
+              <div class="suggestion-chip">Tóm tắt meeting notes gần đây</div>
             </div>
-            <div class="hero-grid">
-              <div class="hero-metric"><span>Coverage</span><strong>4 sources</strong><small>Slack, Jira, Confluence, file server.</small></div>
-              <div class="hero-metric"><span>Ranking</span><strong>Hybrid + graph</strong><small>Vector, keyword và entity linking.</small></div>
-              <div class="hero-metric"><span>Action loop</span><strong>Task-ready</strong><small>Từ câu trả lời sang task draft.</small></div>
+          </div>
+          <div class="hero-grid">
+            <div class="hero-metric">
+              <span>Coverage</span>
+              <strong>4 sources</strong>
+              <small>Slack, Jira, Confluence và file server trong cùng workspace.</small>
+            </div>
+            <div class="hero-metric">
+              <span>Ranking</span>
+              <strong>Hybrid + graph</strong>
+              <small>Vector, keyword và entity linking cùng tham gia xếp hạng.</small>
+            </div>
+            <div class="hero-metric">
+              <span>Action loop</span>
+              <strong>Task-ready</strong>
+              <small>Từ câu trả lời sang task draft, sync connector và review nguồn.</small>
             </div>
           </div>
         </div>
       </div>
-      <div class="chat-input-area">
-        <div class="input-wrapper">
-          <textarea id="chatInput" placeholder="Hỏi về tài liệu nội bộ..." rows="1"></textarea>
-          <button class="send-btn" id="sendBtn">➤</button>
-        </div>
-        <div class="input-footer">
-          <div class="composer-status"><span class="composer-ping"></span>Graph-aware retrieval online</div>
-          <div class="input-hint">Enter gửi · Shift+Enter xuống dòng</div>
-        </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="input-wrapper">
+        <textarea id="chatInput" placeholder="Hỏi về tài liệu nội bộ..." rows="1"></textarea>
+        <button class="send-btn" id="sendBtn">➤</button>
+      </div>
+      <div class="input-footer">
+        <div class="composer-status"><span class="composer-ping"></span>Graph-aware retrieval online</div>
+        <div class="input-hint">Enter gửi · Shift+Enter xuống dòng</div>
       </div>
     </div>
+  </div>
   </div>
 </div>

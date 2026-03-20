@@ -18,10 +18,12 @@ export class MemoryModule {
         try {
             const res = await authFetch(`${API}/memory`);
             if (!res.ok) throw new Error('Không thể tải memory');
-            const data = await res.json();
-            this.renderMemory(data.items || data);
-        } catch(e: any) {
-            if (container) container.innerHTML = `<div class="search-empty">Chưa có dữ liệu API (/api/memory): ${escapeHtml(e.message)}</div>`;
+            const data = await res.json() as MemoryItem[] | { items: MemoryItem[] };
+            const items: MemoryItem[] = Array.isArray(data) ? data : (data.items || []);
+            this.renderMemory(items);
+        } catch(err) {
+            const error = err as Error;
+            if (container) container.innerHTML = `<div class="search-empty">Chưa có dữ liệu API (/api/memory): ${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -44,4 +46,4 @@ export class MemoryModule {
         html += '</div>';
         container.innerHTML = html;
     }
-}
+}
