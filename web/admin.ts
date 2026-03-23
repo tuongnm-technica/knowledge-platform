@@ -146,7 +146,7 @@ export function AdminAlpine() {
 
                     try {
                         const url = isEdit ? `${API}/users/${userId}` : `${API}/users`;
-                        const method = isEdit ? 'PUT' : 'POST';
+                        const method = isEdit ? 'PATCH' : 'POST';
                         const res = await authFetch(url, {
                             method,
                             headers: { 'Content-Type': 'application/json' },

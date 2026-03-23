@@ -272,7 +272,7 @@
 /* ── MESSAGES ── */
 .chat-message {
   display: flex;
-  flex-direction: column;
+  gap: 14px;
   max-width: 85%;
   animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   margin-bottom: 8px;
@@ -283,16 +283,46 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.chat-message-user { 
+.chat-message.user { 
   align-self: flex-end; 
-  align-items: flex-end; 
+  flex-direction: row-reverse;
   margin-left: 20%;
 }
-.chat-message-ai { 
+.chat-message.assistant { 
   align-self: flex-start; 
-  align-items: flex-start; 
   margin-right: 15%;
   max-width: 85%;
+}
+.chat-message.system {
+  align-self: center;
+  max-width: 70%;
+}
+
+/* ── AVATARS ── */
+.chat-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  font-weight: 800;
+  line-height: 1;
+  border: 1px solid var(--border);
+}
+
+.chat-avatar-user {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+}
+
+.chat-avatar-ai {
+  background: linear-gradient(135deg, var(--bg2), var(--bg3));
+  color: var(--accent);
+  border-color: var(--border-strong);
 }
 
 .chat-bubble {
@@ -318,6 +348,42 @@
   border-bottom-left-radius: 4px;
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(12px);
+}
+
+/* ── Message Footer (timestamp + actions) ── */
+.chat-msg-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+
+.chat-timestamp {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.chat-copy-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: all 0.15s;
+  opacity: 0;
+}
+
+.chat-message:hover .chat-copy-btn {
+  opacity: 1;
+}
+
+.chat-copy-btn:hover {
+  background: var(--bg3);
+  color: var(--accent);
 }
 
 /* ── CONTENT STYLES ── */
@@ -709,6 +775,58 @@
   font-size: 13px;
   font-weight: 500;
   animation: fadeIn 0.3s ease-out;
+}
+
+/* ── THINKING STEPPER (live polling) ── */
+.thinking-stepper {
+  padding: 12px 0;
+}
+
+.thinking-step-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.thinking-step-live.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.thinking-step-live.done {
+  color: var(--text-dim);
+}
+
+.thinking-step-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.thinking-step-live.done .thinking-step-icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success, #10b981);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.thinking-step-live.active .thinking-step-icon {
+  background: var(--glow);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  animation: think-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes think-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow); }
+  50% { box-shadow: 0 0 0 4px var(--glow); }
 }
 
 @keyframes fadeIn {

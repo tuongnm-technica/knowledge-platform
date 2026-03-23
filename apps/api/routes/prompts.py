@@ -71,7 +71,7 @@ async def update_prompt(
     updated = await repo.update_prompt(
         doc_type=doc_type,
         system_prompt=system_prompt,
-        updated_by=user.id,
+        updated_by=user.user_id,
     )
     if not updated:
         raise HTTPException(status_code=404, detail=f"Prompt '{doc_type}' not found.")
@@ -89,7 +89,7 @@ async def reset_prompt(
 ):
     """Reset system_prompt to the hardcoded default."""
     repo = SkillPromptRepository(db)
-    ok = await repo.reset_to_default(doc_type=doc_type, updated_by=user.id)
+    ok = await repo.reset_to_default(doc_type=doc_type, updated_by=user.user_id)
     if not ok:
         raise HTTPException(status_code=404, detail=f"Prompt '{doc_type}' not found or no default.")
     return {"ok": True, "doc_type": doc_type}

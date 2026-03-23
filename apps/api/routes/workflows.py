@@ -56,7 +56,7 @@ async def seed_demo_workflow(session: AsyncSession = Depends(get_db)):
     # Check if demo exists
     existing = await repo.list_all() # Changed from list_workflows to list_all
     for w in existing:
-        if w.name == "Demo: Research & Summarize":
+        if w["name"] == "Demo: Research & Summarize":
             return {"status": "already_exists", "workflow": w}
     
     # Create Demo Workflow
@@ -119,7 +119,7 @@ async def create_workflow(
         description=req.description,
         trigger_type=req.trigger_type,
         nodes=[node.dict() for node in req.nodes],
-        updated_by=user.id,
+        updated_by=user.user_id,
     )
     return {"ok": True, "id": workflow_id}
 
@@ -141,7 +141,7 @@ async def update_workflow(
         description=req.description,
         trigger_type=req.trigger_type,
         nodes=[node.dict() for node in req.nodes],
-        updated_by=user.id,
+        updated_by=user.user_id,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Workflow not found.")
@@ -158,6 +158,8 @@ async def delete_workflow(
     deleted = await repo.delete_workflow(workflow_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found.")
+    return {"ok": True}
+
 @router.post("/{workflow_id}/run")
 async def run_workflow(
     workflow_id: str,
@@ -175,14 +177,14 @@ async def run_workflow(
     if not session_id:
         session_id = str(uuid.uuid4())
         title = "Workflow: " + workflow.get("name", "Untitled")
-        db.add(ChatSession(id=session_id, user_id=user.id, title=title))
+        db.add(ChatSession(id=session_id, user_id=user.user_id, title=title))
         await db.flush()
 
     job_id = str(uuid.uuid4())
     job = ChatJob(
         id=job_id,
         session_id=session_id,
-        user_id=user.id,
+        user_id=user.user_id,
         question=req.initial_context,
         status="queued"
     )
@@ -196,7 +198,7 @@ async def run_workflow(
         await redis.enqueue_job(
             "run_workflow_job", 
             job_id, 
-            user.id,
+            user.user_id,
             workflow_id,
             req.initial_context, 
             session_id,

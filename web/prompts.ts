@@ -147,6 +147,7 @@ export class PromptsModule {
                 title: `✏️ Chỉnh sửa Skill: ${data.label || docType}`,
                 subtitle: 'Thay đổi các hướng dẫn (instructions) mà AI sử dụng khi thực hiện skill này.',
                 content: body,
+                modalClass: 'kp-modal-lg',
                 okText: 'Cập nhật Prompt',
                 onOk: async () => {
                     const content = ta.value.trim();

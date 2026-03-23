@@ -212,9 +212,20 @@ export class ChatModule {
         div.className = 'chat-message assistant';
         div.id = id;
         div.innerHTML = `
-            <div class="message-content">
-                <div class="thinking-stepper" style="margin-bottom: 8px; font-size: 0.85em; opacity: 0.8;"></div>
-                <div class="partial-answer markdown-body" style="opacity: 0.9;"></div>
+            <div class="chat-avatar chat-avatar-ai">K</div>
+            <div style="flex:1">
+                <div class="chat-bubble chat-bubble-ai">
+                    <div class="message-content">
+                        <div class="chat-thinking" style="display:flex;align-items:center;gap:8px;padding:4px 0">
+                            <span class="thinking-dot"></span>
+                            <span class="thinking-dot"></span>
+                            <span class="thinking-dot"></span>
+                            <span class="thinking-text">Đang suy nghĩ...</span>
+                        </div>
+                        <div class="thinking-stepper" style="margin-top:8px; font-size:0.85em;"></div>
+                        <div class="partial-answer markdown-body" style="opacity:0.9;"></div>
+                    </div>
+                </div>
             </div>
         `;
         this.container.appendChild(div);
@@ -264,11 +275,9 @@ export class ChatModule {
                     const text = (typeof t === 'string' ? t : t.thought) || '';
                     const isLast = i === thoughts.length - 1 && !partialAnswer;
                     thoughtsHtml += `
-                        <div class="step ${isLast ? 'active' : 'done'}" style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                            <span class="step-icon" style="width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid currentColor; font-size: 10px;">
-                                ${isLast ? '⚙️' : '✓'}
-                            </span>
-                            <span style="font-size: 12px;">${this.escapeHtml(text)}</span>
+                        <div class="thinking-step-live ${isLast ? 'active' : 'done'}">
+                            <span class="thinking-step-icon">${isLast ? '⚙️' : '✓'}</span>
+                            <span>${this.escapeHtml(text)}</span>
                         </div>
                     `;
                 });
@@ -339,6 +348,8 @@ export class ChatModule {
         const msgEl = document.createElement('div');
         msgEl.className = `chat-message ${msg.role}`;
         
+        const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+        
         let html = '';
         if (msg.role === 'assistant') {
             const safeContent = this.formatAnswer(msg.content);
@@ -404,24 +415,55 @@ export class ChatModule {
             }
 
             html = `
-                <div class="chat-bubble chat-bubble-ai">
-                    <div class="message-content">
-                        ${planHtml}
-                        <div class="chat-answer-text">${safeContent}</div>
-                        ${sourcesHtml}
+                <div class="chat-avatar chat-avatar-ai">K</div>
+                <div style="flex:1; min-width:0">
+                    <div class="chat-bubble chat-bubble-ai">
+                        <div class="message-content">
+                            ${planHtml}
+                            <div class="chat-answer-text">${safeContent}</div>
+                            ${sourcesHtml}
+                        </div>
                     </div>
+                    <div class="chat-msg-footer">
+                        <span class="chat-timestamp">${timeStr}</span>
+                        <button class="chat-copy-btn" title="Copy">📋 Copy</button>
+                    </div>
+                </div>
+            `;
+        } else if (msg.role === 'system') {
+            html = `
+                <div class="chat-bubble" style="background:var(--bg3);border:1px solid var(--border);font-size:13px;color:var(--text-muted)">
+                    <div class="message-content">${this.escapeHtml(msg.content)}</div>
                 </div>
             `;
         } else {
             const safeContent = this.escapeHtml(msg.content);
             html = `
-                <div class="chat-bubble chat-bubble-user">
-                    <div class="message-content">${safeContent}</div>
+                <div style="flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-end">
+                    <div class="chat-bubble chat-bubble-user">
+                        <div class="message-content">${safeContent}</div>
+                    </div>
+                    <div class="chat-msg-footer" style="justify-content:flex-end">
+                        <span class="chat-timestamp">${timeStr}</span>
+                    </div>
                 </div>
+                <div class="chat-avatar chat-avatar-user">👤</div>
             `;
         }
         
         msgEl.innerHTML = html;
+        
+        // Bind copy button
+        const copyBtn = msgEl.querySelector('.chat-copy-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(msg.content).then(() => {
+                    (copyBtn as HTMLElement).textContent = '✅ Copied!';
+                    setTimeout(() => { (copyBtn as HTMLElement).textContent = '📋 Copy'; }, 1500);
+                });
+            });
+        }
+        
         this.container.appendChild(msgEl);
         this.container.scrollTop = this.container.scrollHeight;
     }

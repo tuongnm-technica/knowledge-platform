@@ -474,8 +474,6 @@ async def remove_user_document_override_admin(
     return {"status": "removed", "user_id": user_id, "document_id": doc_id}
 
 
-    return f"user_{slug}_{uuid.uuid4().hex[:6]}"
-
 
 async def _replace_user_groups(db: AsyncSession, user_id: str, group_ids: list[str]) -> None:
     await db.execute(

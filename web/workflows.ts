@@ -42,6 +42,19 @@ export class WorkflowsModule {
         const grid = document.getElementById('workflowsGrid');
         if (!grid) return;
 
+        // Attach button handler FIRST — before any early returns
+        document.getElementById('btnCreateDemoWf')?.addEventListener('click', async () => {
+            try {
+                showToast('Đang tạo workflow mẫu...', 'info');
+                const res = await authFetch(`${API}/workflows/demo`, { method: 'POST' });
+                if (!res.ok) throw new Error('Không thể tạo workflow mẫu');
+                showToast('Đã tạo thành công!', 'success');
+                this.loadWorkflowsPage();
+            } catch (e) {
+                showToast((e as Error).message, 'error');
+            }
+        });
+
         if (!workflows || workflows.length === 0) {
             grid.innerHTML = '<div class="search-empty" style="grid-column:1/-1;">Chưa cấu hình Workflow nào.</div>';
             return;
@@ -77,18 +90,6 @@ export class WorkflowsModule {
             });
             
             grid.appendChild(card);
-        });
-
-        document.getElementById('btnCreateDemoWf')?.addEventListener('click', async () => {
-            try {
-                showToast('Đang tạo workflow mẫu...', 'info');
-                const res = await authFetch(`${API}/workflows/demo`, { method: 'POST' });
-                if (!res.ok) throw new Error('Không thể tạo workflow mẫu');
-                showToast('Đã tạo thành công!', 'success');
-                this.loadWorkflowsPage();
-            } catch (e) {
-                showToast((e as Error).message, 'error');
-            }
         });
     }
 
