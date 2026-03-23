@@ -1,16 +1,16 @@
-<!-- ── DRAFTS PAGE ── -->
-<div class="page" id="page-drafts" x-data="draftsModule">
+<!-- ── DRAFTS PAGE (REFAC) ── -->
+<div class="page" id="page-drafts">
   
-  <!-- Danh sách Drafts -->
-  <div class="connectors-content" style="padding: 24px; max-width: 1200px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; height: 100%;" x-show="!currentDraftId">
+  <!-- Danh sách Drafts Container -->
+  <div id="drafts-list-view" class="connectors-content" style="padding: 24px; max-width: 1200px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; height: 100%;">
     <div class="page-intro" style="margin-bottom: 24px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap;">
       <div>
         <div class="intro-kicker">Draft management</div>
         <div class="intro-title">Drafts</div>
-        <div class="intro-sub">Danh sách tài liệu nháp do AI sinh ra (lưu trong database). Bạn có thể mở để edit hoặc xóa.</div>
+        <div class="intro-sub">Danh sách tài liệu nháp do AI sinh ra. Bạn có thể mở để edit hoặc xóa.</div>
       </div>
       <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-        <select class="admin-input" x-model="filterType" @change="loadDraftsPage(true)" style="padding: 8px 12px; min-width: 160px;">
+        <select id="drafts-filter" class="admin-input" style="padding: 8px 12px; min-width: 160px;">
           <option value="">All types</option>
           <option value="srs">SRS</option>
           <option value="brd">BRD</option>
@@ -23,69 +23,37 @@
           <option value="deployment_spec">Deployment Spec</option>
           <option value="change_request">Change Request</option>
         </select>
-        <button class="secondary-btn" @click="loadDraftsPage(true)">🔄 Refresh</button>
+        <button id="drafts-refresh-btn" class="secondary-btn">🔄 Refresh</button>
       </div>
     </div>
 
     <div style="flex: 1; overflow-y: auto; padding-right: 8px; padding-bottom: 24px;">
-      <div x-show="isLoading" style="padding: 40px; text-align: center; color: var(--text-muted);"><span class="spin">🔄</span> Đang tải dữ liệu...</div>
+      <div id="drafts-loading" style="padding: 40px; text-align: center; color: var(--text-muted); display: none;"><span class="spin">🔄</span> Đang tải dữ liệu...</div>
       
-      <div x-cloak x-show="!isLoading && drafts.length === 0" style="padding: 60px 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+      <div id="drafts-empty-state" style="padding: 60px 20px; text-align: center; display: none; flex-direction: column; align-items: center;">
         <div style="font-size: 40px; margin-bottom: 12px; opacity: 0.5;">📝</div>
         <div style="color: var(--text); font-weight: 500;">Chưa có bản nháp nào.</div>
         <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Dùng Giỏ ngữ cảnh (Context Basket) để tạo tài liệu mới.</div>
       </div>
       
-      <div x-cloak x-show="!isLoading && drafts.length > 0" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
-        <template x-for="draft in drafts" :key="draft.id">
-          <div style="display: flex; flex-direction: column; padding: 20px; background: var(--bg2); border: 1px solid var(--border-strong); border-radius: 16px; gap: 16px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.02);"
-               x-on:mouseover="$el.style.borderColor='var(--accent)'; $el.style.transform='translateY(-2px)'; $el.style.boxShadow='var(--shadow-soft)';"
-               x-on:mouseout="$el.style.borderColor='var(--border-strong)'; $el.style.transform='none'; $el.style.boxShadow='0 2px 8px rgba(0,0,0,0.02)';">
-            
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-               <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                  <span style="font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; background: var(--bg3); color: var(--text-muted); text-transform: uppercase; border: 1px solid var(--border);" x-text="(draft.doc_type || 'srs').toUpperCase()"></span>
-                  <span :style="`font-size:10px; font-weight:800; padding:4px 8px; border-radius:6px; text-transform:uppercase; background:${getStatusColor(draft.status)}15; color:${getStatusColor(draft.status)}; border:1px solid ${getStatusColor(draft.status)}30;`" x-text="draft.status || 'draft'"></span>
-               </div>
-            </div>
-
-            <div style="font-weight: 700; font-size: 16px; color: var(--text); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" x-text="draft.title || 'Untitled'"></div>
-
-            <div style="font-size: 13px; color: var(--text-dim); line-height: 1.6; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;" x-text="(draft.content || '').replace(/[#*_`]/g, '')"></div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border); padding-top: 16px; margin-top: auto;">
-               <span style="font-size: 11px; color: var(--text-dim);" x-text="'Cập nhật: ' + formatDate(draft.updated_at || draft.created_at)"></span>
-               <div style="display: flex; gap: 8px;">
-                  <button class="danger-btn mini" @click="deleteDraft(draft.id)" title="Xóa" style="background: transparent; border: 1px solid rgba(239, 68, 68, 0.3); color: var(--danger); box-shadow: none;" x-on:mouseover="$el.style.background='rgba(239, 68, 68, 0.1)'" x-on:mouseout="$el.style.background='transparent'">🗑</button>
-                  <button class="primary-btn mini" @click="openDocDraftEditor(draft.id)">✏️ Editor</button>
-               </div>
-            </div>
-          </div>
-        </template>
+      <div class="drafts-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+        <!-- Dynamic content from DraftsModule -->
       </div>
     </div>
   </div>
 
-  <!-- Draft Editor View -->
-  <div class="connectors-content" style="padding: 0; display: flex; flex-direction: column; height: 100vh;" x-cloak x-show="currentDraftId">
-    <div style="display: flex; flex-direction: column; height: 100%;" x-show="currentDraft">
+  <!-- Draft Editor View Container -->
+  <div id="drafts-editor-view" class="connectors-content" style="padding: 0; display: none; flex-direction: column; height: 100vh;">
+    <div style="display: flex; flex-direction: column; height: 100%;">
         
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--bg2); border-bottom: 1px solid var(--border-strong); flex-shrink: 0; gap: 16px;">
            <div style="display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0;">
-              <button class="secondary-btn" @click="closeDraftEditor()" style="padding: 8px 12px;">← Quay lại</button>
-              <span style="font-size: 11px; font-weight: 800; padding: 6px 10px; border-radius: 6px; background: var(--bg3); color: var(--text-muted); text-transform: uppercase; border: 1px solid var(--border); flex-shrink: 0;" x-text="(currentDraft?.doc_type || 'srs').toUpperCase()"></span>
-              <input type="text" class="admin-input" x-model="currentDraft.title" style="flex: 1; font-size: 16px; font-weight: 700; max-width: 600px; padding: 8px 16px; background: var(--bg);" placeholder="Nhập tiêu đề...">
+              <button id="drafts-close-editor" class="secondary-btn" style="padding: 8px 12px;">← Quay lại</button>
+              <input type="text" id="draft-editor-title" class="admin-input" style="flex: 1; font-size: 16px; font-weight: 700; max-width: 600px; padding: 8px 16px; background: var(--bg);" placeholder="Nhập tiêu đề...">
            </div>
           
            <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
-              <select class="admin-input" x-model="currentDraft.status" style="padding: 8px 12px; min-width: 140px; font-weight: 600;">
-              <option value="draft">Draft</option>
-              <option value="review">Đang review</option>
-              <option value="approved">Approved</option>
-              <option value="published">Published</option>
-              <option value="rejected">Rejected</option>
-            </select>
-              <button class="primary-btn" @click="saveDraft()" style="padding: 8px 20px;">💾 Lưu thay đổi</button>
+              <button id="drafts-save-btn" class="primary-btn" style="padding: 8px 20px;">💾 Lưu thay đổi</button>
            </div>
         </div>
 

@@ -23,12 +23,12 @@ import { AuthModule } from './auth';
 import { ThemeModule } from './theme';
 import { ChatModule } from './chat';
 import { SearchModule } from './search';
-import { TasksAlpine } from './tasks';
-import { DraftsAlpine } from './drafts';
+import { TasksModule } from './tasks';
+import { DraftsModule } from './drafts';
 import { GraphModule } from './graph';
-import { BasketAlpine } from './basket'; 
+import { BasketModule } from './basket'; 
 import { ConnectorsModule } from './connectors';
-import { AdminAlpine } from './admin'; 
+import { AdminModule } from './admin'; 
 // HistoryModule removed
 import { MemoryModule } from './memory';
 import { PromptsModule } from './prompts';
@@ -138,6 +138,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const prompts = new PromptsModule();
     const workflows = new WorkflowsModule();
     const documents = new DocumentsModule();
+    const basket = new BasketModule();
+    basket.bindGlobalTriggers();
+    const tasks = new TasksModule();
+    tasks.init();
+    const drafts = new DraftsModule();
+    drafts.init();
+    const admin = new AdminModule();
+    admin.init();
 
     // Populate Sidebars
     if (AuthModule.isAuthenticated()) {
@@ -148,10 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const win = window as any;
     win.Alpine = Alpine;
     Alpine.store('badges', { tasks: 0, drafts: 0, basket: 0 }); // Lưu trữ Badge toàn cục
-    Alpine.data('tasksModule', TasksAlpine as any); // Đăng ký module Tasks
-    Alpine.data('draftsModule', DraftsAlpine as any); // Đăng ký module Drafts
-    Alpine.data('basketModule', BasketAlpine as any); // Đăng ký module Basket
-    Alpine.data('adminModule', AdminAlpine as any);   // Đăng ký module Admin
     Alpine.start();
 
     // Khởi tạo Router (Sử dụng History API, không dùng hash #)
@@ -173,12 +177,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Tải dữ liệu tương ứng khi chuyển tab (Chỉ khi đã login)
         if (!AuthModule.isAuthenticated()) return;
 
-        if (target === 'tasks') { document.dispatchEvent(new CustomEvent('kp-refresh-tasks')); }
-        else if (target === 'drafts') { document.dispatchEvent(new CustomEvent('kp-refresh-drafts')); }
+        if (target === 'tasks') { tasks.loadTasks(); tasks.loadTasksCount(); }
+        else if (target === 'drafts') { drafts.loadDraftsPage(); }
         else if (target === 'graph') { graph.loadGraphDashboard(); }
-        else if (target === 'basket') { document.dispatchEvent(new CustomEvent('kp-refresh-basket')); }
+        else if (target === 'basket') { basket.toggleDrawer(); }
         else if (target === 'connectors') { connectors.loadConnectorStats(); }
-        else if (target === 'users') { document.dispatchEvent(new CustomEvent('kp-refresh-users')); }
+        else if (target === 'users') { admin.loadUsersTable(); admin.loadGroupsTable(); }
         else if (target === 'prompts') { prompts.loadPromptsPage(); }
         else if (target === 'workflows') { workflows.loadWorkflowsPage(); }
         // target history removed

@@ -1,4 +1,4 @@
-<!-- ── TASKS PAGE ── -->
+<!-- ── TASKS PAGE (REFAC) ── -->
 <div class="page" id="page-tasks">
   <div class="tasks-content container-xl">
     
@@ -10,41 +10,32 @@
       </div>
       <div class="header-actions">
         <span class="count-pill">
-            <span class="count-bold" x-text="$store.badges.tasks">0</span> open
+            <span class="count-bold" id="tasks-open-count">0</span> open
         </span>
         <div class="scan-settings-pill">
             <span class="pill-label">Scan depth:</span>
-            <input class="mini-input" type="number" min="1" max="30" x-model.number="slackDays" title="Số ngày quét Slack">
+            <input class="mini-input" type="number" min="1" max="30" id="tasks-slack-days" value="1" title="Số ngày quét Slack">
             <span class="pill-unit">Slack</span>
-            <input class="mini-input" type="number" min="1" max="30" x-model.number="confluenceDays" title="Số ngày quét Confluence">
+            <input class="mini-input" type="number" min="1" max="30" id="tasks-conf-days" value="1" title="Số ngày quét Confluence">
             <span class="pill-unit">Conf</span>
         </div>
         <label class="checkbox-label">
-          <input type="checkbox" x-model="includeSubmitted" @change="loadTasks()">
+          <input type="checkbox" id="tasks-show-submitted">
           <span>Show submitted</span>
         </label>
-        <button @click="loadTasks()" class="secondary-btn">🔄 Refresh</button>
-        <button id="syncJiraStatusBtn" class="secondary-btn panel-hidden">Sync Jira</button>
-        <button @click="triggerScan()" class="primary-btn">🚀 Scan Sources</button>
+        <button id="tasks-refresh-btn" class="secondary-btn">🔄 Refresh</button>
+        <button id="tasks-scan-btn" class="primary-btn">🚀 Scan Sources</button>
       </div>
     </div>
 
     <!-- Bulk actions bar -->
-    <div x-cloak x-show="selectedIds.length > 0" class="bulk-actions-bar">
-      <span class="selection-count" x-text="selectedIds.length + ' selected'"></span>
+    <div class="bulk-actions-bar" style="display: none;">
+      <span class="selection-count">0 selected</span>
       <div class="v-divider"></div>
-      <button @click="bulkConfirmTasks()" class="primary-btn mini confirm-btn">✅ Confirm</button>
-      <button @click="bulkRejectTasks()" class="danger-btn mini">🗑 Dismiss</button>
+      <button id="tasks-bulk-confirm" class="primary-btn mini confirm-btn">✅ Confirm</button>
+      <button id="tasks-bulk-reject" class="danger-btn mini">🗑 Dismiss</button>
       <div class="v-divider"></div>
-      <div class="bulk-field">
-          <input id="bulkIssueTypeInput" class="admin-input mini-field" type="text" placeholder="Task/Story/Bug" title="Bulk issue type">
-          <button id="bulkSetTypeBtn" class="secondary-btn mini">Set Type</button>
-      </div>
-      <div class="bulk-field">
-          <input id="bulkAssigneeInput" class="admin-input mini-field" type="text" placeholder="Assignee (email)" title="Bulk assign">
-          <button id="bulkAssignBtn" class="secondary-btn mini">Assign</button>
-      </div>
-      <button @click="clearSelection()" class="clear-btn">Clear</button>
+      <button id="tasks-clear-selection" class="clear-btn">Clear</button>
     </div>
 
     <div class="info-banner">
@@ -52,58 +43,16 @@
     </div>
       
     <div class="tasks-scroll-area">
-      <div x-show="isLoading" class="loading-overlay"><span class="spin">🔄</span> Đang tải dữ liệu...</div>
+      <div id="tasks-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Đang tải dữ liệu...</div>
       
-      <div x-cloak x-show="!isLoading && tasks.length === 0" class="empty-state-centered">
+      <div id="tasks-empty-state" class="empty-state-centered" style="display: none;">
         <div class="empty-icon">📭</div>
         <div class="empty-msg">Chưa có draft tasks nào.</div>
         <div class="empty-sub-hint">Bấm "Scan Sources" để bắt đầu quét dữ liệu.</div>
       </div>
       
-      <div x-cloak x-show="!isLoading && tasks.length > 0" class="task-list-flex">
-        <template x-for="task in tasks" :key="task.id">
-          <div :class="'task-card-modern ' + (selectedIds.includes(task.id) ? 'selected' : '')" 
-               @click="viewTaskDetails(task)">
-            
-            <div @click.stop="toggleSelection(task.id)"
-                 class="task-checkbox"
-                 :class="selectedIds.includes(task.id) ? 'checked' : ''">
-                 <span x-show="selectedIds.includes(task.id)">✓</span>
-            </div>
-
-            <div class="task-card-body">
-                <div class="task-card-header">
-                    <div class="task-card-title" x-text="task.title || 'Untitled'"></div>
-                    
-                    <div class="task-status-wrap">
-                        <span class="status-badge"
-                              x-text="task.status || 'pending'"
-                              :class="'status-' + (task.status || 'pending')">
-                        </span>
-                    </div>
-                </div>
-
-                <div class="task-card-meta">
-                    <span class="source-tag"
-                          x-html="(task.source === 'confluence' ? '📘 ' : (task.source === 'slack' ? '💬 ' : '🤖 ')) + (task.source || 'system').toUpperCase()">
-                    </span>
-                    <span x-text="'Tạo lúc: ' + formatDate(task.created_at)"></span>
-                    
-                    <template x-if="task.meta?.issue_type">
-                        <span class="meta-tag type-tag" x-text="'Type: ' + task.meta.issue_type"></span>
-                    </template>
-                    <template x-if="task.meta?.assignee">
-                        <span class="meta-tag assignee-tag" x-text="'👤 ' + task.meta.assignee"></span>
-                    </template>
-                </div>
-            </div>
-
-            <div class="task-card-actions">
-              <button class="secondary-btn mini approve-btn" @click.stop="approveTask(task.id)" x-show="task.status !== 'approved'">✅ Duyệt</button>
-              <button class="danger-btn mini ghost-btn" @click.stop="deleteTask(task.id)">🗑 Xóa</button>
-            </div>
-          </div>
-        </template>
+      <div class="task-list-flex">
+        <!-- Dynamic content from TasksModule -->
       </div>
     </div>
   </div>

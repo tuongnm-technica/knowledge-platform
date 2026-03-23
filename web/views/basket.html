@@ -1,41 +1,34 @@
-<!-- Context Basket (Pin ngữ cảnh) -->
-<div class="basket-overlay" x-cloak x-show="isDrawerOpen" @click="closeDrawer()"></div>
-<div class="basket-drawer" x-cloak x-show="isDrawerOpen" aria-label="Context basket">
+<!-- ── CONTEXT BASKET DRAWER (REFAC) ── -->
+<div class="basket-overlay"></div>
+<div class="basket-drawer" style="display: none;">
   <div class="basket-header">
     <div>
       <div class="basket-title">Giỏ Ngữ Cảnh</div>
-      <div class="basket-sub" x-text="items.length + ' items'"></div>
+      <div class="basket-sub">0 items</div>
     </div>
     <div class="basket-header-actions">
-      <button class="secondary-btn mini" @click="clearBasket()">Xóa</button>
-      <button class="secondary-btn mini" @click="closeDrawer()">Đóng</button>
+      <button class="secondary-btn mini">Xóa</button>
+      <button class="secondary-btn mini">Đóng</button>
     </div>
   </div>
   <div class="basket-token">
     <div class="basket-token-row">
       <div class="basket-token-label">Dung lượng não AI</div>
-      <div class="basket-token-value" x-text="currentTokens + ' / ' + maxTokens" :style="currentTokens > maxTokens ? 'color:var(--danger)' : ''"></div>
+      <div class="basket-token-value">0 / 32,000</div>
     </div>
     <div class="basket-progress">
-      <div class="basket-progress-fill" :style="`width: ${Math.min(100, (currentTokens / maxTokens) * 100)}%; background-color: ${currentTokens > maxTokens ? 'var(--danger)' : (currentTokens/maxTokens > 0.8 ? 'var(--warning)' : 'var(--primary)')}`"></div>
+      <div class="basket-progress-fill" style="width: 0%"></div>
     </div>
   </div>
   <div class="basket-list">
-    <div x-show="items.length === 0" class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
-    <template x-for="item in items" :key="item.id">
-      <div class="basket-item">
-          <div class="basket-item-icon">📄</div>
-          <div class="basket-item-info">
-              <div class="basket-item-title" x-text="item.title || item.id"></div>
-              <div class="basket-item-meta" style="font-size:11px;color:var(--text-dim);" x-text="item.id"></div>
-          </div>
-          <button class="secondary-btn mini" style="color:var(--danger); border-color:var(--danger)" title="Xóa" @click="removeFromBasket(item.id)">✕</button>
-      </div>
-    </template>
+    <div class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
   </div>
   <div class="basket-actions">
-    <button class="secondary-btn" @click="refreshBasketDetails()">Refresh</button>
-    <button class="primary-btn" @click="basketRunSkill()">🚀 Chạy Skill</button>
+    <button class="secondary-btn">Refresh</button>
+    <button class="primary-btn">🚀 Chạy Skill</button>
   </div>
 </div>
-<button class="basket-fab" @click="toggleDrawer()" title="Giỏ ngữ cảnh">📌</button>
+<button class="basket-fab" title="Giỏ ngữ cảnh">
+  📌
+  <span class="basket-badge" style="display: none;">0</span>
+</button>

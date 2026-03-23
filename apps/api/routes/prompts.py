@@ -27,9 +27,21 @@ async def list_prompts(
     _: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all skill prompts (label, description, doc_type, updated_at)."""
+    """List all skill prompts with group info."""
+    from prompts.doc_draft_prompt import SKILL_DOC_TYPE_GROUPS
     repo = SkillPromptRepository(db)
     rows = await repo.list_all()
+    
+    # Enrich with group name for UI sorting/categorization
+    for row in rows:
+        dt = row.get("doc_type")
+        group_name = "Other"
+        for gname, types in SKILL_DOC_TYPE_GROUPS.items():
+            if dt in types:
+                group_name = gname
+                break
+        row["group"] = group_name
+        
     return {"prompts": rows}
 
 

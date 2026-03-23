@@ -1,5 +1,5 @@
-<!-- ── USERS PAGE ── -->
-<div class="page" id="page-users" x-data="adminModule">
+<!-- ── ADMIN PAGE (REFAC) ── -->
+<div class="page" id="page-users">
   <div class="users-content container-xl">
     
     <div class="page-intro">
@@ -8,73 +8,30 @@
         <div class="intro-title">Users & Groups</div>
         <div class="intro-sub">Quản lý tài khoản người dùng, phân quyền truy cập và tổ chức phòng ban.</div>
       </div>
-      <div class="count-pill">
-        <span class="count-bold" x-text="users.length"></span> người dùng
-      </div>
     </div>
 
     <div class="section-header">
       <div class="section-title">Danh sách Users</div>
       <div class="section-actions">
-        <button class="secondary-btn" @click="loadUsersTable(); loadGroupsTable();" :disabled="isLoadingUsers">🔄 Làm mới</button>
-        <button class="primary-btn" @click="openUserModal(null)">+ Thêm User</button>
+        <button id="admin-refresh-users" class="secondary-btn">🔄 Làm mới</button>
+        <button id="admin-add-user" class="primary-btn">+ Thêm User</button>
       </div>
     </div>
 
-    <div id="usersTableContainer" class="admin-table-wrapper" style="margin-bottom: 32px;">
-      <div x-show="isLoadingUsers" class="loading-overlay"><span class="spin">🔄</span> Đang tải tài khoản...</div>
+    <div class="admin-table-wrapper" style="margin-bottom: 32px;">
+      <div id="admin-users-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Đang tải tài khoản...</div>
       
-      <div x-show="!isLoadingUsers && users.length === 0" class="empty-state-centered" style="padding: 40px; border: 1px dashed var(--border-strong); border-radius: 12px; margin-bottom: 16px;">
-        <div class="empty-icon">👥</div>
-        <div class="empty-msg">Chưa có người dùng nào.</div>
-      </div>
-
-      <table x-show="users.length > 0" class="admin-table">
+      <table class="admin-table">
           <thead>
               <tr>
                   <th>Người dùng</th>
                   <th>Email</th>
-                  <th>Nhóm / Cơ quan</th>
                   <th>Vai trò</th>
                   <th class="actions-col">Thao tác</th>
               </tr>
           </thead>
-          <tbody>
-            <template x-for="u in users" :key="u.id">
-              <tr>
-                  <td style="min-width: 180px;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg3); color: var(--accent); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;" x-text="(u.display_name || u.email || '?').charAt(0).toUpperCase()"></div>
-                        <div style="font-weight: 600; font-size: 14px; color: var(--text);" x-text="u.display_name || '(Chưa đặt tên)'"></div>
-                    </div>
-                  </td>
-                  <td style="color: var(--text-dim); font-size: 13px;" x-text="u.email"></td>
-                  <td>
-                    <div class="badge-list" style="display: flex; flex-wrap: wrap; gap: 4px;">
-                      <template x-for="gn in (u.groups || [])">
-                        <span class="group-tag" style="font-size: 10px; padding: 2px 8px; background: var(--bg4); border-radius: 4px; border: 1px solid var(--border);" x-text="gn.name"></span>
-                      </template>
-                      <template x-if="!u.groups || u.groups.length === 0">
-                        <span class="empty-hint" style="font-size: 11px; color: var(--text-muted); italic;">Chưa phân nhóm</span>
-                      </template>
-                    </div>
-                  </td>
-                  <td>
-                    <template x-if="u.is_admin">
-                        <span class="role-badge role-system_admin">Admin</span>
-                    </template>
-                    <template x-if="!u.is_admin">
-                        <span :class="'role-badge role-' + (u.role || 'standard')" x-text="u.role || 'Member'"></span>
-                    </template>
-                  </td>
-                  <td class="actions-cell">
-                      <div class="btn-group">
-                        <button class="secondary-btn mini" @click="openUserModal(u.id)">✏️</button>
-                        <button class="danger-btn mini" @click="deleteUser(u.id)">🗑</button>
-                      </div>
-                  </td>
-              </tr>
-            </template>
+          <tbody id="admin-users-tbody">
+            <!-- Dynamic Users -->
           </tbody>
       </table>
     </div>
@@ -82,43 +39,23 @@
     <div class="section-header" style="margin-top: 40px;">
       <div class="section-title">Groups & Permissions</div>
       <div class="section-actions">
-          <button class="secondary-btn" @click="loadGroupsTable();" :disabled="isLoadingGroups">🔄 Làm mới</button>
-          <button class="primary-btn" @click="openGroupModal()">+ Thêm Group</button>
+          <button id="admin-refresh-groups" class="secondary-btn">🔄 Làm mới</button>
+          <button id="admin-add-group" class="primary-btn">+ Thêm Group</button>
       </div>
     </div>
 
-    <div id="groupsTableContainer" class="admin-table-wrapper">
-      <div x-show="isLoadingGroups" class="loading-overlay"><span class="spin">🔄</span> Đang nạp nhóm...</div>
+    <div class="admin-table-wrapper">
+      <div id="admin-groups-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Đang nạp nhóm...</div>
       
-      <div x-show="!isLoadingGroups && groups.length === 0" class="empty-state-centered" style="padding: 40px; border: 1px dashed var(--border-strong); border-radius: 12px; margin-bottom: 16px;">
-        <div class="empty-msg">Chưa có nhóm nào được tạo.</div>
-      </div>
-
-      <table x-show="groups.length > 0" class="admin-table">
+      <table class="admin-table">
           <thead>
               <tr>
                   <th>Tên Nhóm</th>
-                  <th>ID</th>
-                  <th>Thành viên</th>
                   <th class="actions-col">Thao tác</th>
               </tr>
           </thead>
-          <tbody>
-            <template x-for="g in groups" :key="g.id">
-                <tr>
-                    <td style="font-weight: 600; color: var(--text);" x-text="g.name"></td>
-                    <td style="font-family: monospace; font-size: 11px; color: var(--text-dim);" x-text="g.id"></td>
-                    <td>
-                        <span class="role-badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981;" x-text="(g.member_count || 0) + ' users'"></span>
-                    </td>
-                    <td class="actions-cell">
-                        <div class="btn-group">
-                            <button class="secondary-btn mini" @click="openGroupModal(g.id)">✏️ Sửa</button>
-                            <button class="danger-btn mini" @click="deleteGroup(g.id)">🗑</button>
-                        </div>
-                    </td>
-                </tr>
-            </template>
+          <tbody id="admin-groups-tbody">
+            <!-- Dynamic Groups -->
           </tbody>
       </table>
     </div>
