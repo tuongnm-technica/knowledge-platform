@@ -7,16 +7,19 @@ from apps.api.clients import get_llm_provider, BaseLLMProvider
 log = structlog.get_logger()
 
 class LLMService:
+    # Class-level semaphore to limit total concurrent LLM calls across all instances
+    _semaphore = asyncio.Semaphore(getattr(settings, "MAX_CONCURRENT_LLM", 2))
+
     def __init__(self, model: str = None):
         self._provider: BaseLLMProvider = get_llm_provider()
         self._model = model or settings.OLLAMA_LLM_MODEL
 
     async def chat(self, system: str, user: str, max_tokens: int = 800, on_token: Any = None, **kwargs: Any) -> str:
         """
-        Gửi request chat tới LLM Provider hiện tại.
-        Hỗ trợ các tùy chọn bổ sung như 'images' cho vision models.
+        Gửi request chat tới LLM Provider hiện tại với cơ chế kiểm soát hàng đợi (Semaphore).
         """
-        try:
+        async with self._semaphore:
+            try:
             # Chuẩn bị tin nhắn
             messages = [
                 {"role": "system", "content": system},

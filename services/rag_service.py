@@ -112,9 +112,12 @@ class RAGService:
         # 6. Initial Scoring
         scored = self._scorer.score(unique_hits, doc_meta)
         
-        # 7. Reranking
+        # 7. Reranking (Multi-stage)
         if use_rerank and settings.RERANKING_ENABLED:
-            shortlist = scored[:max(limit * 3, 20)]
+            # Stage 1: Fast Rerank (Shortlist the top 25 from the initial scoring)
+            shortlist = scored[:max(limit * 4, 25)]
+            
+            # Stage 2: Full Rerank (LLM or Cross-Encoder)
             shortlist = await rerank(query=query_text, candidates=shortlist, top_k=limit)
         else:
             shortlist = scored[:limit]

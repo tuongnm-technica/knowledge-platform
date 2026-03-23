@@ -396,7 +396,7 @@ export class GraphModule {
     private getNodeAt(x: number, y: number): GraphNode | null {
         for (let i = this.nodes.length - 1; i >= 0; i--) {
             const n = this.nodes[i];
-            const r = n.radius || 25;
+            const r = n.radius || 35;
             if (n.x !== undefined && n.y !== undefined) {
                 const dx = x - n.x;
                 const dy = y - n.y;
@@ -431,7 +431,7 @@ export class GraphModule {
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         this.nodes.forEach(n => {
             if (n.x !== undefined && n.y !== undefined) {
-                const r = n.radius || 25;
+                const r = n.radius || 35;
                 minX = Math.min(minX, n.x - r);
                 maxX = Math.max(maxX, n.x + r);
                 minY = Math.min(minY, n.y - r);
@@ -469,7 +469,7 @@ export class GraphModule {
             if (n.x === undefined) n.x = (Math.random() - 0.5) * 400;
             if (n.y === undefined) n.y = (Math.random() - 0.5) * 400;
             n.vx = 0; n.vy = 0;
-            if (!n.radius) n.radius = 25;
+            if (!n.radius) n.radius = 35;
         });
         
         const tick = () => {
@@ -492,10 +492,11 @@ export class GraphModule {
     }
     
     private applyPhysics(): void {
-        const damping = 0.75;
-        const repulsion = 1200;
+        const damping = 0.82; // Tăng damping để giảm văng (0.75 -> 0.82)
+        const repulsion = 800; // Giảm lực đẩy (1200 -> 800)
         const springK = 0.08;
         const targetLength = 100;
+        const maxVelocity = 15; // Giới hạn vận tốc tối đa
         
         // Lực đẩy giữa các nodes (Repulsion)
         for (let i = 0; i < this.nodes.length; i++) {
@@ -539,8 +540,12 @@ export class GraphModule {
             n.vy! += (0 - n.y!) * 0.01 * this.simulationAlpha;
             
             if (n !== this.draggedNode) {
-                n.x! += n.vx! * damping;
-                n.y! += n.vy! * damping;
+                // Hover Lock: Nếu đang hover thì giữ node đứng yên tương đối
+                const isHovered = this.hoveredNode === n;
+                const nodeDamping = isHovered ? 0.3 : damping;
+                
+                n.x! += Math.max(-maxVelocity, Math.min(maxVelocity, n.vx!)) * nodeDamping;
+                n.y! += Math.max(-maxVelocity, Math.min(maxVelocity, n.vy!)) * nodeDamping;
             }
         });
     }
@@ -577,11 +582,11 @@ export class GraphModule {
             const isHovered = this.hoveredNode === node;
             const radius = (node.radius || 25) + (isHovered ? 6 : 0);
             
-            // Drop shadow for nodes
-            ctx.shadowColor = 'rgba(0,0,0,0.15)';
-            ctx.shadowBlur = 8;
+            // Glow shadow for premium look
+            ctx.shadowColor = isHovered ? (node.color || '#3b82f6') : 'rgba(0,0,0,0.1)';
+            ctx.shadowBlur = isHovered ? 20 : 10;
             ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 4;
+            ctx.shadowOffsetY = isHovered ? 0 : 4;
 
             ctx.beginPath();
             ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);

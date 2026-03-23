@@ -93,8 +93,20 @@ class ReActLoop:
         if hasattr(self._llm, "_client") and self._llm._managed_client:
             await self._llm._client.aclose()
 
-    async def run(self, question: str, user_id: str = "", on_thought: Any | None = None, on_token: Any | None = None) -> ReActResult:
-        # Fast path: semantic cache
+    async def run(self, question: str, user_id: str = "", history: List[Dict] = None, on_thought: Any | None = None, on_token: Any | None = None) -> ReActResult:
+        # 0. Checkpoint Initialization
+        history = history or []
+        log.info("agent.run", question=question[:100], history_len=len(history))
+        
+        # Summarize history if too long (Context Management)
+        summarized_history = ""
+        if history:
+            history_text = "\n".join([f"{h.get('role')}: {h.get('content')}" for h in history])
+            if len(history_text) > 3000:
+                summarized_history = await self._summarize_history(history_text)
+                log.info("agent.history.summarized", length=len(summarized_history))
+            else:
+                summarized_history = history_text
         if settings.SEMANTIC_CACHE_ENABLED:
             try:
                 cached = await self._cache.lookup(question)
@@ -182,6 +194,9 @@ class ReActLoop:
                         observation=str(obs),
                     )
                 )
+                
+                # Checkpoint: Progress update after each tool
+                log.info("agent.checkpoint.tool", step=p.step, tool="search_all", status="done")
                 
                 if on_thought:
                     try:
@@ -526,6 +541,16 @@ class ReActLoop:
             )
 
             return "Tool execution error"
+
+    async def _summarize_history(self, history_text: str) -> str:
+        """Point 3: History Summarization to save tokens."""
+        prompt = f"Đây là lịch sử hội thoại trước đó. Hãy tóm tắt ngắn gọn các ý chính và thông tin quan trọng để tôi có thể hiểu ngữ cảnh:\n\n{history_text}"
+        try:
+            summary = await self._llm.chat(SUMMARIZE_SYSTEM, prompt, max_tokens=250)
+            return summary or history_text
+        except Exception as e:
+            log.warning("agent.history_summarize.failed", error=str(e))
+            return history_text
 
     async def _summarize(self, question: str, context: str, on_token: Any | None = None) -> str:
 
