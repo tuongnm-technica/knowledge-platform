@@ -45,10 +45,15 @@ export class AIEditor {
 
     private async loadSkills() {
         try {
-            const res = await authFetch(`${API}/skills`);
+            const res = await authFetch(`${API}/docs/skills`);
             if (res.ok) {
-                const data = await res.json() as { skills: PromptSkill[] };
-                this.skills = data.skills || [];
+                const data = await res.json() as any;
+                const agents = data.agents || [];
+                const groups = data.groups || [];
+                this.skills = [
+                    ...agents.map((a: any) => ({ name: a.name, description: a.description || '', template: a.prompt_template || '', type: 'agent' })),
+                    ...groups.map((g: any) => ({ name: g.title || g.name, description: g.description || '', template: g.description || '', type: 'group' }))
+                ];
             }
         } catch (err) {
             console.error('Failed to load skills for editor slash menu', err);

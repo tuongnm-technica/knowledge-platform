@@ -298,6 +298,20 @@ async def update_user_admin(
     await db.commit()
     return {"status": "updated", "user_id": user_id}
 
+@router.delete("/{user_id}")
+async def delete_user_admin(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_admin),
+):
+    result = await db.execute(
+        text("DELETE FROM users WHERE id = :id"),
+        {"id": user_id},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="User khong ton tai")
+    await db.commit()
+    return {"status": "deleted", "user_id": user_id}
 
 @router.get("/{user_id}/overrides")
 async def list_user_overrides_admin(

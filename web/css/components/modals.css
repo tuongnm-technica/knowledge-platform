@@ -117,6 +117,8 @@
 .kp-modal-body {
   padding: 24px 28px;
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .kp-modal-form {

@@ -130,31 +130,22 @@ export class PromptsModule {
             const data = await res.json() as PromptSkill & { default_prompt?: string };
 
             const body = document.createElement('div');
-            body.style.display = 'flex';
-            body.style.flexDirection = 'row';
-            body.style.gap = '20px';
-            body.style.alignItems = 'stretch';
-            body.style.minHeight = '500px';
+            body.className = 'prompt-edit-modal-body';
 
             const leftPanel = document.createElement('div');
-            leftPanel.style.flex = '1'; // Balanced 50-50 ratio
-            leftPanel.style.display = 'flex';
-            leftPanel.style.flexDirection = 'column';
-            leftPanel.style.gap = '8px';
+            leftPanel.className = 'prompt-edit-modal-panel';
 
             const rightPanel = document.createElement('div');
-            rightPanel.style.flex = '1'; // Balanced 50-50 ratio
-            rightPanel.style.display = 'flex';
-            rightPanel.style.flexDirection = 'column';
-            rightPanel.style.gap = '8px';
+            rightPanel.className = 'prompt-edit-modal-panel';
 
             const { wrap: areaWrap, input: areaInput } = _kpBuildModalField({
                 id: 'promptContent', label: 'System Instructions (Editor)', type: 'textarea', 
                 value: data.system_prompt || data.template || '', 
                 placeholder: 'Enter the AI instructions here...'
             });
+            areaWrap.classList.add('prompt-edit-modal-editor-wrap');
             const ta = areaInput as HTMLTextAreaElement;
-            ta.style.height = '520px';
+            ta.classList.add('prompt-edit-modal-textarea', 'premium-scrollbar');
             ta.style.fontFamily = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
             ta.style.fontSize = '12.5px';
             ta.style.lineHeight = '1.7';
@@ -172,16 +163,13 @@ export class PromptsModule {
             previewLabel.textContent = 'Live Preview (Rendered)';
             
             const previewBox = document.createElement('div');
-            previewBox.className = 'markdown-body premium-scrollbar';
+            previewBox.className = 'markdown-body premium-scrollbar prompt-edit-modal-preview';
             previewBox.style.padding = '16px';
             previewBox.style.background = 'var(--bg3)';
             previewBox.style.border = '1px solid var(--border)';
             previewBox.style.borderRadius = '10px';
-            previewBox.style.flex = '1';
             previewBox.style.fontSize = '13px';
-            previewBox.style.overflowY = 'auto';
             previewBox.style.boxSizing = 'border-box';
-            previewBox.style.height = '540px'; 
             previewBox.innerHTML = renderMarkdown(ta.value);
 
             ta.addEventListener('input', () => {
@@ -242,4 +230,4 @@ export class PromptsModule {
             showToast((e as Error).message, 'error');
         }
     }
-}
+}

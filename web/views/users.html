@@ -1,63 +1,106 @@
-<!-- ── ADMIN PAGE (REFAC) ── -->
 <div class="page" id="page-users">
   <div class="users-content container-xl">
-    
     <div class="page-intro">
       <div class="intro-copy">
         <div class="intro-kicker">Administration</div>
-        <div class="intro-title">Users & Groups</div>
-        <div class="intro-sub">Quản lý tài khoản người dùng, phân quyền truy cập và tổ chức phòng ban.</div>
+        <div class="intro-title">User Directory</div>
+        <div class="intro-sub">Quan ly tai khoan, nhom noi bo va quyen truy cap theo tung khoi chuc nang.</div>
       </div>
     </div>
 
-    <div class="section-header">
-      <div class="section-title">Danh sách Users</div>
-      <div class="section-actions">
-        <button id="admin-refresh-users" class="secondary-btn">🔄 Làm mới</button>
-        <button id="admin-add-user" class="primary-btn">+ Thêm User</button>
-      </div>
+    <div class="admin-overview-grid">
+      <article class="admin-overview-card">
+        <div class="admin-overview-label">Tong Users</div>
+        <div class="admin-overview-value" id="admin-stat-users">0</div>
+        <div class="admin-overview-note">Tat ca tai khoan dang co trong he thong</div>
+      </article>
+      <article class="admin-overview-card">
+        <div class="admin-overview-label">Root Admins</div>
+        <div class="admin-overview-value" id="admin-stat-admins">0</div>
+        <div class="admin-overview-note">Tai khoan co quyen quan tri he thong</div>
+      </article>
+      <article class="admin-overview-card">
+        <div class="admin-overview-label">Tong Groups</div>
+        <div class="admin-overview-value" id="admin-stat-groups">0</div>
+        <div class="admin-overview-note">Nhom phong ban, doi du an hoac don vi</div>
+      </article>
+      <article class="admin-overview-card">
+        <div class="admin-overview-label">Chua Gan Nhom</div>
+        <div class="admin-overview-value" id="admin-stat-unassigned">0</div>
+        <div class="admin-overview-note">User can duoc bo sung group de phan quyen ro hon</div>
+      </article>
     </div>
 
-    <div class="admin-table-wrapper" style="margin-bottom: 32px;">
-      <div id="admin-users-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Đang tải tài khoản...</div>
-      
-      <table class="admin-table">
-          <thead>
+    <div class="admin-tabs-shell">
+      <div class="admin-tabs" role="tablist" aria-label="Users and Groups">
+        <button class="admin-tab active" type="button" role="tab" aria-selected="true" data-admin-tab="users">
+          <span>Users</span>
+          <span class="admin-tab-count" id="admin-users-tab-count">0</span>
+        </button>
+        <button class="admin-tab" type="button" role="tab" aria-selected="false" data-admin-tab="groups">
+          <span>Groups</span>
+          <span class="admin-tab-count" id="admin-groups-tab-count">0</span>
+        </button>
+      </div>
+
+      <section id="admin-users-panel" class="admin-hub-panel active">
+        <div class="section-header admin-section-header">
+          <div class="admin-section-copy">
+            <div class="section-title">Danh sach Users</div>
+            <div class="admin-section-subtitle">Theo doi tai khoan, vai tro va tinh trang gan group cho tung user.</div>
+          </div>
+          <div class="section-actions">
+            <button class="secondary-btn" type="button" data-admin-action="refresh-users">Lam moi</button>
+            <button class="primary-btn" type="button" data-admin-action="add-user">Them User</button>
+          </div>
+        </div>
+
+        <div class="admin-table-wrapper admin-panel-table">
+          <div id="admin-users-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Dang tai tai khoan...</div>
+
+          <table class="admin-table">
+            <thead>
               <tr>
-                  <th>Người dùng</th>
-                  <th>Email</th>
-                  <th>Vai trò</th>
-                  <th class="actions-col">Thao tác</th>
+                <th>Nguoi dung</th>
+                <th>Vai tro</th>
+                <th>Nhom</th>
+                <th>Quyen HT</th>
+                <th class="actions-col">Thao tac</th>
               </tr>
-          </thead>
-          <tbody id="admin-users-tbody">
-            <!-- Dynamic Users -->
-          </tbody>
-      </table>
-    </div>
+            </thead>
+            <tbody id="admin-users-tbody"></tbody>
+          </table>
+        </div>
+      </section>
 
-    <div class="section-header" style="margin-top: 40px;">
-      <div class="section-title">Groups & Permissions</div>
-      <div class="section-actions">
-          <button id="admin-refresh-groups" class="secondary-btn">🔄 Làm mới</button>
-          <button id="admin-add-group" class="primary-btn">+ Thêm Group</button>
-      </div>
-    </div>
+      <section id="admin-groups-panel" class="admin-hub-panel" hidden>
+        <div class="section-header admin-section-header">
+          <div class="admin-section-copy">
+            <div class="section-title">Danh sach Groups</div>
+            <div class="admin-section-subtitle">Tach rieng tab group de de quan ly theo phong ban, project team hoac don vi nghiep vu.</div>
+          </div>
+          <div class="section-actions">
+            <button class="secondary-btn" type="button" data-admin-action="refresh-groups">Lam moi</button>
+            <button class="primary-btn" type="button" data-admin-action="add-group">Them Group</button>
+          </div>
+        </div>
 
-    <div class="admin-table-wrapper">
-      <div id="admin-groups-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Đang nạp nhóm...</div>
-      
-      <table class="admin-table">
-          <thead>
+        <div class="admin-table-wrapper admin-panel-table">
+          <div id="admin-groups-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Dang nap nhom...</div>
+
+          <table class="admin-table">
+            <thead>
               <tr>
-                  <th>Tên Nhóm</th>
-                  <th class="actions-col">Thao tác</th>
+                <th>Ten Nhom</th>
+                <th>Thanh vien</th>
+                <th>Tom tat</th>
+                <th class="actions-col">Thao tac</th>
               </tr>
-          </thead>
-          <tbody id="admin-groups-tbody">
-            <!-- Dynamic Groups -->
-          </tbody>
-      </table>
+            </thead>
+            <tbody id="admin-groups-tbody"></tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </div>
 </div>

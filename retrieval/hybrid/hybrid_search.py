@@ -5,8 +5,8 @@ from utils.embeddings import get_embedding
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import asyncio
-import structlog
 import re
+import structlog
 
 log = structlog.get_logger()
 

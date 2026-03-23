@@ -39,7 +39,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    user_id: str
+    id: str
     email: str
     display_name: str | None = None
     is_admin: bool
@@ -51,7 +51,7 @@ class RefreshRequest(BaseModel):
 
 
 class MeResponse(BaseModel):
-    user_id: str
+    id: str
     email: str
     display_name: str | None
     is_admin: bool
@@ -85,7 +85,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user_id=row["id"],
+        id=row["id"],
         email=row["email"],
         display_name=row["display_name"],
         is_admin=effective_admin,
@@ -126,7 +126,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user_id=row["id"],
+        id=row["id"],
         email=row["email"],
         display_name=row["display_name"],
         is_admin=effective_admin,
@@ -151,7 +151,7 @@ async def me(
     role = normalize_role(row.get("role") or "standard", is_admin=bool(row["is_admin"]))
     effective_admin = bool(row["is_admin"]) or role == ROLE_SYSTEM_ADMIN
     return MeResponse(
-        user_id=row["id"],
+        id=row["id"],
         email=row["email"],
         display_name=row["display_name"],
         is_admin=effective_admin,

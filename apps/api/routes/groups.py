@@ -68,6 +68,21 @@ async def update_group_admin(
     await db.commit()
     return {"status": "updated", "group_id": group_id}
 
+@router.delete("/{group_id}")
+async def delete_group_admin(
+    group_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_admin),
+):
+    result = await db.execute(
+        text("DELETE FROM groups WHERE id = :id"),
+        {"id": group_id},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Group khong ton tai")
+    await db.commit()
+    return {"status": "deleted", "group_id": group_id}
+
 def _make_group_id(name: str, custom_id: str | None = None) -> str:
     raw = custom_id or name
     slug = re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")

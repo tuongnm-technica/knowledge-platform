@@ -252,6 +252,79 @@
   background: var(--bg2, rgba(30,41,59,1));
 }
 
+.prompt-edit-modal-body {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 20px;
+  min-height: 500px;
+  min-width: 0;
+}
+
+.prompt-edit-modal-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prompt-edit-modal-editor-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.prompt-edit-modal-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 540px;
+  height: min(65vh, 640px);
+  overflow: auto;
+}
+
+.prompt-edit-modal-preview {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 540px;
+  height: min(65vh, 640px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.prompt-edit-modal-preview > * {
+  max-width: 100%;
+}
+
+.prompt-edit-modal-preview pre,
+.prompt-edit-modal-preview table {
+  max-width: 100%;
+}
+
+.prompt-edit-modal-preview table {
+  display: block;
+  overflow-x: auto;
+}
+
+.prompt-edit-modal-preview img {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 1024px) {
+  .prompt-edit-modal-body {
+    flex-direction: column;
+  }
+
+  .prompt-edit-modal-textarea,
+  .prompt-edit-modal-preview {
+    min-height: 320px;
+    height: min(50vh, 480px);
+  }
+}
+
 /* ── Markdown Preview ── */
 .prompt-preview {
   flex: 1;

@@ -212,7 +212,7 @@ export class AdminModule {
                 if (!name) return { error: 'Tên nhóm không được để trống' };
                 try {
                     const url = isEdit ? `${API}/groups/${groupId}` : `${API}/groups`;
-                    const method = isEdit ? 'PUT' : 'POST';
+                    const method = isEdit ? 'PATCH' : 'POST';
                     const res = await authFetch(url, {
                         method, headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name })

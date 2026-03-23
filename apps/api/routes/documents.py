@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.auth.dependencies import CurrentUser, get_current_user
@@ -98,6 +99,25 @@ async def documents_batch(
 
     return {"documents": out}
 
+@router.delete("/batch")
+async def delete_documents_batch(
+    req: BatchRequest,
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(get_current_user),
+):
+    ids = [str(i or "").strip() for i in (req.ids or []) if str(i or "").strip()]
+    doc_ids = list(set(ids))
+    
+    if not doc_ids:
+        return {"status": "success", "deleted": 0}
+
+    result = await session.execute(
+        text("DELETE FROM documents WHERE id = ANY(:ids)"),
+        {"ids": doc_ids}
+    )
+    await session.commit()
+    
+    return {"status": "success", "deleted": result.rowcount}
 
 @router.get("/{document_id}")
 async def get_document(
@@ -126,4 +146,3 @@ async def get_document(
             "content": content[:12000],
         }
     }
-
