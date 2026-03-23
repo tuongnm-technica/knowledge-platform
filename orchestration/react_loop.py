@@ -31,9 +31,9 @@ from prompts.agent_prompt import (
 
 log = structlog.get_logger()
 
-REACT_TIMEOUT = 600
+REACT_TIMEOUT = settings.AGENT_REACT_TIMEOUT
 
-MAX_PLAN_STEPS = 3
+MAX_PLAN_STEPS = settings.AGENT_MAX_PLAN_STEPS
 
 @dataclass
 class PlanStep:

@@ -20,29 +20,29 @@ class LLMService:
         """
         async with self._semaphore:
             try:
-            # Chuẩn bị tin nhắn
-            messages = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ]
-            
-            # Xử lý input đặc biệt (ví dụ: images)
-            if "images" in kwargs and kwargs["images"]:
-                messages[1]["images"] = kwargs["images"]
+                # Chuẩn bị tin nhắn
+                messages = [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ]
+                
+                # Xử lý input đặc biệt (ví dụ: images)
+                if "images" in kwargs and kwargs["images"]:
+                    messages[1]["images"] = kwargs["images"]
 
-            return await self._provider.chat(
-                model=kwargs.get("model") or self._model,
-                messages=messages,
-                options={"num_predict": max_tokens, "temperature": 0.1},
-                timeout=kwargs.get("timeout") or settings.LLM_TIMEOUT,
-                on_token=on_token,
-            )
-        except asyncio.TimeoutError:
-            log.warning("llm.timeout", model=self._model)
-            raise
-        except Exception as e:
-            log.error("llm.error", error=str(e), model=self._model)
-            raise
+                return await self._provider.chat(
+                    model=kwargs.get("model") or self._model,
+                    messages=messages,
+                    options={"num_predict": max_tokens, "temperature": 0.1},
+                    timeout=kwargs.get("timeout") or settings.LLM_TIMEOUT,
+                    on_token=on_token,
+                )
+            except asyncio.TimeoutError:
+                log.warning("llm.timeout", model=self._model)
+                raise
+            except Exception as e:
+                log.error("llm.error", error=str(e), model=self._model)
+                raise
 
     async def is_available(self) -> bool:
         """Kiểm tra xem LLM Backend (Ollama/vLLM) có đang chạy không."""

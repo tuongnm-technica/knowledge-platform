@@ -33,7 +33,7 @@ export class PromptsModule {
                     <div class="intro-sub">Quản lý các mẫu AI Agents dùng cho việc phân tích và tạo tài liệu (chọn trong Giỏ ngữ cảnh).</div>
                 </div>
             </div>
-            <div class="connectors-grid" id="promptsGrid" style="padding: 0 20px;"></div>
+            <div class="connectors-grid connectors-grid-rich" id="promptsGrid" style="padding: 0 20px;"></div>
         </div>`;
 
         const grid = document.getElementById('promptsGrid');

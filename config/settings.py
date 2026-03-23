@@ -42,7 +42,8 @@ class Settings(BaseSettings):
 
     EMBEDDING_MODEL: str = OLLAMA_EMBED_MODEL
     EMBEDDING_CONCURRENCY: int = 2  # Concurrency limit for embedding API calls
-    LLM_TIMEOUT: int = 120
+    LLM_TIMEOUT: int = 300
+    ARQ_AI_JOB_TIMEOUT: int = 1200
     VECTOR_DIM: int = 1024
     
     # Ingestion batch size: process documents in smaller batches to prevent timeout
@@ -111,6 +112,9 @@ class Settings(BaseSettings):
     VISION_CAPTION_MAX_CHARS: int = 900
 
     AGENT_MAX_STEPS: int = 5
+    AGENT_REACT_TIMEOUT: int = 600
+    AGENT_MAX_PLAN_STEPS: int = 3
+    FRONTEND_POLLING_INTERVAL_MS: int = 5000
 
     AGENT_SELF_CORRECT_ENABLED: bool = True
     AGENT_LOGIC_CHECK_ENABLED: bool = True

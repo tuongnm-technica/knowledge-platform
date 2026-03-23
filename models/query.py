@@ -27,4 +27,5 @@ class SearchResult:
     source: str
     author: str
     score: float
+    updated_at: Optional[str] = None
     score_breakdown: dict = field(default_factory=dict)

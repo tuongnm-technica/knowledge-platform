@@ -34,6 +34,12 @@ export function AdminAlpine() {
                 const data = await resp.json() as any;
                 console.log('Admin: Users API Response:', data);
                 this.users = Array.isArray(data) ? data : (data.users || []);
+                console.log('Admin Module: Users Loaded:', this.users.length, this.users);
+                
+                // Set explicitly for double-check
+                if (this.users.length > 0) {
+                    console.log('Admin Module: User 0 ID:', this.users[0].id);
+                }
                 // If the response contains groups, we can also use them to avoid double fetch
                 if (data.groups && Array.isArray(data.groups) && this.groups.length === 0) {
                     this.groups = data.groups;

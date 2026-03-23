@@ -164,6 +164,7 @@ async def perform_rag_search(req: RAGSearchRequest, session: AsyncSession = Depe
                 "url": url,
                 "source": source,
                 "author": meta.get("author", ""),
+                "updated_at": meta.get("updated_at"),
                 "score": item.get("final_score", 0.0),
                 "score_breakdown": item.get("score_breakdown", {}),
             })

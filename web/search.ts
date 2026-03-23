@@ -141,29 +141,32 @@ export class SearchModule {
                              .replace(/```mermaid[\s\S]*?```/g, '[Diagram]')
                              .trim();
 
-            const docAuthor = result.author ? `Bởi: ${this.escapeHtml(result.author)}` : '';
-            const sourceBadge = result.source || 'Internal source';
-
+            const docAuthor = result.author ? `👤 ${this.escapeHtml(result.author)}` : '';
+            const sourceBadge = (result.source || 'internal').toLowerCase();
+            const dateStr = result.updated_at ? new Date(result.updated_at).toLocaleDateString('vi-VN') : '';
 
             item.innerHTML = `
                 <div class="kp-result-header">
                     <span class="kp-result-title">${this.escapeHtml(docTitle)}</span>
                     <div class="kp-result-actions">
                         ${score != null ? `
-                            <div class="kp-result-score-wrap">
-                                <span class="kp-result-score" title="${this.formatScoreBreakdown(result.score_breakdown)}">${score}% match</span>
+                            <div class="kp-result-score-wrap" title="${this.formatScoreBreakdown(result.score_breakdown)}">
+                                <span class="kp-result-score">${score}% match</span>
                             </div>
                         ` : ''}
-                        <button class="secondary-btn mini kp-pin-btn" title="Thêm vào giỏ" data-doc-id="${this.escapeHtml(docId)}" data-doc-title="${this.escapeHtml(docTitle)}">📌</button>
+                        <button class="secondary-btn mini kp-pin-btn" title="Ghim nháp" data-doc-id="${this.escapeHtml(docId)}" data-doc-title="${this.escapeHtml(docTitle)}">📌</button>
                     </div>
                 </div>
                 <div class="kp-result-snippet">${this.escapeHtml(snippet)}...</div>
                 <div class="kp-result-meta">
-                    <span class="kp-result-badge source-${sourceBadge.toLowerCase()}">${this.escapeHtml(sourceBadge)}</span>
-                    ${docAuthor ? `<span class="kp-result-author">${docAuthor}</span>` : ''}
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span class="kp-result-badge source-${sourceBadge}">${this.escapeHtml(result.source || 'N/A')}</span>
+                        ${docAuthor ? `<span class="kp-result-author">${docAuthor}</span>` : ''}
+                        ${dateStr ? `<span style="font-size: 11px; color: var(--text-muted);">🕒 ${dateStr}</span>` : ''}
+                    </div>
                     <div class="kp-result-footer-actions">
-                        <button class="secondary-btn mini view-doc-btn" data-doc-id="${this.escapeHtml(docId)}">📄 Chi tiết</button>
-                        ${result.url ? `<a class="kp-result-url" href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener">Mở ↗</a>` : ''}
+                        <button class="secondary-btn mini view-doc-btn" data-doc-id="${this.escapeHtml(docId)}">📄 Xem chi tiết</button>
+                        ${result.url ? `<a class="kp-result-url" href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener">Link gốc ↗</a>` : ''}
                     </div>
                 </div>
             `;

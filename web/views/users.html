@@ -21,20 +21,20 @@
       </div>
     </div>
 
-    <div id="usersTableContainer" class="admin-table-wrapper">
-      <div x-show="isLoadingUsers" class="loading-overlay"><span class="spin">🔄</span> Đang tải dữ liệu...</div>
+    <div id="usersTableContainer" class="admin-table-wrapper" style="margin-bottom: 32px;">
+      <div x-show="isLoadingUsers" class="loading-overlay"><span class="spin">🔄</span> Đang tải tài khoản...</div>
       
-      <div x-cloak x-show="!isLoadingUsers && users.length === 0" class="empty-state-centered">
+      <div x-show="!isLoadingUsers && users.length === 0" class="empty-state-centered" style="padding: 40px; border: 1px dashed var(--border-strong); border-radius: 12px; margin-bottom: 16px;">
         <div class="empty-icon">👥</div>
         <div class="empty-msg">Chưa có người dùng nào.</div>
       </div>
 
-      <table x-cloak x-show="!isLoadingUsers && users.length > 0" class="admin-table">
+      <table x-show="users.length > 0" class="admin-table">
           <thead>
               <tr>
                   <th>Người dùng</th>
                   <th>Email</th>
-                  <th>Cơ quan / Nhóm</th>
+                  <th>Nhóm / Cơ quan</th>
                   <th>Vai trò</th>
                   <th class="actions-col">Thao tác</th>
               </tr>
@@ -42,20 +42,20 @@
           <tbody>
             <template x-for="u in users" :key="u.id">
               <tr>
-                  <td>
+                  <td style="min-width: 180px;">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--glow); color: var(--accent); border: 1px solid rgba(2, 132, 199, 0.2); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;" x-text="(u.display_name || u.email || '?').charAt(0).toUpperCase()"></div>
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--bg3); color: var(--accent); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;" x-text="(u.display_name || u.email || '?').charAt(0).toUpperCase()"></div>
                         <div style="font-weight: 600; font-size: 14px; color: var(--text);" x-text="u.display_name || '(Chưa đặt tên)'"></div>
                     </div>
                   </td>
-                  <td style="color: var(--text-dim);" x-text="u.email"></td>
+                  <td style="color: var(--text-dim); font-size: 13px;" x-text="u.email"></td>
                   <td>
-                    <div class="badge-list">
+                    <div class="badge-list" style="display: flex; flex-wrap: wrap; gap: 4px;">
                       <template x-for="gn in (u.groups || [])">
-                        <span class="group-tag" x-text="gn.name"></span>
+                        <span class="group-tag" style="font-size: 10px; padding: 2px 8px; background: var(--bg4); border-radius: 4px; border: 1px solid var(--border);" x-text="gn.name"></span>
                       </template>
                       <template x-if="!u.groups || u.groups.length === 0">
-                        <span class="empty-hint">Chưa phân nhóm</span>
+                        <span class="empty-hint" style="font-size: 11px; color: var(--text-muted); italic;">Chưa phân nhóm</span>
                       </template>
                     </div>
                   </td>
@@ -69,7 +69,7 @@
                   </td>
                   <td class="actions-cell">
                       <div class="btn-group">
-                        <button class="secondary-btn mini" @click="openUserModal(u.id)">✏️ Sửa</button>
+                        <button class="secondary-btn mini" @click="openUserModal(u.id)">✏️</button>
                         <button class="danger-btn mini" @click="deleteUser(u.id)">🗑</button>
                       </div>
                   </td>
@@ -79,32 +79,48 @@
       </table>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <div style="font-family: var(--font-family-title); font-size: 18px; font-weight: 700;">Groups & Permissions</div>
-      <button class="primary-btn" @click="openGroupModal()">+ Thêm Group</button>
+    <div class="section-header" style="margin-top: 40px;">
+      <div class="section-title">Groups & Permissions</div>
+      <div class="section-actions">
+          <button class="secondary-btn" @click="loadGroupsTable();" :disabled="isLoadingGroups">🔄 Làm mới</button>
+          <button class="primary-btn" @click="openGroupModal()">+ Thêm Group</button>
+      </div>
     </div>
 
-    <div id="groupsTableContainer">
-      <div x-show="isLoadingGroups" style="padding: 40px; text-align: center; color: var(--text-muted);"><span class="spin">🔄</span> Đang tải groups...</div>
-      <div x-cloak x-show="!isLoadingGroups && groups.length === 0" style="padding: 40px; text-align: center; border: 1px dashed var(--border-strong); border-radius: 16px; color: var(--text-muted);">Chưa có nhóm nào được tạo.</div>
+    <div id="groupsTableContainer" class="admin-table-wrapper">
+      <div x-show="isLoadingGroups" class="loading-overlay"><span class="spin">🔄</span> Đang nạp nhóm...</div>
       
-      <div x-cloak x-show="!isLoadingGroups && groups.length > 0" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">
-        <template x-for="g in groups" :key="g.id">
-          <div class="group-card" style="border: 1px solid var(--border-strong); padding: 20px; border-radius: 16px; background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%); box-shadow: var(--shadow-soft); display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.transform='none'; this.style.borderColor='var(--border-strong)';">
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                    <div style="font-weight: 700; font-size: 16px; color: var(--text);" x-text="g.name"></div>
-                    <div style="font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 20px; background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);" x-text="(g.member_count || 0) + ' users'"></div>
-                </div>
-                <div style="font-size: 11px; color: var(--text-dim); font-family: monospace; background: var(--bg3); padding: 4px 8px; border-radius: 6px; display: inline-block; margin-bottom: 16px; border: 1px solid var(--border);" x-text="'ID: ' + g.id.substring(0, 8) + '...'"></div>
-              </div>
-              <div style="display:flex; justify-content: flex-end; gap: 8px; border-top: 1px dashed var(--border); margin-top: auto; padding-top: 16px;">
-                <button class="secondary-btn mini" @click="openGroupModal(g.id)">✏️ Sửa</button>
-                <button class="danger-btn mini" @click="deleteGroup(g.id)">🗑 Xóa</button>
-              </div>
-          </div>
-        </template>
+      <div x-show="!isLoadingGroups && groups.length === 0" class="empty-state-centered" style="padding: 40px; border: 1px dashed var(--border-strong); border-radius: 12px; margin-bottom: 16px;">
+        <div class="empty-msg">Chưa có nhóm nào được tạo.</div>
       </div>
+
+      <table x-show="groups.length > 0" class="admin-table">
+          <thead>
+              <tr>
+                  <th>Tên Nhóm</th>
+                  <th>ID</th>
+                  <th>Thành viên</th>
+                  <th class="actions-col">Thao tác</th>
+              </tr>
+          </thead>
+          <tbody>
+            <template x-for="g in groups" :key="g.id">
+                <tr>
+                    <td style="font-weight: 600; color: var(--text);" x-text="g.name"></td>
+                    <td style="font-family: monospace; font-size: 11px; color: var(--text-dim);" x-text="g.id"></td>
+                    <td>
+                        <span class="role-badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981;" x-text="(g.member_count || 0) + ' users'"></span>
+                    </td>
+                    <td class="actions-cell">
+                        <div class="btn-group">
+                            <button class="secondary-btn mini" @click="openGroupModal(g.id)">✏️ Sửa</button>
+                            <button class="danger-btn mini" @click="deleteGroup(g.id)">🗑</button>
+                        </div>
+                    </td>
+                </tr>
+            </template>
+          </tbody>
+      </table>
     </div>
   </div>
 </div>

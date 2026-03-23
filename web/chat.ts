@@ -1,4 +1,5 @@
 import { API, authFetch } from './client';
+import { Config } from './config';
 import { ChatMessage, AskJobResponse, JobStatusResponse, AskResponse } from './models';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -162,9 +163,9 @@ export class ChatModule {
     }
 
     private async pollJobStatus(jobId: string, thinkId: string): Promise<void> {
-        const pollInterval = 1000; // Giảm xuống 1s để mượt hơn
+        const pollInterval = Config.CHAT_POLLING_INTERVAL_MS; // Giảm xuống 1s để mượt hơn
         let attempts = 0;
-        const maxAttempts = 180; 
+        const maxAttempts = Config.MAX_POLL_ATTEMPTS; 
 
         while (attempts < maxAttempts) {
             try {

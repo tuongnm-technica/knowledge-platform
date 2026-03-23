@@ -1,4 +1,5 @@
 import { API, authFetch } from './client';
+import { Config } from './config';
 import { ConnectorTab, ConnectorInstance } from './models';
 import { escapeHtml, showToast, kpOpenModal, kpConfirm, _kpBuildModalField } from './ui';
 
@@ -70,7 +71,7 @@ export class ConnectorsModule {
                     if (page && page.classList.contains('active')) {
                         this.loadConnectorStats(true);
                     }
-                }, 10000);
+                }, Config.POLLING_INTERVAL_MS);
             }
         } catch (err) {
             const error = err as Error;

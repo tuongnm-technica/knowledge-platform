@@ -97,5 +97,5 @@ class AIWorkerSettings(BaseWorkerSettings):
     """Worker chuyên xử lý các tác vụ AI/Agent nặng (ReAct loops)."""
     queue_name = "arq:ai"
     functions = [run_agent_job, run_workflow_job]
-    job_timeout = 180  # 3 phút
+    job_timeout = settings.ARQ_AI_JOB_TIMEOUT
     max_jobs = 3    # Giới hạn chạy song song ít để bảo vệ GPU

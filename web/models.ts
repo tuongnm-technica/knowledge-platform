@@ -34,6 +34,7 @@ export interface SearchSource {
     score?: number;
     snippet?: string;
     author?: string;
+    updated_at?: string;
 }
 
 export interface SearchResult extends SearchSource {
