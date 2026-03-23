@@ -1,0 +1,41 @@
+<div class="page" id="page-documents">
+    <div class="connectors-content">
+        <div class="documents-header">
+            <div class="count-pill">
+                <span class="count-bold" x-data="{count: 0}" x-init="const res = await fetch(`${API}/tasks/count`); if(res.ok) count = (await res.json()).count" x-text="count">0</span> tài liệu
+            </div>
+            <div class="header-actions">
+                <a href="/graph" data-navigo class="secondary-btn graph-btn">
+                    <span>🕸️</span> Khám phá Knowledge Graph
+                </a>
+            </div>
+        </div>
+        <div class="page-intro">
+            <div class="intro-flex">
+                <div>
+                    <div class="intro-kicker">Knowledge Management</div>
+                    <div class="intro-title">Knowledge Base</div>
+                    <div class="intro-sub">Quản lý và cập nhật các tài liệu đã được đồng bộ từ các nguồn dữ liệu (Connectors).</div>
+                </div>
+                <div class="documents-controls">
+                    <div class="search-box">
+                        <input type="text" id="docSearchInput" class="admin-input" placeholder="Tìm kiếm tiêu đề...">
+                        <button class="secondary-btn" id="docSearchBtn">🔍 Tìm</button>
+                    </div>
+                    <div class="batch-actions">
+                        <button class="secondary-btn" id="batchAddToBasketBtn">📌 Thêm vào giỏ</button>
+                        <button class="danger-btn" id="batchDeleteDocsBtn">🗑 Xóa đã chọn</button>
+                    </div>
+                    <div id="docPagination" class="pagination-bar">
+                        <button class="secondary-btn mini" id="prevDocsBtn">◀</button>
+                        <span id="docPageInfo">Trang 1 / 1</span>
+                        <button class="secondary-btn mini" id="nextDocsBtn">▶</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="documentsList" style="padding: 0 20px;">
+            <div style="padding:40px; text-align:center; color:var(--text-dim)">Đang khởi tạo danh sách tài liệu...</div>
+        </div>
+    </div>
+</div>

@@ -1,5 +1,6 @@
 import json
 import re
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,7 +121,11 @@ class DocumentRepository:
                     {"doc_id": canonical_id, "group_id": group_id},
                 )
 
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return canonical_id
 
     async def get_by_ids(self, doc_ids: list[str]) -> list[dict]:
@@ -143,6 +148,44 @@ class DocumentRepository:
             {"ids": doc_ids},
         )
         return [dict(row) for row in result.mappings().all()]
+
+    async def list_documents(self, limit: int = 50, offset: int = 0, query: str | None = None) -> list[dict]:
+        where_clause = ""
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if query:
+            where_clause = "WHERE title ILIKE :q OR author ILIKE :q"
+            params["q"] = f"%{query}%"
+
+        result = await self._session.execute(
+            text(f"""
+                SELECT
+                    id::text,
+                    title,
+                    source,
+                    url,
+                    author,
+                    updated_at
+                FROM documents
+                {where_clause}
+                ORDER BY updated_at DESC
+                LIMIT :limit OFFSET :offset
+            """),
+            params,
+        )
+        return [dict(row) for row in result.mappings().all()]
+
+    async def count_total(self, query: str | None = None) -> int:
+        where_clause = ""
+        params = {}
+        if query:
+            where_clause = "WHERE title ILIKE :q OR author ILIKE :q"
+            params["q"] = f"%{query}%"
+
+        result = await self._session.execute(
+            text(f"SELECT COUNT(*) FROM documents {where_clause}"),
+            params
+        )
+        return result.scalar() or 0
 
     async def list_accessible(self, user_groups: list[str]) -> list[str]:
         result = await self._session.execute(

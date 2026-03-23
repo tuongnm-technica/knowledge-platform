@@ -1,0 +1,35 @@
+/* Knowledge Base / Documents Module */
+#page-documents {
+  display: none;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg1);
+}
+
+#page-documents.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.documents-list-container {
+  padding: 0 20px 40px;
+}
+
+.doc-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.delete-doc-btn {
+  opacity: 0.6;
+}
+
+.delete-doc-btn:hover {
+  opacity: 1;
+}
+
+.connector-status-badge.info {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}

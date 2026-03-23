@@ -13,6 +13,7 @@ class BaseLLMProvider(ABC):
         messages: List[Dict[str, Any]],
         options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
+        on_token: Optional[Any] = None,
     ) -> str:
         """
         Send a chat request to the LLM.

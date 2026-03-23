@@ -115,19 +115,35 @@
   background: var(--bg2);
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-soft);
-  border-radius: 24px;
+  border-radius: 20px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kp-result-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--grad-glow);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .kp-result-card:hover {
   border-color: var(--accent);
   transform: translateY(-4px);
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
   background: var(--bg);
+}
+
+.kp-result-card:hover::before {
+  opacity: 0.4;
 }
 
 .kp-result-header { 
@@ -154,10 +170,14 @@
 }
 
 .kp-result-score { 
-  font-size: 12px; 
+  font-size: 11px; 
   font-weight: 800; 
-  color: var(--success); 
+  color: var(--accent); 
   font-family: var(--font-family-title);
+  background: var(--glow);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
 }
 
 .kp-result-snippet { 
@@ -239,6 +259,44 @@
 }
 
 .pager-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── SKELETON LOADING ── */
+.search-results-grid.skeleton {
+  pointer-events: none;
+}
+
+.skeleton-card {
+  opacity: 0.7;
+  filter: grayscale(1);
+}
+
+.skeleton-title {
+  height: 20px;
+  width: 40%;
+  background: var(--border-strong);
+  border-radius: 4px;
+  animation: skeleton-pulse 1.5s infinite ease-in-out;
+}
+
+.skeleton-text {
+  height: 40px;
+  width: 100%;
+  background: var(--border);
+  border-radius: 4px;
+  margin-top: 12px;
+  animation: skeleton-pulse 1.5s infinite ease-in-out 0.2s;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.99); }
+}
+
+/* ── SOURCE BADGES ── */
+.kp-result-badge.source-confluence { color: #0f766e; background: rgba(15,118,110,0.1); border-color: rgba(15,118,110,0.2); }
+.kp-result-badge.source-jira { color: #4f46e5; background: rgba(79,70,229,0.1); border-color: rgba(79,70,229,0.2); }
+.kp-result-badge.source-slack { color: #db2777; background: rgba(219,39,119,0.1); border-color: rgba(219,39,119,0.2); }
+.kp-result-badge.source-file_server { color: #059669; background: rgba(5,150,105,0.1); border-color: rgba(5,150,105,0.2); }
 
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {

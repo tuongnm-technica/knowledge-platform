@@ -30,24 +30,28 @@ def graph_signal(score: Any) -> float:
 
 
 def recency_signal(updated_at: Any) -> float:
-    if updated_at is None or not hasattr(updated_at, "days"):
-        # Check if it's a string that looks like a date (best effort)
-        if isinstance(updated_at, str) and len(updated_at) > 10:
-             try:
-                 from dateutil.parser import parse
-                 updated_at = parse(updated_at)
-             except Exception:
-                 return 0.0
-        else:
+    if updated_at is None:
+        return 0.0
+
+    # Ensure we have a datetime object
+    dt = updated_at
+    if isinstance(dt, str) and len(dt) > 10:
+        try:
+            from dateutil.parser import parse
+            dt = parse(dt)
+        except Exception:
             return 0.0
+    
+    if not hasattr(dt, "tzinfo"):
+        return 0.0
 
     now = datetime.now(timezone.utc)
-    if hasattr(updated_at, "tzinfo") and updated_at.tzinfo is None:
-        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    # Convert dt to UTC if it's naive
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     
-    days = 0
     try:
-        delta = now - updated_at
+        delta = now - dt
         days = delta.days
     except (ValueError, TypeError):
         return 0.0

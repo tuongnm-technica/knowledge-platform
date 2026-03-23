@@ -18,7 +18,10 @@ class SemanticCache:
         self.qdrant = get_qdrant()
 
 
-    async def lookup(self, query: str, threshold: float = 0.92) -> Optional[str]:
+    async def lookup(self, query: str, threshold: float | None = None) -> Optional[str]:
+        if threshold is None:
+            from config.settings import settings
+            threshold = settings.SEMANTIC_CACHE_THRESHOLD
 
         vector = await get_embedding(query)
 

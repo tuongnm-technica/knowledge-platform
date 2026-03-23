@@ -15,6 +15,27 @@ from storage.db.db import get_db
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
+@router.get("")
+async def list_documents(
+    limit: int = 50,
+    page: int = 1,
+    q: str | None = None,
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(get_current_user),
+):
+    offset = (max(1, page) - 1) * limit
+    repo = DocumentRepository(session)
+    docs = await repo.list_documents(limit=limit, offset=offset, query=q)
+    total = await repo.count_total(query=q)
+
+    return {
+        "documents": docs,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit) if limit > 0 else 1
+    }
+
+
 def _estimate_tokens(text_value: str) -> int:
     # Heuristic: ~4 chars per token (varies by language/model).
     s = str(text_value or "")

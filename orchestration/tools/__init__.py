@@ -13,7 +13,7 @@ from orchestration.tools.summarize import SummarizeDocumentTool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def build_tool_registry(session: AsyncSession) -> dict[str, BaseTool]:
+def build_tool_registry(session: AsyncSession, user_id: str = "") -> dict[str, BaseTool]:
     tools = [
         # Search by source
         ConfluenceSearchTool(session),

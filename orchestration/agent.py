@@ -7,6 +7,7 @@ import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
+from typing import Any
 import re
 
 from config.settings import settings
@@ -27,12 +28,13 @@ class InferenceClient:
     """
     def __init__(self):
         # Fallback về OLLAMA_BASE_URL để tương thích ngược nếu chưa thiết lập Gateway
-        self._base_url = getattr(settings, "INFERENCE_BASE_URL", settings.OLLAMA_BASE_URL).rstrip("/")
+        raw_url = getattr(settings, "INFERENCE_BASE_URL", None) or settings.OLLAMA_BASE_URL
+        self._base_url = str(raw_url or "").rstrip("/")
         self._model = getattr(settings, "INFERENCE_MODEL", getattr(settings, "OLLAMA_LLM_MODEL", "gpt-3.5-turbo"))
 
     async def chat(self, system: str, user: str, max_tokens: int = 800) -> str:
         try:
-            async with httpx.AsyncClient(timeout=getattr(settings, "LLM_TIMEOUT", 120.0)) as client:
+            async with httpx.AsyncClient(timeout=getattr(settings, "LLM_TIMEOUT", 800.0)) as client:
                 payload = {
                     "model": self._model,
                     "messages": [
@@ -93,19 +95,22 @@ class Agent:
         self._llm = InferenceClient()
         
         # Phase 3: Dedicated RAG Service Base URL
-        self._rag_service_url = getattr(settings, "RAG_SERVICE_URL", "http://rag-service:8000").rstrip("/")
+        raw_rag_url = getattr(settings, "RAG_SERVICE_URL", None) or "http://rag-service:8000"
+        self._rag_service_url = str(raw_rag_url or "").rstrip("/")
         
         log.info(
             "agent.initialized",
             user_id=user_id,
         )
 
-    async def ask(self, question: str) -> dict:
+    async def ask(self, question: str, on_thought: Any | None = None, on_token: Any | None = None) -> dict:
         """
         Process a question through the ReAct agent pipeline.
         
         Args:
             question: User's question
+            on_thought: Optional callback for each agent thought
+            on_token: Optional callback for each answer token
             
         Returns:
             Dictionary with answer, sources, and metadata
@@ -120,7 +125,7 @@ class Agent:
         
         try:
             # Note: user_id is already in self, no need to pass again
-            result: ReActResult = await loop.run(question, user_id=self._user_id)
+            result: ReActResult = await loop.run(question, user_id=self._user_id, on_thought=on_thought, on_token=on_token)
         except asyncio.TimeoutError:
             # Re-raise to be caught by API endpoint
             raise
@@ -159,27 +164,36 @@ class Agent:
                     if len(picked) >= int(settings.VISION_MAX_IMAGES_PER_ANSWER or 2):
                         break
 
-                images: list[bytes] = []
+                async def _read_img(ap: Path) -> bytes | None:
+                    try:
+                        return await asyncio.to_thread(ap.read_bytes)
+                    except Exception as e:
+                        log.warning("agent.vision.read_failed", path=str(ap), error=str(e))
+                        return None
+
                 assets_dir = Path(settings.ASSETS_DIR or "assets")
+                read_tasks = []
+                
+                # Collection logic (same as before but prepared for parallel)
                 for cid in chunk_ids:
                     for a in (assets_by_chunk.get(cid) or []):
                         aid = str(a.get("asset_id") or "").strip()
                         if aid not in picked:
                             continue
                         rel = str(a.get("local_path") or "").strip().replace("\\", "/")
-                        if not rel:
-                            continue
-                        try:
-                            images.append((assets_dir / rel).read_bytes())
-                        except Exception:
-                            continue
+                        if rel:
+                            read_tasks.append(_read_img(assets_dir / rel))
+
+                # Parallel async read
+                images_raw = await asyncio.gather(*read_tasks)
+                images: list[bytes] = [b for b in images_raw if b]
 
                 # Build a compact text context for the vision pass.
                 blocks: list[str] = []
                 for s in (result.sources or [])[:6]:
                     title = str(s.get("title") or "").strip()
                     content = str(s.get("content") or "").strip()
-                    content = re.sub(r"\\[\\[ASSET_ID:[0-9a-fA-F-]{36}\\]\\]", "", content).strip()
+                    content = re.sub(r"\[\[ASSET_ID:[0-9a-fA-F-]{36}\]\]", "", content).strip()
                     if not content:
                         continue
                     blocks.append(f"TITLE: {title}\n{content[:1800]}".strip())

@@ -202,7 +202,7 @@ class ConfluenceConnector(BaseConnector):
             title=str(page.get("title", "")),
         )
 
-        raw_permissions = self._permissions.get_permitted_groups(str(page_id), str(space_key))
+        raw_permissions = await asyncio.to_thread(self._permissions.get_permitted_groups, str(page_id), str(space_key))
         permissions = sorted({gid for gid in (_perm_to_group_id(p) for p in raw_permissions) if gid})
         if not permissions:
             permissions = [_perm_to_group_id(f"confluence_space_{space_key}")]

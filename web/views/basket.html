@@ -27,7 +27,7 @@
           <div class="basket-item-icon">📄</div>
           <div class="basket-item-info">
               <div class="basket-item-title" x-text="item.title || item.id"></div>
-              <div class="basket-item-id" style="font-size:11px;color:var(--text-dim);" x-text="item.id"></div>
+              <div class="basket-item-meta" style="font-size:11px;color:var(--text-dim);" x-text="item.id"></div>
           </div>
           <button class="secondary-btn mini" style="color:var(--danger); border-color:var(--danger)" title="Xóa" @click="removeFromBasket(item.id)">✕</button>
       </div>

@@ -25,7 +25,9 @@ class ChatMessage(Base):
     session_id = Column(String(36), ForeignKey("chat_sessions.id", ondelete="CASCADE"), index=True, nullable=False)
     role = Column(String(50), nullable=False)  # 'user' hoặc 'assistant'
     content = Column(Text, nullable=False)
-    sources = Column(JSONB, default=list)      # Lưu trữ danh sách nguồn trích dẫn
+    sources = Column(JSONB, default=list)
+    agent_plan = Column(JSONB, default=list)   # Lưu trữ kế hoạch của agent
+    rewritten_query = Column(Text, nullable=True) # Lưu trữ query đã được rewrite
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     session = relationship("ChatSession", back_populates="messages")

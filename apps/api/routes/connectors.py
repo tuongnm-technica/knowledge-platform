@@ -16,6 +16,7 @@ from apps.api.services.connectors_service import (
     list_instances,
     start_all_configured_syncs,
     start_connector_sync,
+    stop_connector_sync,
     test_connector_connection,
     update_connector_config,
     update_instance,
@@ -110,6 +111,10 @@ class ConnectorInstanceUpdateRequest(BaseModel):
 
 class SyncStatusRequest(BaseModel):
     connectors: list[str] = Field(default_factory=list, max_length=60)
+
+
+class SyncTriggerRequest(BaseModel):
+    force_full: bool = False
 
 
 @router.get("/{connector_type}/instances")
@@ -216,17 +221,30 @@ async def sync_connector_instance(
     connector_type: str,
     instance_id: str,
     background_tasks: BackgroundTasks,
+    req: SyncTriggerRequest | None = None,
     session: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_admin),
 ):
+    incremental = True
+    if req and req.force_full:
+        incremental = False
+        
     return await start_connector_sync(
         session,
         background_tasks,
         connector_type,
         instance_id,
-        incremental=True,
+        incremental=incremental,
     )
 
+@router.post("/{connector_type}/instances/{instance_id}/stop")
+async def stop_connector_instance(
+    connector_type: str,
+    instance_id: str,
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_admin),
+):
+    return await stop_connector_sync(session, connector_type, instance_id)
 
 @router.get("/{connector_type}/instances/{instance_id}/sync/status")
 async def connector_sync_status(

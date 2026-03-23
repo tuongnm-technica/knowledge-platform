@@ -2,6 +2,7 @@ import { API, authFetch } from './client';
 import { SearchResult } from './models';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { kpOpenModal } from './ui';
 
 export class SearchModule {
     private searchPending = false;
@@ -56,7 +57,22 @@ export class SearchModule {
         }
 
         this.searchPending = true;
-        if (this.searchBtn) this.searchBtn.disabled = true;
+        if (this.searchBtn) {
+            this.searchBtn.disabled = true;
+            this.searchBtn.innerHTML = '<span class="spin">🔄</span> Đang tìm...';
+        }
+        if (this.resultsContainer && this.currentSearchPage === 0) {
+            this.resultsContainer.innerHTML = `
+                <div class="search-results-grid skeleton">
+                    ${[1, 2, 3].map(() => `
+                        <div class="kp-result-card skeleton-card">
+                            <div class="skeleton-title"></div>
+                            <div class="skeleton-text"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
 
         try {
             const response = await authFetch(`${API}/search`, {
@@ -79,7 +95,10 @@ export class SearchModule {
             this.showToast(`Lỗi: ${error.message}`, 'error');
         } finally {
             this.searchPending = false;
-            if (this.searchBtn) this.searchBtn.disabled = false;
+            if (this.searchBtn) {
+                this.searchBtn.disabled = false;
+                this.searchBtn.textContent = 'Tìm kiếm';
+            }
         }
     }
 
@@ -97,7 +116,11 @@ export class SearchModule {
                 `;
                 document.getElementById('kpPrevPageBtn')?.addEventListener('click', () => this.doSearch(this.currentSearchPage - 1));
             } else {
-                this.resultsContainer.innerHTML = '<div class="search-empty">Không tìm thấy kết quả</div>';
+                this.resultsContainer.innerHTML = `
+                    <div class="search-empty" style="padding-top: 60px; display: flex; flex-direction: column; align-items: center;">
+                        <div style="font-size: 40px; margin-bottom: 12px; opacity: 0.5;">📭</div>
+                        <div style="color: var(--text); font-weight: 500;">Không tìm thấy kết quả nào.</div>
+                    </div>`;
             }
             return;
         }
@@ -110,31 +133,38 @@ export class SearchModule {
             item.className = 'kp-result-card';
             
             const score = result.score != null ? Math.round(result.score * 100) : null;
-            const docId = result.document_id || result.id || result.source_id || '';
-            const docTitle = result.title || result.filename || 'Untitled Document';
+            const docId = result.document_id || '';
+            const docTitle = result.title || 'Untitled Document';
             
-            let snippet = (result.content || result.snippet || '').substring(0, 300);
+            let snippet = (result.content || '').substring(0, 300);
             snippet = snippet.replace(/\[\[IMAGE_URL:[^\]]+\]\]/g, '[Image]')
                              .replace(/```mermaid[\s\S]*?```/g, '[Diagram]')
                              .trim();
 
             const docAuthor = result.author ? `Bởi: ${this.escapeHtml(result.author)}` : '';
-            const sourceBadge = result.source || result.source_type || 'Internal source';
+            const sourceBadge = result.source || 'Internal source';
+
 
             item.innerHTML = `
                 <div class="kp-result-header">
                     <span class="kp-result-title">${this.escapeHtml(docTitle)}</span>
                     <div class="kp-result-actions">
-                        ${score != null ? `<span class="kp-result-score">${score}%</span>` : ''}
-                        <button class="kp-pin-btn" title="Thêm vào giỏ" data-doc-id="${this.escapeHtml(docId)}" data-doc-title="${this.escapeHtml(docTitle)}">📌</button>
+                        ${score != null ? `
+                            <div class="kp-result-score-wrap">
+                                <span class="kp-result-score" title="${this.formatScoreBreakdown(result.score_breakdown)}">${score}% match</span>
+                            </div>
+                        ` : ''}
+                        <button class="secondary-btn mini kp-pin-btn" title="Thêm vào giỏ" data-doc-id="${this.escapeHtml(docId)}" data-doc-title="${this.escapeHtml(docTitle)}">📌</button>
                     </div>
                 </div>
-                <div class="kp-result-snippet">${this.escapeHtml(snippet)}</div>
+                <div class="kp-result-snippet">${this.escapeHtml(snippet)}...</div>
                 <div class="kp-result-meta">
-                    <span class="kp-result-badge">${this.escapeHtml(sourceBadge)}</span>
-                    ${docAuthor ? `<span style="font-size: 11px; color: var(--text-dim); margin-right: auto;">${docAuthor}</span>` : ''}
-                    <button class="secondary-btn mini view-doc-btn" data-doc-id="${this.escapeHtml(docId)}">📄 Chi tiết</button>
-                    ${result.url ? `<a class="kp-result-url" style="margin-left:8px;" href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener">Mở ↗</a>` : ''}
+                    <span class="kp-result-badge source-${sourceBadge.toLowerCase()}">${this.escapeHtml(sourceBadge)}</span>
+                    ${docAuthor ? `<span class="kp-result-author">${docAuthor}</span>` : ''}
+                    <div class="kp-result-footer-actions">
+                        <button class="secondary-btn mini view-doc-btn" data-doc-id="${this.escapeHtml(docId)}">📄 Chi tiết</button>
+                        ${result.url ? `<a class="kp-result-url" href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener">Mở ↗</a>` : ''}
+                    </div>
                 </div>
             `;
 
@@ -163,7 +193,7 @@ export class SearchModule {
         pager.className = 'search-pagination';
         
         const prevBtn = document.createElement('button');
-        prevBtn.className = 'pager-btn';
+        prevBtn.className = 'secondary-btn';
         prevBtn.textContent = '← Trang trước';
         prevBtn.disabled = this.currentSearchPage === 0;
         prevBtn.addEventListener('click', () => this.doSearch(this.currentSearchPage - 1));
@@ -173,7 +203,7 @@ export class SearchModule {
         pageInfo.textContent = `Trang ${this.currentSearchPage + 1}`;
         
         const nextBtn = document.createElement('button');
-        nextBtn.className = 'pager-btn';
+        nextBtn.className = 'secondary-btn';
         nextBtn.textContent = 'Trang sau →';
         nextBtn.disabled = results.length < this.resultsPerPage;
         nextBtn.addEventListener('click', () => this.doSearch(this.currentSearchPage + 1));
@@ -201,9 +231,10 @@ export class SearchModule {
 
             const body = document.createElement('div');
             body.innerHTML = `
-                <div style="margin-bottom: 16px; font-size: 13px; color: var(--text-dim); display: flex; gap: 12px; flex-wrap: wrap;">
+                <div style="margin-bottom: 16px; font-size: 13px; color: var(--text-dim); display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
                     <span class="kp-result-badge">${this.escapeHtml(doc.source || 'N/A')}</span>
                     ${doc.author ? `<span>👤 ${this.escapeHtml(doc.author)}</span>` : ''}
+                    ${doc.score_breakdown ? `<span style="color: var(--success); font-weight: 600;">🎯 ${this.formatScoreBreakdown(doc.score_breakdown)}</span>` : ''}
                     ${doc.url ? `<a href="${this.escapeHtml(doc.url)}" target="_blank" style="color: var(--accent);">Mở URL gốc ↗</a>` : ''}
                 </div>
                 <div style="max-height: 60vh; overflow-y: auto; line-height: 1.6; color: var(--text); padding-right: 8px;">
@@ -211,17 +242,12 @@ export class SearchModule {
                 </div>
             `;
 
-            const win = window as any;
-            if (typeof win.kpOpenModal === 'function') {
-                win.kpOpenModal({
-                    title: doc.title || 'Chi tiết tài liệu',
-                    content: body,
-                    okText: 'Đóng',
-                    cancelText: null
-                });
-            } else {
-                alert('Tài liệu:\n' + doc.content); 
-            }
+            kpOpenModal({
+                title: doc.title || 'Chi tiết tài liệu',
+                content: body,
+                okText: 'Đóng',
+                cancelText: null
+            });
         } catch (err) {
             const error = err as Error;
             this.showToast(error.message, 'error');
@@ -236,6 +262,15 @@ export class SearchModule {
         } else {
             console.warn(`[${type.toUpperCase()}] ${message}`);
         }
+    }
+
+    private formatScoreBreakdown(breakdown: any): string {
+        if (!breakdown || typeof breakdown !== 'object') return '';
+        const parts: string[] = [];
+        if (breakdown.vector_score != null) parts.push(`Vector: ${Math.round(breakdown.vector_score * 100)}%`);
+        if (breakdown.keyword_score != null) parts.push(`Từ khóa: ${Math.round(breakdown.keyword_score * 100)}%`);
+        if (breakdown.rerank_score != null) parts.push(`Rerank: ${Math.round(breakdown.rerank_score * 100)}%`);
+        return parts.length > 0 ? parts.join(' | ') : '';
     }
 
     private escapeHtml(unsafe: string): string {

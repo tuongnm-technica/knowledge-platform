@@ -38,10 +38,17 @@ export function showToast(msg: string, type: 'success' | 'error' | 'warning' | '
         document.body.appendChild(container);
     }
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = msg;
+    toast.className = `toast ${type} glass-panel`;
+    
+    const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : (type === 'warning' ? '⚠️' : 'ℹ️'));
+    toast.innerHTML = `<span class="toast-icon">${icon}</span> <span class="toast-msg">${msg}</span>`;
+    
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px) scale(0.95)';
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
 }
 
 // --- Modal System ---
@@ -73,13 +80,15 @@ export function _kpEnsureModalElements(): ModalElements {
         overlay.className = 'kp-modal-overlay';
         overlay.style.display = 'none';
         overlay.innerHTML = `
-            <div class="kp-modal" role="dialog" aria-modal="true" aria-labelledby="kpModalTitle">
+            <div class="kp-modal glass-panel" role="dialog" aria-modal="true" aria-labelledby="kpModalTitle">
                 <div class="kp-modal-header">
                     <div class="kp-modal-header-copy">
                         <div id="kpModalTitle" class="kp-modal-title"></div>
                         <div id="kpModalSubtitle" class="kp-modal-sub"></div>
                     </div>
-                    <button id="kpModalCloseBtn" class="kp-modal-close" type="button" aria-label="Close">&times;</button>
+                    <button id="kpModalCloseBtn" class="kp-modal-close" type="button" aria-label="Close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
                 </div>
                 <div id="kpModalBody" class="kp-modal-body"></div>
                 <div id="kpModalError" class="kp-modal-error" style="display:none"></div>
@@ -134,10 +143,11 @@ export interface OpenModalOptions<T = any> {
     okText?: string;
     cancelText?: string | null;
     okClass?: string;
+    modalClass?: string;
     onOk?: () => Promise<T | { error: string } | boolean> | T | { error: string } | boolean;
 }
 
-export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', cancelText = 'Cancel', okClass = 'primary-btn', onOk }: OpenModalOptions<T> = {}): Promise<T | null> {
+export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', cancelText = 'Cancel', okClass = 'primary-btn', modalClass = '', onOk }: OpenModalOptions<T> = {}): Promise<T | null> {
     const els = _kpEnsureModalElements();
     if (KP_MODAL_STATE) _kpCloseModal(null);
 
@@ -151,6 +161,11 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
     els.cancelBtn.textContent = cancelText || '';
     els.cancelBtn.style.display = cancelText ? '' : 'none';
     els.okBtn.className = okClass;
+    
+    const modalEl = els.overlay.querySelector('.kp-modal') as HTMLElement;
+    if (modalEl) {
+        modalEl.className = `kp-modal glass-panel ${modalClass || ''}`;
+    }
 
     const previouslyFocused = document.activeElement;
 

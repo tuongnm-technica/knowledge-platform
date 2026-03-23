@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,7 +74,7 @@ class SkillPromptRepository:
                 "label": label,
                 "description": description,
                 "system_prompt": system_prompt,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
                 "updated_by": updated_by,
             },
         )
@@ -100,7 +100,7 @@ class SkillPromptRepository:
             {
                 "doc_type": doc_type,
                 "system_prompt": system_prompt,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
                 "updated_by": updated_by,
             },
         )
@@ -124,7 +124,7 @@ class SkillPromptRepository:
             {
                 "doc_type": doc_type,
                 "system_prompt": default,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
                 "updated_by": updated_by,
             },
         )
@@ -161,7 +161,7 @@ class SkillPromptRepository:
                     "label": label,
                     "description": description,
                     "system_prompt": system_prompt,
-                    "updated_at": datetime.utcnow(),
+                    "updated_at": datetime.now(timezone.utc),
                 },
             )
             if result.scalar():

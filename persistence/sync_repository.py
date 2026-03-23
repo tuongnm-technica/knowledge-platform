@@ -52,7 +52,7 @@ class SyncRepository:
         fetched: int | None = None,
         indexed: int | None = None,
         errors: int | None = None,
-    ) -> None:
+    ) -> bool:
         """
         Update running sync progress for UI progress bars.
 
@@ -73,9 +73,9 @@ class SyncRepository:
             params["errors"] = int(errors)
 
         if len(sets) == 1:
-            return
+            return True
 
-        await self._session.execute(
+        result = await self._session.execute(
             text(
                 f"""
                 UPDATE sync_logs
@@ -86,6 +86,7 @@ class SyncRepository:
             params,
         )
         await self._session.commit()
+        return result.rowcount > 0
 
     async def finish_sync(
         self,

@@ -867,7 +867,31 @@ async def start_connector_sync(
     except Exception as e:
         log.warning("connectors.sync.redis_failed_fallback", error=str(e))
         background_tasks.add_task(_run_sync_task, connector_type, instance_id, incremental)
-        
+
+    return {"status": "started", "connector": connector_key, "incremental": incremental}
+
+async def stop_connector_sync(
+    session: AsyncSession,
+    connector_type: str,
+    instance_id: str,
+) -> dict[str, Any]:
+    connector_key = _connector_key(connector_type, instance_id)
+    result = await session.execute(
+        text(
+            """
+            UPDATE sync_logs
+            SET status = 'cancelled', updated_at = NOW()
+            WHERE connector = :connector AND status = 'running'
+            RETURNING id
+            """
+        ),
+        {"connector": connector_key}
+    )
+    await session.commit()
+    
+    if result.rowcount > 0:
+        return {"status": "stopping", "connector": connector_key, "message": "Signal sent to stop sync."}
+    return {"status": "not_running", "connector": connector_key, "message": "No running sync found to stop."}
     return {"status": "started", "connector": connector_key, "incremental": incremental}
 
 

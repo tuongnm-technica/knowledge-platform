@@ -1,6 +1,6 @@
 import { API, authFetch } from './client';
 import { BasketItem } from './models';
-import { kpOpenModal, showToast } from './ui';
+import { kpOpenModal, showToast, escapeHtml, kpConfirm } from './ui';
 
 export function BasketAlpine() {
     return {
@@ -61,8 +61,12 @@ export function BasketAlpine() {
             this.saveBasket();
         },
 
-        clearBasket() {
-            if (!confirm('Bạn có chắc muốn xóa toàn bộ giỏ ngữ cảnh?')) return;
+        async clearBasket() {
+            if (!await kpConfirm({ 
+                title: 'Xóa giỏ ngữ cảnh', 
+                message: 'Bạn có chắc muốn xóa toàn bộ giỏ ngữ cảnh? Hành động này không thể hoàn tác.', 
+                danger: true 
+            })) return;
             this.items = [];
             this.saveBasket();
         },
@@ -75,13 +79,26 @@ export function BasketAlpine() {
         toggleDrawer() { this.isDrawerOpen = !this.isDrawerOpen; },
         closeDrawer() { this.isDrawerOpen = false; },
 
-        basketRunSkill() {
+        async basketRunSkill() {
             if (this.items.length === 0) {
                 showToast('Giỏ ngữ cảnh đang trống', 'warning');
                 return;
             }
         
-            let skillOptionsHtml = '<option value="srs">📄 GPT-4: SRS (Mặc định)</option>';
+            let prompts: any[] = [];
+            try {
+                const res = await authFetch(`${API}/prompts`);
+                if (res.ok) {
+                    const data = await res.json();
+                    prompts = data.prompts || [];
+                }
+            } catch (e) {
+                console.error('Failed to load prompts:', e);
+            }
+
+            let skillOptionsHtml = prompts.map(p => 
+                `<option value="${escapeHtml(p.doc_type || p.type)}">${escapeHtml(p.label || p.name)}</option>`
+            ).join('') || '<option value="srs">📄 SRS (Mặc định)</option>';
             
             const body = document.createElement('div');
             body.innerHTML = `

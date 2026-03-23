@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import asyncio
 import structlog
+import re
 
 log = structlog.get_logger()
 
@@ -38,13 +39,13 @@ class HybridSearch:
 
             vector_task = self._vector.search(
                 query_vector=embedding,
-                top_k=50,
+                top_k=100,
                 allowed_document_ids=allowed_document_ids,
             )
 
             keyword_task = self._keyword.search(
                 query=query,
-                top_k=50,
+                top_k=100,
                 allowed_document_ids=allowed_document_ids,
             )
 
@@ -53,11 +54,13 @@ class HybridSearch:
                 keyword_task,
             )
             # Use per-request weights (don't mutate instance/class state).
-            import re
-            # Bắt cả ngày tháng ngắn dạng DD/MM (vd: 9/2, 11/3) thay vì chỉ DD/MM/YYYY
-            if re.search(r"\d+/\d+", query):
-                keyword_weight = 0.7
-                vector_weight = 0.3
+            # Heuristic: Ưu tiên keyword search cho ngày tháng hoặc các thuật ngữ viết hoa (acronyms)
+            is_date = bool(re.search(r"\d+/\d+", query))
+            is_acronym = bool(re.search(r"\b[A-Z]{2,}\b", query))
+            
+            if is_date or is_acronym:
+                keyword_weight = 0.75
+                vector_weight = 0.25
             else:
                 keyword_weight = 0.4
                 vector_weight = 0.6

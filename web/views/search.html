@@ -1,6 +1,6 @@
 <!-- ── SEARCH PAGE ── -->
 <div class="page" id="page-search">
-  <div class="search-page-content">
+  <div class="search-page-content" style="padding: 24px; max-width: 1000px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; height: 100%;">
     <div class="page-intro">
       <div>
         <div class="intro-kicker">Search mode</div>
@@ -9,10 +9,21 @@
       </div>
       <div class="count-pill">Direct document lookup</div>
     </div>
-    <div class="search-bar-wrapper">
-      <span class="search-icon-pos">🔍</span>
-      <input id="searchInput" type="text" placeholder="Tìm kiếm tài liệu..." autocomplete="off">
+    
+    <div class="search-controls" style="display: flex; gap: 12px; margin-bottom: 24px; flex-shrink: 0;">
+      <div style="position: relative; flex: 1;">
+        <span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 18px;">🔍</span>
+        <input id="searchInput" class="admin-input" type="text" placeholder="Nhập từ khóa tìm kiếm tài liệu, ticket, message..." autocomplete="off" style="width: 100%; padding: 16px 16px 16px 48px; font-size: 15px; border-radius: 16px; box-shadow: var(--shadow-soft);">
+      </div>
+      <button id="searchBtn" class="primary-btn" style="padding: 0 28px; border-radius: 16px; font-size: 14px; font-weight: 700;">Tìm kiếm</button>
     </div>
-    <div class="search-results" id="searchResults"></div>
+    
+    <div class="search-results" id="searchResults" style="flex: 1; overflow-y: auto; padding-right: 8px;">
+      <div class="search-empty" style="padding-top: 80px; display: flex; flex-direction: column; align-items: center;">
+        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">🔭</div>
+        <div style="font-size: 16px; color: var(--text-muted); font-weight: 500;">Sẵn sàng tìm kiếm</div>
+        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Nhập câu hỏi để tra cứu trên toàn bộ Knowledge Base</div>
+      </div>
+    </div>
   </div>
 </div>

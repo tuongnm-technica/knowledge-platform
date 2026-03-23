@@ -47,6 +47,8 @@ async def get_session_details(
         "messages": [{
             "id": m.id, "role": m.role, "content": m.content, 
             "sources": m.sources, 
+            "agent_plan": m.agent_plan,
+            "rewritten_query": m.rewritten_query,
             "created_at": m.created_at.isoformat() if m.created_at else None
         } for m in messages]
     }

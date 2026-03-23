@@ -43,6 +43,7 @@ async def scan_and_create_drafts(
                 stats["total"] += tasks_found
             except Exception as exc:
                 log.error(f"scanner.{source}.error", error=str(exc), exc_info=True)
+                await session.rollback()
                 stats["errors"].append(f"{source.capitalize()}: {exc}")
                 stats[f"{source}_tasks"] = 0
 

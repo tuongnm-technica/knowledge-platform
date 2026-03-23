@@ -13,6 +13,13 @@ router = APIRouter(prefix="/tasks", tags=["Tasks"])
 class StatusUpdateRequest(BaseModel):
     status: str
 
+class TaskUpdatePayload(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    suggested_assignee: str | None = None
+    jira_project: str | None = None
+    meta: dict | None = None
+
 class ScanRequest(BaseModel):
     slack_days: int = 1
     confluence_days: int = 1
@@ -36,6 +43,48 @@ async def get_tasks_count(
     repo = TaskDraftRepository(db)
     count = await repo.count_pending()
     return {"total_pending": count}
+
+@router.put("/{task_id}")
+async def update_task_details(
+    task_id: str,
+    req: TaskUpdatePayload,
+    db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """Cập nhật nội dung chi tiết của task (Title, Description, Assignee...)."""
+    repo = TaskDraftRepository(db)
+    task = await repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    
+    from sqlalchemy import text
+    updates = []
+    params = {"id": task_id}
+
+    # Ánh xạ các trường cần cập nhật theo DB schema
+    fields = {
+        "title": req.title,
+        "description": req.description,
+        "suggested_assignee": req.suggested_assignee,
+        "jira_project": req.jira_project,
+        "meta": req.meta
+    }
+    
+    import json
+    for col, val in fields.items():
+        if val is not None:
+            if col == "meta":
+                updates.append(f"{col} = CAST(:{col} AS JSON)")
+                params[col] = json.dumps(val)
+            else:
+                updates.append(f"{col} = :{col}")
+                params[col] = val
+            
+    if updates:
+        query = text(f"UPDATE ai_task_drafts SET {', '.join(updates)} WHERE id = :id")
+        await db.execute(query, params)
+        await db.commit()
+
+    return {"message": "Task updated successfully"}
 
 @router.put("/{task_id}/status")
 async def update_task_status(

@@ -1,0 +1,141 @@
+/* web/css/components/editor.css */
+
+.ai-editor-prosemirror {
+  min-height: 400px;
+  outline: none;
+  font-family: var(--font-family-body);
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+.ai-editor-prosemirror p {
+  margin-bottom: 1em;
+}
+
+.ai-editor-prosemirror h1, 
+.ai-editor-prosemirror h2, 
+.ai-editor-prosemirror h3, 
+.ai-editor-prosemirror h4 {
+  font-family: var(--font-family-title);
+  color: var(--text);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 700;
+}
+
+.ai-editor-prosemirror h1 { font-size: 2.2em; }
+.ai-editor-prosemirror h2 { font-size: 1.8em; }
+.ai-editor-prosemirror h3 { font-size: 1.5em; }
+
+.ai-editor-prosemirror blockquote {
+  border-left: 4px solid var(--border-strong);
+  padding-left: 1rem;
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 1.5em 0;
+}
+
+.ai-editor-prosemirror pre {
+  background: var(--bg2);
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+.ai-editor-prosemirror img {
+  max-width: 100%;
+  border-radius: var(--radius);
+  margin: 1em 0;
+}
+
+.ai-editor-prosemirror ul, 
+.ai-editor-prosemirror ol {
+  padding-left: 1.5rem;
+  margin-bottom: 1em;
+}
+
+.ai-editor-prosemirror li {
+  margin-bottom: 0.25em;
+}
+
+/* ── Slash Menu Popup ── */
+.slash-popup-list {
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 8px;
+  width: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slash-popup-header {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 8px 12px;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.slash-popup-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.slash-popup-item:hover,
+.slash-popup-item.selected {
+  background: var(--bg3);
+}
+
+.slash-popup-item.selected {
+  background: var(--glow);
+  outline: 1px solid var(--accent);
+}
+
+.slash-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.slash-item-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+/* ── Typora-like Focus Mode (Optional CSS integration) ── */
+.ai-editor-focus-mode .ai-editor-prosemirror > * {
+  transition: opacity 0.3s ease;
+  opacity: 0.4;
+}
+
+.ai-editor-focus-mode .ai-editor-prosemirror > .has-focus {
+  opacity: 1;
+}
+
+/* Note: has-focus would need a TipTap extension, but this is a placeholder. */

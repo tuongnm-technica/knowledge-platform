@@ -8,11 +8,13 @@
 // --- Authentication & User ---
 
 export interface User {
-    user_id: string; // Matches BE 'user_id'
+    id: string; // Matches BE 'id'
     email: string;
     display_name: string | null;
     role: string;
     is_admin: boolean;
+    group_ids?: string[];
+    groups?: Group[];
 }
 
 export interface AuthResponse extends User {
@@ -31,6 +33,7 @@ export interface SearchSource {
     url?: string;
     score?: number;
     snippet?: string;
+    author?: string;
 }
 
 export interface SearchResult extends SearchSource {
@@ -39,6 +42,7 @@ export interface SearchResult extends SearchSource {
     source_type?: string;
     filename?: string;
     source_id?: string;
+    score_breakdown?: Record<string, any>;
 }
 
 export interface AskJobResponse {
@@ -61,7 +65,7 @@ export interface JobStatusResponse {
     status: 'queued' | 'running' | 'completed' | 'failed';
     progress: number;
     thoughts: any[];
-    result: AskResponse | null;
+    result: AskResponse | string | null;
     error: string | null;
 }
 
@@ -70,6 +74,9 @@ export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
     created_at: string;
+    agent_plan?: any[];
+    sources?: SearchSource[];
+    rewritten_query?: string;
 }
 
 export interface ChatSession {
@@ -91,6 +98,11 @@ export interface Task {
     created_at: string;
     updated_at: string;
     meta: Record<string, any>;
+    description?: string;
+    suggested_assignee?: string;
+    issue_type?: string;
+    jira_project?: string;
+    source_summary?: string;
 }
 
 // --- Drafts ---
@@ -100,7 +112,7 @@ export interface Draft {
     doc_type: string;
     title: string;
     content: string;
-    status: 'draft' | 'submitted' | 'archived';
+    status: 'draft' | 'review' | 'approved' | 'published' | 'rejected';
     created_at: string;
     updated_at: string;
     user_id?: string;
@@ -146,6 +158,7 @@ export interface ConnectorInstance {
     config: {
         target_label: string;
         target_value: string;
+        scope_label?: string;
         auth_label: string;
         auth_value: string;
         username: string;
@@ -174,6 +187,9 @@ export interface GraphNode {
     id: string;
     label: string;
     type?: string;
+    kind?: string;
+    subkind?: string;
+    size?: number;
     color?: string;
     radius?: number;
     x?: number;
@@ -217,4 +233,25 @@ export interface MemoryItem {
     type: string;
     key: string;
     value: string;
+}
+
+// --- AI Workflows ---
+
+export interface AIWorkflowNode {
+    id?: string;
+    step_order: number;
+    name: string;
+    model_override?: string | null;
+    system_prompt: string;
+}
+
+export interface AIWorkflow {
+    id: string;
+    name: string;
+    description: string;
+    trigger_type: string;
+    nodes?: AIWorkflowNode[];
+    created_at?: string;
+    updated_at?: string;
+    updated_by?: string;
 }

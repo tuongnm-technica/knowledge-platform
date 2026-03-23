@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from config.settings import settings
 from apps.api.services.connectors_service import _run_sync_task
 from tasks.scanner import scan_and_create_drafts
-from orchestration.agent_tasks import run_agent_job
+from orchestration.agent_tasks import run_agent_job, run_workflow_job
 
 log = structlog.get_logger()
 
@@ -19,6 +19,7 @@ REDIS_URL = getattr(settings, "REDIS_URL", "redis://redis:6379/0")
 async def sync_connector_job(ctx, connector_type: str, instance_id: str, incremental: bool):
     """Task được xử lý ở background, tách bạch hoàn toàn với API server"""
     log.info("worker.sync_connector_job.started", connector=connector_type, instance_id=instance_id)
+    log.info("worker.sync_connector_job.dispatching", connector=connector_type, instance_id=instance_id)
     try:
         await _run_sync_task(connector_type, instance_id, incremental)
         log.info("worker.sync_connector_job.completed", connector=connector_type, instance_id=instance_id)
@@ -95,6 +96,6 @@ class DefaultWorkerSettings(BaseWorkerSettings):
 class AIWorkerSettings(BaseWorkerSettings):
     """Worker chuyên xử lý các tác vụ AI/Agent nặng (ReAct loops)."""
     queue_name = "arq:ai"
-    functions = [run_agent_job]
+    functions = [run_agent_job, run_workflow_job]
     job_timeout = 600  # 10 phút
     max_jobs = 3    # Giới hạn chạy song song ít để bảo vệ GPU

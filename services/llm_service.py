@@ -11,7 +11,7 @@ class LLMService:
         self._provider: BaseLLMProvider = get_llm_provider()
         self._model = model or settings.OLLAMA_LLM_MODEL
 
-    async def chat(self, system: str, user: str, max_tokens: int = 800, **kwargs: Any) -> str:
+    async def chat(self, system: str, user: str, max_tokens: int = 800, on_token: Any = None, **kwargs: Any) -> str:
         """
         Gửi request chat tới LLM Provider hiện tại.
         Hỗ trợ các tùy chọn bổ sung như 'images' cho vision models.
@@ -32,6 +32,7 @@ class LLMService:
                 messages=messages,
                 options={"num_predict": max_tokens, "temperature": 0.1},
                 timeout=kwargs.get("timeout") or settings.LLM_TIMEOUT,
+                on_token=on_token,
             )
         except asyncio.TimeoutError:
             log.warning("llm.timeout", model=self._model)

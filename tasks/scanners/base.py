@@ -3,12 +3,14 @@ from __future__ import annotations
 import abc
 import json
 import re
+import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from llm.base import ILLMClient
 from tasks.repository import TaskDraftRepository
 
+log = structlog.get_logger()
 _epic_re = re.compile(r"\b([A-Z][A-Z0-9]{1,10}-\d+)\b")
 
 
@@ -37,7 +39,8 @@ class BaseScanner(abc.ABC):
                 return raw
             if isinstance(raw, str):
                 return json.loads(raw) if raw else {}
-        except Exception:
+        except Exception as e:
+            log.error("scanner.load_selection.failed", connector=connector, error=str(e))
             pass
 
         # Multi-instance fallback
@@ -50,7 +53,8 @@ class BaseScanner(abc.ABC):
             if instance_id:
                 connector_key = f"{connector}:{instance_id}"
                 return await self._load_connector_selection(connector_key)
-        except Exception:
+        except Exception as e:
+            log.error("scanner.load_selection_fallback.failed", connector=connector, error=str(e))
             pass
         return {}
 

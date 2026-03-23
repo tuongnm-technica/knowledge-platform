@@ -73,3 +73,40 @@
   }
   .logout-btn:hover { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
 
+  .theme-toggle-login {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: var(--shadow-soft);
+    z-index: 10000;
+  }
+  .theme-toggle-login:hover {
+    transform: translateY(-2px) rotate(15deg);
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px var(--glow);
+  }
+  
+  [data-theme="dark"] .login-card {
+    background: linear-gradient(180deg, rgba(15,23,42,0.95), rgba(30,41,59,0.98));
+    border-color: var(--border-strong);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+  }
+  
+  [data-theme="dark"] #login-screen {
+    background:
+      radial-gradient(circle at top left, rgba(59,130,246,0.1), transparent 40%),
+      radial-gradient(circle at bottom right, rgba(139,92,246,0.1), transparent 40%),
+      var(--bg);
+  }

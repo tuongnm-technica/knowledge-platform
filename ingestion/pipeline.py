@@ -49,18 +49,28 @@ class IngestionPipeline:
             else:
                 log.info("ingestion.first_run_full_sync", connector=connector_name)
 
-        log_id = await self._sync_repo.start_sync(connector_name)
-        log.info("ingestion.start", connector=connector_name, incremental=incremental, last_sync=str(last_sync))
+        log_id = None
+        try:
+            log_id = await self._sync_repo.start_sync(connector_name)
+            log.info("ingestion.start", connector=connector_name, incremental=incremental, log_id=log_id, last_sync=str(last_sync))
+        except Exception as e:
+            log.error("ingestion.start_sync_log.failed", connector=connector_name, error=str(e))
+            # Even if logging fails, we might still want to try fetching if it's not a DB connection fatal error
+            # but usually start_sync failure means DB is down.
+            pass
 
         try:
+            log.info("ingestion.fetch.start", connector=connector_name)
             signature = inspect.signature(connector.fetch_documents)
             if "last_sync" in signature.parameters:
                 documents = await connector.fetch_documents(last_sync=last_sync)
             else:
                 documents = await connector.fetch_documents()
+            log.info("ingestion.fetch.done", connector=connector_name, count=len(documents))
         except Exception as e:
             log.error("ingestion.fetch.failed", error=str(e))
-            await self._sync_repo.finish_sync(log_id, 0, 0, 1, status="failed")
+            if log_id:
+                await self._sync_repo.finish_sync(log_id, 0, 0, 1, status="failed")
             return stats
 
         stats["fetched"] = len(documents)
@@ -81,6 +91,7 @@ class IngestionPipeline:
             
             for doc in batch_docs:
                 try:
+                    log.debug("ingestion.doc.process", doc_id=doc.id, title=doc.title[:50])
                     await self._process(doc, connector_key=connector_key or connector_name)
                     stats["indexed"] += 1
                 except Exception as e:
@@ -91,12 +102,23 @@ class IngestionPipeline:
                 if (stats["indexed"] + stats["errors"]) % flush_every == 0 or (time.monotonic() - last_flush) > 2.0:
                     last_flush = time.monotonic()
                     try:
-                        await self._sync_repo.update_progress(
+                        still_running = await self._sync_repo.update_progress(
                             log_id,
                             fetched=stats["fetched"],
                             indexed=stats["indexed"],
                             errors=stats["errors"],
                         )
+                        if not still_running:
+                            log.warning("ingestion.cancelled_by_user", log_id=log_id)
+                            # Update status explicitly to cancelled so finish_sync doesn't override it to 'partial'
+                            await self._sync_repo.finish_sync(
+                                log_id,
+                                fetched=stats["fetched"],
+                                indexed=stats["indexed"],
+                                errors=stats["errors"],
+                                status="cancelled",
+                            )
+                            return stats
                     except Exception:
                         pass
 

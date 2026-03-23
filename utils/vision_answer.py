@@ -47,6 +47,7 @@ async def answer_with_images(*, question: str, context: str, images: list[bytes]
         ]
     ).strip()
 
+    log.info("vision.qa.start", model=model, image_count=len(imgs_b64), context_chars=len(context or ""))
     try:
         return await ollama_chat(
             model=model,

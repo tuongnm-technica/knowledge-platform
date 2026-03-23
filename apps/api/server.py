@@ -6,7 +6,7 @@ from fastapi import Request
 from contextlib import asynccontextmanager
 from pathlib import Path
 from storage.db.db import create_tables
-from apps.api.routes import search, ask, ingest, health, connectors, auth, users, groups, graph, docs, documents, assets, prompts, tasks, history, memory
+from apps.api.routes import search, ask, ingest, health, connectors, auth, users, groups, graph, docs, documents, assets, prompts, tasks, history, memory, workflows
 from config.settings import settings
 from utils.logging import configure_logging
 from scheduler.sync_scheduler import start_scheduler, stop_scheduler
@@ -74,6 +74,7 @@ app.include_router(prompts.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(memory.router, prefix="/api")
 app.include_router(history.router, prefix="/api")
+app.include_router(workflows.router, prefix="/api")
 
 if WEB_DIR.exists():
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

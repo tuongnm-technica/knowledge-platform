@@ -308,14 +308,18 @@ async def create_doc_draft_from_documents(
     session: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    log.info("docs.draft.from_documents.request", doc_type=req.doc_type, doc_ids=req.doc_ids)
     doc_type = (req.doc_type or "srs").strip().lower()
     if doc_type not in SUPPORTED_DOC_TYPES:
+        log.warning("docs.draft.from_documents.unsupported_type", doc_type=doc_type)
         raise HTTPException(status_code=400, detail=f"Unsupported doc_type: {doc_type}")
 
     doc_ids = _dedupe_ids(req.doc_ids)
     if not doc_ids:
+        log.warning("docs.draft.from_documents.no_ids")
         raise HTTPException(status_code=400, detail="No documents selected.")
     if len(doc_ids) > 12:
+        log.warning("docs.draft.from_documents.too_many", count=len(doc_ids))
         raise HTTPException(status_code=400, detail="Too many documents selected (max 12).")
 
     docs = await DocumentRepository(session).get_by_ids(doc_ids)

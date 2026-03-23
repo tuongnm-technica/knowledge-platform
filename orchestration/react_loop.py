@@ -11,6 +11,7 @@ import json
 import re
 import structlog
 from dataclasses import dataclass, field
+from typing import Any, List, Dict, Optional, Set, Tuple, cast
 
 import httpx
 
@@ -92,7 +93,7 @@ class ReActLoop:
         if hasattr(self._llm, "_client") and self._llm._managed_client:
             await self._llm._client.aclose()
 
-    async def run(self, question: str, user_id: str = "", on_thought: Any | None = None) -> ReActResult:
+    async def run(self, question: str, user_id: str = "", on_thought: Any | None = None, on_token: Any | None = None) -> ReActResult:
         # Fast path: semantic cache
         if settings.SEMANTIC_CACHE_ENABLED:
             try:
@@ -127,7 +128,7 @@ class ReActLoop:
 
         log.info(
             "planner.plan",
-            steps=[f"{str(p.query or '')[:30]}" for p in plan],
+            steps=[f"{str(p.query or '')}"[:30] for p in cast(List[PlanStep], plan)],
         )
         
         if on_thought:
@@ -192,14 +193,21 @@ class ReActLoop:
         # ─────────────────────────────
         # Self-correction & reranking (Search Agent + Critic)
         # ─────────────────────────────
-        retry_query = None
-        try:
-            if getattr(settings, "AGENT_SELF_CORRECT_ENABLED", True):
-                sources = await self._grade_and_rerank(question, sources)
-                if self._should_retry(question, sources):
-                    retry_query = await self._rewrite_query(question, sources)
-        except Exception as e:
-            log.warning("agent.self_correct.failed", error=str(e))
+        # Early Exit: if we have very strong results already, skip rerank/retry/logic
+        scores = [float(s.get("score") or 0) for s in cast(List[dict], sources)[:4]]
+        best_initial = max(scores) if scores else 0.0
+        
+        if best_initial > 2.0:
+            log.info("agent.early_exit", score=best_initial)
+        else:
+            retry_query: str | None = None
+            try:
+                if getattr(settings, "AGENT_SELF_CORRECT_ENABLED", True):
+                    sources = await self._grade_and_rerank(question, sources)
+                    if self._should_retry(question, sources):
+                        retry_query = await self._rewrite_query(question, sources)
+            except Exception as e:
+                log.warning("agent.self_correct.failed", error=str(e))
 
         if retry_query:
             try:
@@ -256,27 +264,33 @@ class ReActLoop:
             except Exception:
                 pass
 
-        answer = await self._summarize(question, compressed_context)
+        answer = await self._summarize(question, compressed_context, on_token=on_token)
 
         # ─────────────────────────────
         # Logic Agent: contradiction check (best-effort)
         # ─────────────────────────────
         try:
-            if getattr(settings, "AGENT_LOGIC_CHECK_ENABLED", True) and compressed_context:
+            # Skip logic check for simple questions or if we already exited early
+            should_logic = (
+                getattr(settings, "AGENT_LOGIC_CHECK_ENABLED", True) 
+                and best_initial <= 2.2 
+                and len(sources) >= 3
+                and len(question.strip()) > 15
+            )
+            if should_logic and compressed_context:
                 logic = await self._logic_check(question, compressed_context)
                 contradictions = logic.get("contradictions") or []
                 confidence = logic.get("confidence")
                 if contradictions:
                     lines = ["\n\n### Luu y (mau thuan/khac biet giua nguon)"]
-                    for c in contradictions[:4]:
+                    for c in cast(List[dict], contradictions)[:4]:
                         point = str(c.get("point") or "").strip()
                         srcs = c.get("sources") or []
                         srcs_txt = ", ".join([str(s) for s in srcs if s]) if isinstance(srcs, list) else ""
                         if point:
                             lines.append(f"- {point}" + (f" (Sources: {srcs_txt})" if srcs_txt else ""))
                     if isinstance(confidence, (int, float)):
-                        lines.append(f"\nDo tin cay uoc tinh: {round(float(confidence), 2)}")
-                    answer = (answer or "").rstrip() + "\n" + "\n".join(lines)
+                        answer = (answer or "").rstrip() + f"\n\nDo tin cay uoc tinh: {float(confidence or 0):.2f}"
         except Exception as e:
             log.warning("agent.logic_check.failed", error=str(e))
 
@@ -297,7 +311,7 @@ class ReActLoop:
                 thought=f"Bước {e.step}",
                 action=e.tool,
                 action_input={"query": e.query},
-                observation=e.observation[:800],
+                observation=str(e.observation or "")[:800],
             )
             for e in executed
         ]
@@ -314,7 +328,7 @@ class ReActLoop:
     def _should_retry(self, question: str, sources: list[dict]) -> bool:
         if not sources:
             return True
-        scores = [float(s.get("agent_score") or s.get("score") or 0) for s in sources[:6]]
+        scores = [float(s.get("agent_score") or s.get("score") or 0) for s in cast(List[dict], sources)[:6]]
         best = max(scores) if scores else 0.0
         avg = sum(scores) / max(1, len(scores))
         # Heuristic: if even the best hit is weak, try once more.
@@ -326,7 +340,7 @@ class ReActLoop:
         obs = "\n\n".join(
             [
                 f"[{i}] {s.get('title','')}\n{str(s.get('content','') or '')[:260]}"
-                for i, s in enumerate(top)
+                for i, s in enumerate(cast(List[dict], top))
             ]
         )
         out = await self._llm.chat(
@@ -350,12 +364,12 @@ class ReActLoop:
             return sources
 
         # Grade top sources only (cheap), keep rest as-is.
-        candidates = sources[:8]
+        candidates = sources[:4] # Reduced from 8 to 4 for speed
         items = []
         for i, s in enumerate(candidates):
             title = str(s.get("title") or "Untitled")
-            content = str(s.get("content") or "")[:800]
-            items.append(f"[{i}] {title}\n{content}")
+            content = str(s.get("content") or "")
+            items.append(f"[{i}] {title}\n{content[:800]}")
 
         prompt = (
             f'Cau hoi: "{question}"\n\n'
@@ -391,12 +405,13 @@ class ReActLoop:
             if g is None:
                 continue
             g = max(0.0, min(float(g), 3.0))
-            s["agent_score"] = g
-            # Use the stronger score to help context_compressor filtering.
+            # Use a safe way to update dict to avoid lint errors if possible
+            s.update({"agent_score": g})
             try:
-                s["score"] = max(float(s.get("score") or 0), g)
+                current_score = float(s.get("score") or 0)
+                s.update({"score": max(current_score, float(g))})
             except Exception:
-                s["score"] = g
+                s.update({"score": float(g)})
 
         reranked = sorted(sources, key=lambda x: float(x.get("agent_score") or x.get("score") or 0), reverse=True)
         return reranked
@@ -404,7 +419,7 @@ class ReActLoop:
     async def _logic_check(self, question: str, context: str) -> dict:
         out = await self._llm.chat(
             LOGIC_CHECK_SYSTEM,
-            f"Cau hoi: {question}\n\nCONTEXT:\n{context[:8000]}",
+            f"Cau hoi: {question}\n\nCONTEXT:\n{str(context or '')[:8000]}",
             max_tokens=260,
         )
         out = re.sub(r"```(?:json)?|```", "", out).strip()
@@ -509,7 +524,7 @@ class ReActLoop:
 
             return "Tool execution error"
 
-    async def _summarize(self, question: str, context: str) -> str:
+    async def _summarize(self, question: str, context: str, on_token: Any | None = None) -> str:
 
         if not context.strip():
             return "Không tìm thấy dữ liệu liên quan."
@@ -530,6 +545,7 @@ Trả lời câu hỏi dựa trên CONTEXT.
                 SUMMARIZE_SYSTEM,
                 prompt,
                 max_tokens=400,
+                on_token=on_token,
             )
 
             if not result:

@@ -261,6 +261,26 @@ class TaskDraftRepository:
         await self._session.commit()
         return result.rowcount > 0
 
+    async def update_status(self, draft_id: str, status: str) -> bool:
+        """General status update for task drafts (e.g., approved, rejected)."""
+        valid_statuses = {"pending", "confirmed", "approved", "rejected", "submitted", "done"}
+        if status not in valid_statuses:
+            log.warning("task_draft.invalid_status", status=status)
+            return False
+
+        result = await self._session.execute(
+            text(
+                """
+                UPDATE ai_task_drafts
+                SET status = :status
+                WHERE id = :id
+                """
+            ),
+            {"id": draft_id, "status": status},
+        )
+        await self._session.commit()
+        return result.rowcount > 0
+
     async def mark_submitted(self, draft_id: str, jira_key: str, jira_meta: dict | None = None) -> None:
         """
         Sau khi tạo Jira thật thành công.
@@ -330,8 +350,8 @@ class TaskDraftRepository:
                       AND suggested_assignee IS NOT NULL
                       AND suggested_assignee <> ''
                       AND (
-                        (:labels::TEXT[] IS NOT NULL AND labels && CAST(:labels AS TEXT[]))
-                        OR (:components::TEXT[] IS NOT NULL AND components && CAST(:components AS TEXT[]))
+                        (CAST(:labels AS TEXT[]) IS NOT NULL AND labels && CAST(:labels AS TEXT[]))
+                        OR (CAST(:components AS TEXT[]) IS NOT NULL AND components && CAST(:components AS TEXT[]))
                       )
                       AND created_at > NOW() - INTERVAL '180 days'
                     GROUP BY suggested_assignee
@@ -349,5 +369,6 @@ class TaskDraftRepository:
                 return None
             value = str(row.get("suggested_assignee") or "").strip()
             return value or None
-        except Exception:
+        except Exception as e:
+            log.error("task_draft.suggest_assignee.failed", labels=labels, components=components, error=str(e))
             return None

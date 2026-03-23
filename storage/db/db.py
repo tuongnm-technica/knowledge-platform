@@ -298,6 +298,32 @@ class ConnectorInstanceORM(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class AIWorkflowORM(Base):
+    __tablename__ = "ai_workflows"
+    __table_args__ = {"comment": "AI workflows defining multi-step prompt chains"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False, default="")
+    trigger_type = Column(String(50), nullable=False, default="manual")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_by = Column(String(255), nullable=False, default="system")
+
+
+class AIWorkflowNodeORM(Base):
+    __tablename__ = "ai_workflow_nodes"
+    __table_args__ = {"comment": "Individual steps in an AI workflow"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("ai_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
+    step_order = Column(Integer, nullable=False)
+    name = Column(String(255), nullable=False)
+    model_override = Column(String(100), nullable=True)
+    system_prompt = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
@@ -585,6 +611,34 @@ async def create_tables():
         """))
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_project_memories_type_key ON project_memories (memory_type, key)"
+        ))
+
+        # ── AI Workflows ──────────────
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ai_workflows (
+                id UUID PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                trigger_type VARCHAR(50) NOT NULL DEFAULT 'manual',
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_by VARCHAR(255) NOT NULL DEFAULT 'system'
+            )
+        """))
+        
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ai_workflow_nodes (
+                id UUID PRIMARY KEY,
+                workflow_id UUID NOT NULL REFERENCES ai_workflows(id) ON DELETE CASCADE,
+                step_order INTEGER NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                model_override VARCHAR(100),
+                system_prompt TEXT NOT NULL DEFAULT '',
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_workflow_nodes_workflow_id ON ai_workflow_nodes (workflow_id)"
         ))
 
     # Seed default prompts (only inserts rows that don't exist yet)

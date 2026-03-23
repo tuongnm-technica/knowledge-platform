@@ -83,10 +83,10 @@ def _supplement_graph_results(graph_doc_ids: list[str], raw: list[dict], doc_met
 async def perform_rag_search(req: RAGSearchRequest, session: AsyncSession = Depends(get_db)):
     log.info("rag_service.search.start", q=req.raw, limit=req.limit, offset=req.offset, user_id=req.user_id)
     
-    permissions = PermissionFilter(session, user_id=req.user_id)
-    graph = KnowledgeGraph(session, user_id=req.user_id)
-    searcher = HybridSearch(session, user_id=req.user_id)
-    repo = DocumentRepository(session, user_id=req.user_id)
+    permissions = PermissionFilter(session)
+    graph = KnowledgeGraph(session)
+    searcher = HybridSearch(session)
+    repo = DocumentRepository(session)
     scorer = RankingScorer()
 
     try:

@@ -2,12 +2,12 @@
 <div class="page" id="page-graph">
   <div class="connectors-content">
     <div class="page-intro">
-      <div>
+      <div class="intro-copy">
         <div class="intro-kicker">Data quality</div>
         <div class="intro-title">Knowledge Health Dashboard</div>
         <div class="intro-sub">Theo dõi độ phủ dữ liệu theo nguồn, độ tươi mới, và khám phá knowledge graph theo entities và relations.</div>
       </div>
-      <div class="connectors-toolbar-actions">
+      <div class="header-actions">
         <button class="secondary-btn" id="refreshGraphBtn">Refresh</button>
       </div>
     </div>
@@ -31,12 +31,12 @@
           <button class="secondary-btn" id="resetGraphBtn">Reset view</button>
         </div>
       </div>
-      <div id="graphInsights" class="graph-insights" style="display:none"></div>
+      <div id="graphInsights" class="graph-insights panel-hidden"></div>
       <div class="graph-canvas-wrap">
         <canvas id="graphCanvas" width="1100" height="520" aria-label="Knowledge graph"></canvas>
         <div id="graphHint" class="graph-hint">Tip: Wheel to zoom, drag background to pan, drag a node to pin it.</div>
       </div>
-      <div id="graphNodeDetail" class="graph-detail" style="display:none"></div>
+      <div id="graphNodeDetail" class="graph-detail panel-hidden"></div>
     </div>
   </div>
 </div>

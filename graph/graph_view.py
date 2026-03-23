@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import heapq
 import math
 import re
 from collections import defaultdict
@@ -637,7 +638,7 @@ class GraphViewBuilder:
             if not scores:
                 continue
 
-            for other_id, weight in sorted(scores.items(), key=lambda it: it[1], reverse=True)[: max(0, int(k))]:
+            for other_id, weight in heapq.nlargest(max(0, int(k)), scores.items(), key=lambda it: it[1]):
                 if float(weight) < float(min_weight):
                     continue
                 a = f"doc:{doc.id}"

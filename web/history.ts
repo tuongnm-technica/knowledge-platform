@@ -3,25 +3,25 @@ import { ChatSession } from './models';
 import { escapeHtml, formatDateTime } from './ui';
 
 export class HistoryModule {
-    public async loadHistoryPage(): Promise<void> {
-        const list = document.getElementById('chatHistoryList');
+    public async loadHistoryPage(targetId: string = 'chatHistoryList'): Promise<void> {
+        const list = document.getElementById(targetId);
         if (list) list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Đang tải...</div>';
         
         try {
-            const res = await authFetch(`${API}/chat/history`);
+            const res = await authFetch(`${API}/history/sessions`);
             if (!res.ok) throw new Error('Không thể tải lịch sử');
             
             const data = await res.json() as ChatSession[] | { sessions: ChatSession[] };
             const sessions: ChatSession[] = Array.isArray(data) ? data : (data.sessions || []);
-            this.renderHistoryList(sessions);
+            this.renderHistoryList(sessions, targetId);
         } catch(err) {
             const error = err as Error;
             if (list) list.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--danger); font-size: 13px;">${escapeHtml(error.message)}</div>`;
         }
     }
 
-    private renderHistoryList(sessions: ChatSession[]): void {
-        const list = document.getElementById('chatHistoryList');
+    private renderHistoryList(sessions: ChatSession[], targetId: string = 'chatHistoryList'): void {
+        const list = document.getElementById(targetId);
         if (!list) return;
         list.innerHTML = '';
 

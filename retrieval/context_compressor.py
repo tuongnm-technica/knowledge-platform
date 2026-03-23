@@ -9,15 +9,16 @@ import structlog
 
 log = structlog.get_logger()
 
-MAX_DOCS = 8
-MAX_CHARS = 4000
+MAX_DOCS = 12
+MAX_CHARS = 10000
 # Ngưỡng điểm tối thiểu để coi là tài liệu có giá trị (sau khi Reranker chấm 3 điểm + rrf_score)
 MIN_RELEVANCE_SCORE = 1.0 
 
 def _score_value(source: dict) -> float:
     try:
         return float(
-            source.get("combined_score")
+            source.get("rerank_score")
+            or source.get("combined_score")
             or source.get("agent_score")
             or source.get("score")
             or 0

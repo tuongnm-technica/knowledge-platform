@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
 
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:Abcd%401234%21@localhost:5432/knowledge_platform"
-    DATABASE_SYNC_URL: str = "postgresql://postgres:Abcd%401234%21@localhost:5432/knowledge_platform"
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost:5432/knowledge_platform")
+    DATABASE_SYNC_URL: str = os.getenv("DATABASE_SYNC_URL", "postgresql://postgres:password@localhost:5432/knowledge_platform")
 
     # Default to 'redis' for docker, will be overridden by .env or ENV VAR
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -38,6 +38,7 @@ class Settings(BaseSettings):
 
     LLM_PROVIDER: str = "ollama"  # ollama | vllm | openai
     INFERENCE_BASE_URL: Optional[str] = None # For vLLM/OpenAI compatible services
+    RAG_SERVICE_URL: str = "http://rag-service:8000"
 
     EMBEDDING_MODEL: str = OLLAMA_EMBED_MODEL
     EMBEDDING_CONCURRENCY: int = 2  # Concurrency limit for embedding API calls
@@ -64,6 +65,7 @@ class Settings(BaseSettings):
     CROSS_ENCODER_MODEL: str = "BAAI/bge-reranker-base"
     CROSS_ENCODER_DEVICE: str = "cpu"
     SEMANTIC_CACHE_ENABLED: bool = True
+    SEMANTIC_CACHE_THRESHOLD: float = 0.92
 
     SLACK_BOT_TOKEN: Optional[str] = None
     CONFLUENCE_URL: Optional[str] = None

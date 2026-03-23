@@ -1,5 +1,5 @@
 import { API, authFetch } from './client';
-import { ChatMessage, AskJobResponse, JobStatusResponse } from './models';
+import { ChatMessage, AskJobResponse, JobStatusResponse, AskResponse } from './models';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
@@ -41,13 +41,30 @@ export class ChatModule {
             });
         }
         
-        document.addEventListener('kp-switch-chat-session', (e: Event) => {
+        document.addEventListener('kp-switch-chat-session', async (e: Event) => {
             const detail = (e as CustomEvent).detail;
             this.currentSessionId = detail;
             if (this.container) this.container.innerHTML = '';
-            this.appendMessage({ id: 'sys', role: 'system', content: `Đã chuyển sang hội thoại: ${detail}. Tính năng tải tin nhắn cũ đang được backend hỗ trợ.`, created_at: new Date().toISOString() });
+            
             const emptyState = document.getElementById('emptyState');
             if (emptyState) emptyState.style.display = 'none';
+            
+            this.setLoading(true);
+            try {
+                const res = await authFetch(`${API}/history/sessions/${detail}`);
+                if (!res.ok) throw new Error('Failed to fetch session history');
+                const data = await res.json();
+                
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach((m: any) => this.appendMessage(m));
+                } else {
+                    this.appendMessage({ id: 'sys', role: 'system', content: `Đã kết nối lại hội thoại. Không có tin nhắn nào.`, created_at: new Date().toISOString() });
+                }
+            } catch (err) {
+                this.appendMessage({ id: 'sys', role: 'system', content: `⚠️ Lỗi khi tải lịch sử hội thoại.`, created_at: new Date().toISOString() });
+            } finally {
+                this.setLoading(false);
+            }
         });
     }
 
@@ -145,9 +162,9 @@ export class ChatModule {
     }
 
     private async pollJobStatus(jobId: string, thinkId: string): Promise<void> {
-        const pollInterval = 1500; // 1.5 giây
+        const pollInterval = 1000; // Giảm xuống 1s để mượt hơn
         let attempts = 0;
-        const maxAttempts = 120; // 3 phút
+        const maxAttempts = 600; 
 
         while (attempts < maxAttempts) {
             try {
@@ -155,18 +172,23 @@ export class ChatModule {
                 if (!resp.ok) throw new Error('Lỗi lấy trạng thái');
                 const data = await resp.json() as JobStatusResponse;
                 
-                this.updateThinkingStatus(thinkId, data.thoughts || []);
+                const result = data.result as any;
+                const partialAnswer = result?.answer || '';
+                this.updateThinkingStatus(thinkId, data.thoughts || [], partialAnswer, result);
 
                 if (data.status === 'completed') {
                     this.removeThinking(thinkId);
-                    const ans = typeof data.result === 'string' ? data.result : (data.result?.answer || '');
+                    const result = data.result as AskResponse;
+                    const ans = typeof result === 'string' ? result : (result?.answer || '');
                     this.appendMessage({
                         id: data.job_id || Date.now().toString(),
                         role: 'assistant',
                         content: ans,
+                        agent_plan: result?.agent_plan,
+                        sources: result?.sources,
+                        rewritten_query: result?.rewritten_query,
                         created_at: new Date().toISOString()
                     });
-                    // Bắn event để main.ts hoặc History module tự hứng lấy
                     document.dispatchEvent(new CustomEvent('kp-refresh-history'));
                     return;
                 }
@@ -175,8 +197,7 @@ export class ChatModule {
                     throw new Error(data.error || 'Worker xử lý AI thất bại');
                 }
             } catch (err) {
-                const error = err as Error;
-                console.error('Polling error:', error);
+                console.error('Polling error:', err);
             }
             await new Promise(r => setTimeout(r, pollInterval));
             attempts++;
@@ -190,18 +211,116 @@ export class ChatModule {
         const div = document.createElement('div');
         div.className = 'chat-message assistant';
         div.id = id;
-        div.innerHTML = `<div class="message-content"><span class="thinking-text" style="font-style:italic; opacity:0.7;">Đang suy nghĩ...</span></div>`;
+        div.innerHTML = `
+            <div class="message-content">
+                <div class="thinking-stepper" style="margin-bottom: 8px; font-size: 0.85em; opacity: 0.8;"></div>
+                <div class="partial-answer markdown-body" style="opacity: 0.9;"></div>
+            </div>
+        `;
         this.container.appendChild(div);
         this.container.scrollTop = this.container.scrollHeight;
     }
+
     private removeThinking(id: string): void { document.getElementById(id)?.remove(); }
-    private updateThinkingStatus(id: string, thoughts: any[]): void {
+
+    private updateThinkingStatus(id: string, thoughts: any[], partialAnswer: string = '', result?: any): void {
         const el = document.getElementById(id);
-        if (!el || !thoughts || !thoughts.length) return;
-        const label = el.querySelector('.thinking-text');
-        if (label) {
-            const lastThought = thoughts[thoughts.length - 1];
-            label.textContent = (typeof lastThought === 'string' ? lastThought : lastThought.thought) || "Đang xử lý...";
+        if (!el) return;
+        
+        const stepper = el.querySelector('.thinking-stepper');
+        if (stepper) {
+            let planHtml = '';
+            if (result?.agent_plan && result.agent_plan.length > 0) {
+                const steps = result.agent_plan.map((p: any) => `
+                    <li class="thinking-step">
+                        <div class="step-number">${p.step}</div>
+                        <div class="step-body">
+                            <div class="step-reason">${this.escapeHtml(p.reason)}</div>
+                            <div class="step-query">${this.escapeHtml(p.query)}</div>
+                        </div>
+                    </li>
+                `).join('');
+                
+                const expandedQuery = result.rewritten_query ? `
+                    <div class="rewritten-query-box">
+                        <span class="rewritten-query-label">Expanded Query (AI):</span>
+                        <span class="rewritten-query-text">"${this.escapeHtml(result.rewritten_query)}"</span>
+                    </div>
+                ` : '';
+
+                planHtml = `
+                    <div class="chat-thinking-plan" style="margin-top: 10px; opacity: 1; pointer-events: auto;">
+                        <div class="thinking-content">
+                            ${expandedQuery}
+                            <ul class="thinking-steps">${steps}</ul>
+                        </div>
+                    </div>
+                `;
+            }
+
+            let thoughtsHtml = '';
+            if (thoughts.length > 0) {
+                thoughts.forEach((t, i) => {
+                    const text = (typeof t === 'string' ? t : t.thought) || '';
+                    const isLast = i === thoughts.length - 1 && !partialAnswer;
+                    thoughtsHtml += `
+                        <div class="step ${isLast ? 'active' : 'done'}" style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                            <span class="step-icon" style="width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid currentColor; font-size: 10px;">
+                                ${isLast ? '⚙️' : '✓'}
+                            </span>
+                            <span style="font-size: 12px;">${this.escapeHtml(text)}</span>
+                        </div>
+                    `;
+                });
+            }
+            
+            stepper.innerHTML = `
+                ${planHtml}
+                <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
+                    <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; font-weight: 800;">Real-time Log:</div>
+                    ${thoughtsHtml}
+                </div>
+            `;
+        }
+
+        const answerDiv = el.querySelector('.partial-answer') as HTMLElement;
+        if (answerDiv && partialAnswer) {
+            // Chỉ render lại nếu nội dung thực sự thay đổi chiều dài
+            if (answerDiv.dataset.lastLen !== partialAnswer.length.toString()) {
+                answerDiv.innerHTML = this.formatAnswer(partialAnswer);
+                answerDiv.dataset.lastLen = partialAnswer.length.toString();
+                // Cuộn xuống nếu có nội dung mới
+                if (this.container) this.container.scrollTop = this.container.scrollHeight;
+            }
+        }
+
+        // Show sources if available even during partial answer
+        if (result?.sources && result.sources.length > 0) {
+            let sourcesContainer = el.querySelector('.chat-sources-container');
+            if (!sourcesContainer) {
+                sourcesContainer = document.createElement('div');
+                sourcesContainer.className = 'chat-sources-container';
+                el.querySelector('.message-content')?.appendChild(sourcesContainer);
+            }
+            
+            const cards = result.sources.map((s: any) => {
+                const sourceName = (s.source || 'document').toLowerCase();
+                const score = s.score ? Math.round(s.score * 100) : 0;
+                return `
+                    <a href="${s.url || '#'}" target="_blank" class="source-card">
+                        <div class="source-header">
+                            <span class="source-type-tag">${sourceName}</span>
+                            ${score > 0 ? `<span class="source-score-badge">${score}% Match</span>` : ''}
+                        </div>
+                        <div class="source-title">${this.escapeHtml(s.title || 'Untitled Document')}</div>
+                    </a>
+                `;
+            }).join('');
+
+            sourcesContainer.innerHTML = `
+                <div class="sources-label">📚 Related Sources</div>
+                <div class="sources-grid">${cards}</div>
+            `;
         }
     }
 
@@ -218,17 +337,91 @@ export class ChatModule {
         if (!this.container) return;
 
         const msgEl = document.createElement('div');
-        msgEl.className = `chat-message ${msg.role}`; 
+        msgEl.className = `chat-message ${msg.role}`;
         
-        let safeContent = '';
+        let html = '';
         if (msg.role === 'assistant') {
-            safeContent = this.formatAnswer(msg.content);
+            const safeContent = this.formatAnswer(msg.content);
+
+            // 1. Thinking Plan (if available)
+            let planHtml = '';
+            if (msg.agent_plan && msg.agent_plan.length > 0) {
+                const steps = msg.agent_plan.map(p => `
+                    <li class="thinking-step">
+                        <div class="step-number">${p.step}</div>
+                        <div class="step-body">
+                            <div class="step-reason">${this.escapeHtml(p.reason)}</div>
+                            <div class="step-query">${this.escapeHtml(p.query)}</div>
+                        </div>
+                    </li>
+                `).join('');
+
+                const expandedQuery = msg.rewritten_query ? `
+                    <div class="rewritten-query-box">
+                        <span class="rewritten-query-label">Expanded Query (AI):</span>
+                        <span class="rewritten-query-text">"${this.escapeHtml(msg.rewritten_query)}"</span>
+                    </div>
+                ` : '';
+                
+                planHtml = `
+                    <details class="chat-thinking-plan">
+                        <summary>View Thinking Process (${msg.agent_plan.length} steps)</summary>
+                        <div class="thinking-content">
+                            ${expandedQuery}
+                            <ul class="thinking-steps">${steps}</ul>
+                        </div>
+                    </details>
+                `;
+            }
+
+            // 2. Sources (if available)
+            let sourcesHtml = '';
+            if (msg.sources && msg.sources.length > 0) {
+                const cards = msg.sources.map(s => {
+                    const sourceName = (s.source || 'document').toLowerCase();
+                    const score = s.score ? Math.round(s.score * 100) : 0;
+                    
+                    return `
+                        <a href="${s.url || '#'}" target="_blank" class="source-card">
+                            <div class="source-header">
+                                <span class="source-type-tag">${sourceName}</span>
+                                ${score > 0 ? `<span class="source-score-badge">${score}% Match</span>` : ''}
+                            </div>
+                            <div class="source-title">${this.escapeHtml(s.title || 'Untitled Document')}</div>
+                            <div class="source-footer">
+                                <span>📄 ${this.escapeHtml(s.author || 'System')}</span>
+                            </div>
+                        </a>
+                    `;
+                }).join('');
+
+                sourcesHtml = `
+                    <div class="chat-sources-container">
+                        <div class="sources-label">📚 Related Sources</div>
+                        <div class="sources-grid">${cards}</div>
+                    </div>
+                `;
+            }
+
+            html = `
+                <div class="chat-bubble chat-bubble-ai">
+                    <div class="message-content">
+                        ${planHtml}
+                        <div class="chat-answer-text">${safeContent}</div>
+                        ${sourcesHtml}
+                    </div>
+                </div>
+            `;
         } else {
-            safeContent = this.escapeHtml(msg.content);
+            const safeContent = this.escapeHtml(msg.content);
+            html = `
+                <div class="chat-bubble chat-bubble-user">
+                    <div class="message-content">${safeContent}</div>
+                </div>
+            `;
         }
         
-        msgEl.innerHTML = `<div class="message-content">${safeContent}</div>`;
-        
+        msgEl.innerHTML = html;
         this.container.appendChild(msgEl);
         this.container.scrollTop = this.container.scrollHeight;
     }

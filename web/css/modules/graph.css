@@ -523,12 +523,11 @@
   position: relative;
   width: 100%;
   flex: 1;
-  min-height: 500px;
-  background-color: rgba(255,255,255,0.55);
+  min-height: 550px;
+  background-color: var(--bg);
   background-image: 
-    radial-gradient(rgba(100,120,200,0.15) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255,255,255,0.55), rgba(240,248,255,0.38));
-  background-size: 20px 20px, 100% 100%;
+    radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -536,7 +535,9 @@
 }
 
 [data-theme="dark"] .graph-canvas-wrap {
-  background: linear-gradient(135deg, rgba(15,23,42,0.4), rgba(30,41,59,0.2));
+  background-color: #020617;
+  background-image: 
+    radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
 }
 
 #graphCanvas {

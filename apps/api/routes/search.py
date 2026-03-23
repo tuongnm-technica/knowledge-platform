@@ -18,6 +18,7 @@ class SearchRequest(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 class SearchResultItem(BaseModel):
+    id:              str
     document_id:     str
     chunk_id:        str
     title:           str
@@ -28,15 +29,39 @@ class SearchResultItem(BaseModel):
     score:           float
     score_breakdown: dict
 
-@router.post("", response_model=list[SearchResultItem])
+class SearchResponse(BaseModel):
+    results: list[SearchResultItem]
+
+@router.post("", response_model=SearchResponse)
 async def search(req: SearchRequest, db: AsyncSession = Depends(get_db),
                  current_user: CurrentUser = Depends(get_current_user)):
     try:
         query   = parser.parse(req.query, user_id=current_user.user_id, limit=req.limit, offset=req.offset)
         results = await Agent(db, user_id=current_user.user_id).search(query)
-        return [SearchResultItem(document_id=r.document_id, chunk_id=r.chunk_id,
-                title=r.title, content=r.content, url=r.url, source=r.source,
-                author=r.author, score=r.score, score_breakdown=r.score_breakdown) for r in results]
+        
+        output = []
+        for r in results:
+            data = {}
+            if isinstance(r, dict):
+                data = r.copy()
+            else:
+                data = {
+                    "document_id": getattr(r, "document_id", ""),
+                    "chunk_id": getattr(r, "chunk_id", ""),
+                    "title": getattr(r, "title", "Unknown"),
+                    "content": getattr(r, "content", ""),
+                    "url": getattr(r, "url", ""),
+                    "source": getattr(r, "source", ""),
+                    "author": getattr(r, "author", None),
+                    "score": getattr(r, "score", 0.0),
+                    "score_breakdown": getattr(r, "score_breakdown", {})
+                }
+            
+            # Map id from document_id
+            data["id"] = data.get("document_id", "")
+            
+            output.append(SearchResultItem(**data))
+        return {"results": output}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -47,7 +72,7 @@ async def search(req: SearchRequest, db: AsyncSession = Depends(get_db),
 async def get_document_details(document_id: str, db: AsyncSession = Depends(get_db),
                                current_user: CurrentUser = Depends(get_current_user)):
     """Lấy chi tiết toàn bộ nội dung của tài liệu (áp dụng filter phân quyền)."""
-    repo = DocumentRepository(db, user_id=current_user.user_id)
+    repo = DocumentRepository(db)
     rows = await repo.get_by_ids([document_id])
     if not rows:
         raise HTTPException(status_code=404, detail="Document not found or access denied")

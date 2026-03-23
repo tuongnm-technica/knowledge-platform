@@ -1,5 +1,6 @@
 import re
 import httpx
+import json
 import structlog
 from typing import Any, List, Optional, Dict
 from .llm_provider import BaseLLMProvider
@@ -51,11 +52,12 @@ class OllamaProvider(BaseLLMProvider):
         messages: List[Dict[str, Any]],
         options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
+        on_token: Optional[Any] = None,
     ) -> str:
         payload_chat = {
             "model": model,
             "messages": messages,
-            "stream": False,
+            "stream": bool(on_token),
             "options": options or {"temperature": 0.1},
         }
 
@@ -63,6 +65,29 @@ class OllamaProvider(BaseLLMProvider):
 
         async with httpx.AsyncClient(timeout=actual_timeout) as client:
             try:
+                if on_token:
+                    full_content = ""
+                    async with client.stream("POST", f"{self.base_url}/api/chat", json=payload_chat) as resp:
+                        if resp.status_code == 404:
+                            # Fallback to generate (not easily streamable in this helper, so we just run non-stream)
+                            log.warning("ollama.chat_stream_404_fallback", model=model)
+                            return await self._fallback_generate(client, model, messages, options, actual_timeout)
+                        
+                        resp.raise_for_status()
+                        async for line in resp.aiter_lines():
+                            if not line: continue
+                            try:
+                                chunk = json.loads(line)
+                                token = chunk.get("message", {}).get("content", "")
+                                if token:
+                                    full_content += token
+                                    await on_token(token)
+                                if chunk.get("done"):
+                                    break
+                            except Exception:
+                                continue
+                    return full_content.strip()
+
                 resp = await client.post(f"{self.base_url}/api/chat", json=payload_chat)
                 if resp.status_code == 404:
                     log.warning("ollama.chat_404_fallback", model=model)

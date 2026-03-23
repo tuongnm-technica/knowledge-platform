@@ -42,7 +42,7 @@ _CACHE_TTL = 120
 
 SHORT_ID_LEN = 12
 MAX_CHARS = 1500
-MAX_RERANK = 3
+MAX_RERANK = 15
 
 _http_client: httpx.AsyncClient | None = None
 

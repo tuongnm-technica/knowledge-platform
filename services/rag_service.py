@@ -1,4 +1,5 @@
 import structlog
+import asyncio
 import json
 import re
 from typing import List, Dict, Any, Optional
@@ -72,13 +73,17 @@ class RAGService:
             log.info("rag_service.expanded", original=query_text, expanded=queries)
 
         # 3. Parallel Hybrid Search
-        all_hits = []
-        for q in queries:
-            hits = await self._search.search(
+        tasks = [
+            self._search.search(
                 q,
                 top_k=max(limit * 5, 50),
                 allowed_document_ids=allowed_ids,
-            )
+            ) for q in queries
+        ]
+        
+        search_results = await asyncio.gather(*tasks)
+        all_hits = []
+        for hits in search_results:
             all_hits.extend(hits)
         
         # Deduplicate hits by chunk_id
