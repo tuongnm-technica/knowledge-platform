@@ -121,10 +121,15 @@ class ReActLoop:
                 log.warning("semantic_cache.lookup_failed", error=str(e))
 
         # ─────────────────────────────
-        # Planner
+        # Planner (Skip for very simple questions)
         # ─────────────────────────────
-
-        plan = await self._make_plan(question)
+        is_simple = len(question.strip()) < 40 and not any(kw in question.lower() for kw in [" và ", " and ", " sau đó ", " then ", " so sánh ", " compare "])
+        
+        if is_simple:
+            log.info("agent.fast_path", reason="simple_query")
+            plan = [PlanStep(step=1, tool="search_all", query=question, reason="Fast path direct search")]
+        else:
+            plan = await self._make_plan(question)
 
         log.info(
             "planner.plan",
@@ -136,7 +141,7 @@ class ReActLoop:
                 await on_thought({
                     "step": "planning",
                     "plan": [p.__dict__ for p in plan],
-                    "thought": f"Tôi đã lập kế hoạch với {len(plan)} bước tìm kiếm."
+                    "thought": f"Tôi đã lập kế hoạch với {len(plan)} bước tìm kiếm." if not is_simple else "Tôi sẽ tìm kiếm trực tiếp cho câu hỏi này."
                 })
             except Exception:
                 pass
@@ -191,13 +196,11 @@ class ReActLoop:
                         pass
 
         # ─────────────────────────────
-        # Self-correction & reranking (Search Agent + Critic)
-        # ─────────────────────────────
         # Early Exit: if we have very strong results already, skip rerank/retry/logic
         scores = [float(s.get("score") or 0) for s in cast(List[dict], sources)[:4]]
         best_initial = max(scores) if scores else 0.0
         
-        if best_initial > 2.0:
+        if best_initial > 1.8:
             log.info("agent.early_exit", score=best_initial)
         else:
             retry_query: str | None = None
@@ -273,9 +276,9 @@ class ReActLoop:
             # Skip logic check for simple questions or if we already exited early
             should_logic = (
                 getattr(settings, "AGENT_LOGIC_CHECK_ENABLED", True) 
-                and best_initial <= 2.2 
+                and best_initial <= 2.5 
                 and len(sources) >= 3
-                and len(question.strip()) > 15
+                and len(question.strip()) > 30
             )
             if should_logic and compressed_context:
                 logic = await self._logic_check(question, compressed_context)
@@ -346,7 +349,7 @@ class ReActLoop:
         out = await self._llm.chat(
             SELF_CORRECT_SYSTEM,
             f"Cau hoi: {question}\n\nTop ket qua hien tai:\n{obs}\n\nHay viet lai query de tim dung hon:",
-            max_tokens=120,
+            max_tokens=100,
         )
         out = re.sub(r"```(?:json)?|```", "", out).strip()
         m = re.search(r"\{.*\}", out, re.DOTALL)
@@ -377,7 +380,7 @@ class ReActLoop:
             + "\n\n".join(items)
         )
 
-        out = await self._llm.chat(RELEVANCE_GRADE_SYSTEM, prompt, max_tokens=220)
+        out = await self._llm.chat(RELEVANCE_GRADE_SYSTEM, prompt, max_tokens=150)
         out = re.sub(r"```(?:json)?|```", "", out).strip()
         m = re.search(r"\{.*\}", out, re.DOTALL)
         if not m:
@@ -420,7 +423,7 @@ class ReActLoop:
         out = await self._llm.chat(
             LOGIC_CHECK_SYSTEM,
             f"Cau hoi: {question}\n\nCONTEXT:\n{str(context or '')[:8000]}",
-            max_tokens=260,
+            max_tokens=200,
         )
         out = re.sub(r"```(?:json)?|```", "", out).strip()
         m = re.search(r"\{.*\}", out, re.DOTALL)
@@ -441,7 +444,7 @@ class ReActLoop:
             out = await self._llm.chat(
                 PLAN_SYSTEM,
                 f"Câu hỏi: {question}",
-                max_tokens=200,
+                max_tokens=150,
             )
 
             out = re.sub(r"```json|```", "", out).strip()

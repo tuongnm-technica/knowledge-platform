@@ -144,10 +144,11 @@ export interface OpenModalOptions<T = any> {
     cancelText?: string | null;
     okClass?: string;
     modalClass?: string;
+    contentStyles?: Partial<CSSStyleDeclaration>;
     onOk?: () => Promise<T | { error: string } | boolean> | T | { error: string } | boolean;
 }
 
-export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', cancelText = 'Cancel', okClass = 'primary-btn', modalClass = '', onOk }: OpenModalOptions<T> = {}): Promise<T | null> {
+export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', cancelText = 'Cancel', okClass = 'primary-btn', modalClass = '', contentStyles, onOk }: OpenModalOptions<T> = {}): Promise<T | null> {
     const els = _kpEnsureModalElements();
     if (KP_MODAL_STATE) _kpCloseModal(null);
 
@@ -165,6 +166,14 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
     const modalEl = els.overlay.querySelector('.kp-modal') as HTMLElement;
     if (modalEl) {
         modalEl.className = `kp-modal glass-panel ${modalClass || ''}`;
+        // Apply custom content styles if provided
+        if (contentStyles) {
+            Object.assign(modalEl.style, contentStyles);
+        } else {
+            // Reset styles if not provided (for modal reuse)
+            modalEl.style.maxWidth = '';
+            modalEl.style.width = '';
+        }
     }
 
     const previouslyFocused = document.activeElement;

@@ -35,6 +35,11 @@ class VectorIndex:
             log.error("vector_index.embedding_failed", error=str(e))
             return
 
+        if len(vectors) != len(chunks):
+            log.error("vector_index.mismatch", chunks=len(chunks), vectors=len(vectors))
+            # Important: if vectors count doesn't match chunks count, we can't reliably index.
+            return
+
         # Replace strategy: remove existing chunks for this document only after embeddings are ready.
         document_id = chunks[0].document_id
         try:
@@ -42,35 +47,41 @@ class VectorIndex:
                 text("DELETE FROM chunks WHERE document_id = :document_id"),
                 {"document_id": document_id},
             )
-            await self._session.commit()
+            # No commit here yet, let it roll into the bulk insert transaction
         except Exception as e:
             log.error("vector_index.pg.delete_failed", document_id=document_id, error=str(e))
 
         try:
-            self._store.delete_by_document(document_id)
+            self._store.delete_by_document(str(document_id))
         except Exception as e:
             log.error("vector_index.qdrant.delete_failed", document_id=document_id, error=str(e))
 
-        for chunk in chunks:
-            try:
-                await self._session.execute(
-                    text("""
-                        INSERT INTO chunks (id, document_id, content, chunk_index)
-                        VALUES (:id, :document_id, :content, :chunk_index)
-                        ON CONFLICT (id) DO UPDATE
-                          SET content = EXCLUDED.content
-                    """),
-                    {
-                        "id": chunk.id,
-                        "document_id": chunk.document_id,
-                        "content": chunk.content,
-                        "chunk_index": chunk.chunk_index,
-                    },
-                )
-            except Exception as e:
-                log.error("vector_index.pg.error", chunk_id=chunk.id, error=str(e))
-
-        await self._session.commit()
+        # Bulk SQL Insert
+        chunk_dicts = [
+            {
+                "id": c.id,
+                "document_id": c.document_id,
+                "content": c.content,
+                "chunk_index": c.chunk_index,
+            }
+            for c in chunks
+        ]
+        
+        try:
+            await self._session.execute(
+                text("""
+                    INSERT INTO chunks (id, document_id, content, chunk_index)
+                    VALUES (:id, :document_id, :content, :chunk_index)
+                    ON CONFLICT (id) DO UPDATE
+                      SET content = EXCLUDED.content,
+                          chunk_index = EXCLUDED.chunk_index
+                """),
+                chunk_dicts
+            )
+            await self._session.commit()
+        except Exception as e:
+            log.error("vector_index.pg.bulk_error", document_id=document_id, error=str(e))
+            await self._session.rollback()
 
         # Tối ưu hóa: Đẩy dữ liệu lên Qdrant theo Batch thay vì từng Point một (N+1 Problem)
         batch_data = []

@@ -79,12 +79,25 @@ class EmbeddingService:
         if uncached_texts:
             log.debug("embedding_service.batch", total=len(texts), uncached=len(uncached_texts))
             vectors = await self._provider.embed_batch(uncached_texts)
+            
+            if len(vectors) != len(uncached_texts):
+                log.error("embedding_service.size_mismatch", expected=len(uncached_texts), got=len(vectors))
+                raise ValueError(f"Embedding provider returned {len(vectors)} vectors for {len(uncached_texts)} texts")
+
             for i, (idx, text) in enumerate(zip(uncached_indices, uncached_texts)):
                 results[idx] = vectors[i]
                 if use_cache:
                     await set_embedding_cached(text, vectors[i])
 
-        return [r for r in results if r is not None]
+        # Pre-allocation check: ensure all slots are filled. 
+        # If any slot is None, it means something went wrong in the batch logic.
+        final_results = []
+        for v in results:
+            if v is None:
+                raise ValueError("Incomplete embedding batch results. Alignment could be broken.")
+            final_results.append(v)
+            
+        return final_results
 
 # Singleton instance
 _service = None

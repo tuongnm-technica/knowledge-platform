@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     EMBEDDING_MODEL: str = OLLAMA_EMBED_MODEL
     EMBEDDING_CONCURRENCY: int = 2  # Concurrency limit for embedding API calls
-    LLM_TIMEOUT: int = 800
+    LLM_TIMEOUT: int = 120
     VECTOR_DIM: int = 1024
     
     # Ingestion batch size: process documents in smaller batches to prevent timeout

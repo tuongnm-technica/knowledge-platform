@@ -95,7 +95,7 @@ export class PromptsModule {
             body.style.minHeight = '450px';
 
             const leftPanel = document.createElement('div');
-            leftPanel.style.flex = '1';
+            leftPanel.style.flex = '1.6'; // More space for the editor
             leftPanel.style.display = 'flex';
             leftPanel.style.flexDirection = 'column';
             leftPanel.style.gap = '8px';
@@ -112,9 +112,17 @@ export class PromptsModule {
                 placeholder: 'Enter the AI instructions here...'
             });
             const ta = areaInput as HTMLTextAreaElement;
-            ta.style.height = '400px';
-            ta.style.fontFamily = 'monospace';
-            ta.style.fontSize = '12px';
+            ta.style.height = '500px';
+            ta.style.fontFamily = "'JetBrains Mono', 'Fira Code', monospace";
+            ta.style.fontSize = '13px';
+            ta.style.lineHeight = '1.6';
+            ta.style.padding = '12px';
+            ta.style.border = '1px solid var(--border)';
+            ta.style.borderRadius = '8px';
+            ta.style.background = 'var(--bg2)';
+            ta.style.color = 'var(--text)';
+            ta.style.outline = 'none';
+            ta.style.resize = 'none';
 
             const previewLabel = document.createElement('label');
             previewLabel.className = 'kp-modal-label';
@@ -148,6 +156,7 @@ export class PromptsModule {
                 subtitle: 'Thay đổi các hướng dẫn (instructions) mà AI sử dụng khi thực hiện skill này.',
                 content: body,
                 modalClass: 'kp-modal-lg',
+                contentStyles: { maxWidth: '1200px', width: '95vw' }, // Ultra-wide modal for IDE feel
                 okText: 'Cập nhật Prompt',
                 onOk: async () => {
                     const content = ta.value.trim();

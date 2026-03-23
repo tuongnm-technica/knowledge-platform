@@ -164,7 +164,7 @@ export class ChatModule {
     private async pollJobStatus(jobId: string, thinkId: string): Promise<void> {
         const pollInterval = 1000; // Giảm xuống 1s để mượt hơn
         let attempts = 0;
-        const maxAttempts = 600; 
+        const maxAttempts = 180; 
 
         while (attempts < maxAttempts) {
             try {

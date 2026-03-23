@@ -38,5 +38,6 @@ email-validator
 # Utilities
 structlog
 networkx
+Pillow
 
 aiohttp

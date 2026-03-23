@@ -78,8 +78,8 @@ class VectorStore:
             id=str(uuid.UUID(chunk_id)) if self._is_uuid(chunk_id) else abs(hash(chunk_id)) % (2**63),
             vector=vector,
             payload={
-                "chunk_id": chunk_id,
-                "document_id": document_id,
+                "chunk_id": str(chunk_id),
+                "document_id": str(document_id),
                 "content": content,
                 "source": source,
                 "title": title,
@@ -103,8 +103,8 @@ class VectorStore:
                     id=str(uuid.UUID(chunk_id)) if self._is_uuid(chunk_id) else abs(hash(chunk_id)) % (2**63),
                     vector=data["vector"],
                     payload={
-                        "chunk_id": chunk_id,
-                        "document_id": data["document_id"],
+                        "chunk_id": str(chunk_id),
+                        "document_id": str(data["document_id"]),
                         "content": data["content"],
                         "source": data.get("source", ""),
                         "title": data.get("title", ""),
@@ -124,8 +124,9 @@ class VectorStore:
     ) -> list[dict]:
         query_filter = None
         if allowed_document_ids:
+            str_ids = [str(did) for did in allowed_document_ids]
             query_filter = Filter(
-                must=[FieldCondition(key="document_id", match=MatchAny(any=allowed_document_ids))]
+                must=[FieldCondition(key="document_id", match=MatchAny(any=str_ids))]
             )
 
         hits = self._client.query_points(
@@ -157,7 +158,7 @@ class VectorStore:
         self._client.delete(
             collection_name=settings.QDRANT_COLLECTION,
             points_selector=FilterSelector(
-                filter=Filter(must=[FieldCondition(key="document_id", match=MatchAny(any=[document_id]))])
+                filter=Filter(must=[FieldCondition(key="document_id", match=MatchAny(any=[str(document_id)]))])
             ),
         )
 

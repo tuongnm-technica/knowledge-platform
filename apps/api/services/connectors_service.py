@@ -880,7 +880,7 @@ async def stop_connector_sync(
         text(
             """
             UPDATE sync_logs
-            SET status = 'cancelled', updated_at = NOW()
+            SET status = 'cancelled', last_sync_at = NOW()
             WHERE connector = :connector AND status = 'running'
             RETURNING id
             """

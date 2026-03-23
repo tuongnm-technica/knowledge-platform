@@ -88,4 +88,13 @@ qdrant_data/
 # Logs
 # =========================
 *.log
-logs/
+logs/
+
+# Ignore toàn bộ data assets
+apps/assets/
+
+# Hoặc nếu assets nằm root
+assets/
+
+# Nếu muốn chắc ăn (mọi nơi)
+**/assets/
