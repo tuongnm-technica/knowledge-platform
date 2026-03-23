@@ -16,10 +16,17 @@ export class AdminModule {
         });
     }
 
-    public async init(_subpage?: string) {
+    public async init(subpage?: string) {
         if (!AuthModule.isAuthenticated()) return;
         await Promise.all([this.loadUsersTable(), this.loadGroupsTable()]);
         this.bindGlobalActions();
+
+        if (subpage === 'groups') {
+            setTimeout(() => {
+                const groupsSection = document.querySelector('.section-header[style*="margin-top: 40px"]');
+                if (groupsSection) groupsSection.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        }
     }
 
     public async loadUsersTable() {

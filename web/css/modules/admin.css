@@ -6,7 +6,8 @@
   flex-direction: column;
   padding: 32px;
   background: var(--bg);
-  min-height: 0; /* Let flexbox control it */
+  min-height: 0; 
+  overflow-y: auto;
 }
 
 .section-header {

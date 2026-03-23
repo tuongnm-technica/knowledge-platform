@@ -11,25 +11,27 @@
 <body>
 
 <load src="views/login.html" />
-<load src="views/sidebar.html" />
+<div id="app-shell" style="display: none; height: 100vh; width: 100vw; overflow: hidden; position: relative;">
+  <load src="views/sidebar.html" />
 
-<main class="main">
-  <load src="views/topbar.html" />
+  <main class="main">
+    <load src="views/topbar.html" />
 
-  <load src="views/chat.html" />
-  <load src="views/search.html" />
-  <load src="views/documents.html" />
-  <load src="views/drafts.html" />
-  <load src="views/tasks.html" />
-  <load src="views/connectors.html" />
-  <load src="views/graph.html" />
-  <load src="views/users.html" />
-  <load src="views/prompts.html" />
-  <load src="views/workflows.html" />
-  <load src="views/memory.html" />
-</main>
+    <load src="views/chat.html" />
+    <load src="views/search.html" />
+    <load src="views/documents.html" />
+    <load src="views/drafts.html" />
+    <load src="views/tasks.html" />
+    <load src="views/connectors.html" />
+    <load src="views/graph.html" />
+    <load src="views/users.html" />
+    <load src="views/prompts.html" />
+    <load src="views/workflows.html" />
+    <load src="views/memory.html" />
+  </main>
 
-<load src="views/basket.html" />
+  <load src="views/basket.html" />
+</div>
 
 <script type="module" src="/main.ts"></script>
 </body>

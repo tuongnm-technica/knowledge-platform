@@ -334,7 +334,7 @@ export class ConnectorsModule {
                 </div>
                 <div class="connector-actions-row">
                     ${isRunning 
-                        ? `<button class="primary-btn mini action-stop" data-action="stop" data-type="${type}" data-id="${iid}" style="background-color: var(--danger-color); border-color: var(--danger-color);" title="Dừng đồng bộ">⛔ Stop</button>`
+                        ? `<button class="primary-btn mini action-stop" data-action="stop" data-type="${type}" data-id="${iid}" style="background-color: var(--danger); border-color: var(--danger);" title="Dừng đồng bộ">⛔ Stop</button>`
                         : `<button class="primary-btn mini action-sync" data-action="sync" data-type="${type}" data-id="${iid}" title="Sync">🔄 Sync</button>`
                     }
                     <button class="secondary-btn mini action-icon" data-action="test" data-type="${type}" data-id="${iid}" title="Test Connection">🔌</button>

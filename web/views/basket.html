@@ -1,34 +1,34 @@
 <!-- ── CONTEXT BASKET DRAWER (REFAC) ── -->
-<div class="basket-overlay"></div>
-<div class="basket-drawer" style="display: none;">
+<div id="basketOverlay" class="basket-overlay" style="display: none;"></div>
+<div id="basketDrawer" class="basket-drawer">
   <div class="basket-header">
     <div>
       <div class="basket-title">Giỏ Ngữ Cảnh</div>
-      <div class="basket-sub">0 items</div>
+      <div id="basketCount" class="basket-sub">0 items</div>
     </div>
     <div class="basket-header-actions">
-      <button class="secondary-btn mini">Xóa</button>
-      <button class="secondary-btn mini">Đóng</button>
+      <button id="basket-clear-all" class="secondary-btn mini">Xóa</button>
+      <button id="basketClose" class="secondary-btn mini">Đóng</button>
     </div>
   </div>
   <div class="basket-token">
     <div class="basket-token-row">
       <div class="basket-token-label">Dung lượng não AI</div>
-      <div class="basket-token-value">0 / 32,000</div>
+      <div id="tokenVal" class="basket-token-value">0</div> <div class="basket-token-value">/ 32,000</div>
     </div>
     <div class="basket-progress">
-      <div class="basket-progress-fill" style="width: 0%"></div>
+      <div id="tokenBar" class="basket-progress-fill" style="width: 0%"></div>
     </div>
   </div>
-  <div class="basket-list">
+  <div id="basketItems" class="basket-list">
     <div class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
   </div>
   <div class="basket-actions">
     <button class="secondary-btn">Refresh</button>
-    <button class="primary-btn">🚀 Chạy Skill</button>
+    <button id="basket-run-skill" class="primary-btn">🚀 Chạy Skill</button>
   </div>
 </div>
-<button class="basket-fab" title="Giỏ ngữ cảnh">
+<button id="basketFab" class="basket-fab" title="Giỏ ngữ cảnh">
   📌
-  <span class="basket-badge" style="display: none;">0</span>
+  <span id="basketFabCount" class="basket-badge" style="display: none;">0</span>
 </button>

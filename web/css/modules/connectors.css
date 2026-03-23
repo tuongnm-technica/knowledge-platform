@@ -969,6 +969,24 @@
 
 .metric-val.error { color: var(--danger); }
 
+/* ── LATEST RUN SUMMARY ── */
+.connector-latest-run-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.run-summary-text { font-weight: 500; }
+.run-summary-text .highlight { color: var(--accent); font-weight: 800; }
+.run-summary-error { color: var(--danger); font-weight: 700; }
+
 /* ── RESPONSIVE ── */
 @media (max-width: 1200px) {
   .connectors-summary-grid { grid-template-columns: repeat(2, 1fr); }

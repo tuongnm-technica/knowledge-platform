@@ -455,6 +455,7 @@ body {
 .page.active {
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: var(--bg2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -848,6 +849,9 @@ body {
 .status-approved { background: rgba(16, 185, 129, 0.1); color: var(--success); }
 .status-rejected { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
 .status-pending { background: var(--bg3); color: var(--text-muted); }
+.task-status-wrap { flex-shrink: 0; }
+.small-text { font-size: 12px !important; line-height: 1.5 !important; }
+.empty-sub-hint { font-size: 13px; color: var(--text-dim); margin-top: 8px; }
 
 /* ── RESPONSIVE DESIGN ── */
 @media (max-width: 1024px) {

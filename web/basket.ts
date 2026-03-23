@@ -174,7 +174,10 @@ export class BasketModule {
         const tokenVal = document.getElementById('tokenVal');
         const tokenBar = document.getElementById('tokenBar');
 
-        if (drawer) drawer.classList.toggle('active', this.isDrawerOpen);
+        if (drawer) {
+            drawer.classList.toggle('active', this.isDrawerOpen);
+            drawer.style.display = this.isDrawerOpen ? 'flex' : 'none';
+        }
         if (overlay) overlay.style.display = this.isDrawerOpen ? 'block' : 'none';
 
         if (count) count.textContent = String(this.items.length);

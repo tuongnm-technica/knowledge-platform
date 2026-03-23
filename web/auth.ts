@@ -41,7 +41,7 @@ export class AuthModule {
     static logout(): void {
         this.clearToken();
         localStorage.removeItem('kp_user');
-        window.location.href = '/';
+        window.location.href = window.location.origin;
     }
 
     static async getCurrentUser(): Promise<User> {
@@ -60,12 +60,18 @@ export class AuthModule {
         const loginBtn = document.getElementById('loginBtn');
         if (!loginBtn || !emailInput || !passwordInput) return;
 
+        const handleEnter = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') loginBtn.click();
+        };
+        emailInput.addEventListener('keyup', handleEnter);
+        passwordInput.addEventListener('keyup', handleEnter);
+
         loginBtn.addEventListener('click', async () => {
             if (errorDiv) errorDiv.style.display = 'none';
             loginBtn.classList.add('loading');
             try {
                 await this.login(emailInput.value, passwordInput.value);
-                window.location.href = '/'; 
+                window.location.href = window.location.origin; 
             } catch (err) {
                 const error = err as Error;
                 if (errorDiv) { 
