@@ -211,6 +211,7 @@ export interface GraphLink {
 export interface BasketItem {
     id: string; // document_id
     title: string;
+    source?: string;
 }
 
 // --- Admin & Misc ---
@@ -225,9 +226,11 @@ export interface PromptSkill {
     name: string;
     description: string;
     template: string;
+    system_prompt?: string;
     type?: string;
     doc_type?: string;
     label?: string;
+    group?: string;
 }
 
 export interface MemoryItem {

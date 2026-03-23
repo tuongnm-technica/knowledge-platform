@@ -2,6 +2,10 @@ import { API, authFetch } from './client';
 import { escapeHtml } from './ui';
 
 export class MemoryModule {
+    public async init(): Promise<void> {
+        await this.loadMemoryPage();
+    }
+
     constructor() {
         this.initEvents();
     }

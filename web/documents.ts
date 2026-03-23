@@ -28,6 +28,11 @@ export class DocumentsModule {
             const data = await res.json() as { documents: any[], total: number, page: number, pages: number };
             
             this.totalPages = data.pages || 1;
+            
+            // Update manual count badge (Pure TS Refactor)
+            const countEl = document.getElementById('doc-total-count');
+            if (countEl) countEl.textContent = String(data.total || 0);
+
             this.renderDocuments(data.documents || []);
             this.updatePaginationUI();
         } catch (err) {
@@ -81,7 +86,7 @@ export class DocumentsModule {
                                 <div style="display:flex; gap:8px">
                                     <button class="secondary-btn mini view-doc-btn" data-id="${doc.id}" title="Xem nội dung">👁️</button>
                                     <button class="secondary-btn mini add-basket-btn" data-id="${doc.id}" data-title="${escapeHtml(doc.title)}" title="Thêm vào giỏ">📌</button>
-                                    <button class="secondary-btn mini" onclick="window.open('${doc.url}', '_blank')" title="Xem nguồn">🔗</button>
+                                    <button class="secondary-btn mini view-source-btn" data-url="${doc.url}" title="Xem nguồn">🔗</button>
                                     <button class="danger-btn mini delete-doc-btn" data-id="${doc.id}" title="Xóa">🗑</button>
                                 </div>
                             </td>
@@ -118,6 +123,13 @@ export class DocumentsModule {
             btn.addEventListener('click', (e) => this.deleteDocument((e.currentTarget as HTMLElement).getAttribute('data-id')!));
         });
 
+        list.querySelectorAll('.view-source-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const url = (e.currentTarget as HTMLElement).getAttribute('data-url');
+                if (url) window.open(url, '_blank');
+            });
+        });
+
         // Right-click to add to basket
         list.querySelectorAll('tbody tr').forEach(tr => {
             tr.addEventListener('contextmenu', (e) => {
@@ -145,8 +157,8 @@ export class DocumentsModule {
             prevBtn?.addEventListener('click', () => { if (this.currentPage > 1) this.loadDocumentsPage(this.currentPage - 1, this.searchQuery); });
             nextBtn?.addEventListener('click', () => { if (this.currentPage < this.totalPages) this.loadDocumentsPage(this.currentPage + 1, this.searchQuery); });
             
-            if (batchBasketBtn) batchBasketBtn.onclick = () => this.batchAddToBasket();
-            if (batchDeleteBtn) batchDeleteBtn.onclick = () => this.batchDelete();
+            if (batchBasketBtn) batchBasketBtn.addEventListener('click', () => this.batchAddToBasket());
+            if (batchDeleteBtn) batchDeleteBtn.addEventListener('click', () => this.batchDelete());
         }
     }
 

@@ -29,6 +29,10 @@ export class GraphModule {
     private animationFrameId: number | null = null;
     private simulationAlpha: number = 1; // Nhiệt độ mô phỏng (từ 1 giảm dần về 0)
 
+    public async init(): Promise<void> {
+        await this.loadGraphDashboard();
+    }
+
     constructor() {
         this.canvas = document.getElementById('graphCanvas') as HTMLCanvasElement;
         this.ctx = this.canvas?.getContext('2d') || null;
@@ -644,7 +648,7 @@ export class GraphModule {
         detailPanel.innerHTML = `
             <div class="graph-detail-header">
                 <div class="graph-detail-title">${escapeHtml(node.label)}</div>
-                <button class="graph-detail-close" onclick="this.parentElement.parentElement.style.display='none'">&times;</button>
+                <button id="graphDetailCloseBtn" class="graph-detail-close">&times;</button>
             </div>
             <div class="graph-detail-body">
                 <div class="graph-detail-item">
@@ -659,6 +663,10 @@ export class GraphModule {
                 <button id="graphViewDocBtn" data-id="${node.id}" class="primary-btn mini" style="margin-top: 10px; width: 100%;">📄 Xem tài liệu liên quan</button>
             </div>
         `;
+
+        detailPanel.querySelector('#graphDetailCloseBtn')?.addEventListener('click', () => {
+            detailPanel.style.display = 'none';
+        });
 
         try {
             const res = await authFetch(`${API}/graph/node/${node.id}`);

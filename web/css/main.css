@@ -1,5 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=Syne:wght@700;800&display=swap');
 
+/* --- Component Styles --- */
+@import './components/layout.css';
+@import './components/buttons.css';
+@import './components/forms.css';
+@import './components/login.css';
+@import './components/modals.css';
+@import './components/toasts.css';
+@import './components/editor.css';
+
+/* --- Module Styles --- */
+@import './modules/basket.css';
+@import './modules/tasks.css';
+@import './modules/drafts.css';
+@import './modules/admin.css';
+@import './modules/prompts.css';
+@import './modules/chat.css';
+@import './modules/search.css';
+@import './modules/connectors.css';
+@import './modules/documents.css';
+@import './modules/graph.css';
+@import './modules/history.css';
+
 :root {
   /* Base Color Tokens - Light (Clean & Crisp) */
   --bg: #ffffff;

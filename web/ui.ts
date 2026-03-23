@@ -246,14 +246,6 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
     });
 }
 
-export interface ConfirmOptions {
-    title?: string;
-    message?: string;
-    okText?: string;
-    cancelText?: string;
-    danger?: boolean;
-}
-
 export function kpConfirm({ title, message, okText = 'OK', cancelText = 'Cancel', danger = false }: ConfirmOptions = {}): Promise<boolean> {
     const body = document.createElement('div');
     body.className = 'kp-modal-confirm';
@@ -270,15 +262,6 @@ export function kpConfirm({ title, message, okText = 'OK', cancelText = 'Cancel'
         okClass: danger ? 'danger-btn' : 'primary-btn',
         onOk: () => true,
     }).then(res => !!res);
-}
-
-export interface PromptOptions {
-    title?: string;
-    message?: string;
-    placeholder?: string;
-    defaultValue?: string;
-    okText?: string;
-    cancelText?: string;
 }
 
 export function kpPrompt({ title, message, placeholder = '', defaultValue = '', okText = 'OK', cancelText = 'Cancel' }: PromptOptions = {}): Promise<string | null> {
@@ -310,22 +293,6 @@ export function kpPrompt({ title, message, placeholder = '', defaultValue = '', 
             return val;
         },
     });
-}
-
-export interface FieldOption {
-    value: string;
-    label: string;
-}
-
-export interface BuildFieldOptions {
-    id: string;
-    label: string;
-    type?: 'text' | 'select' | 'textarea' | 'time' | 'password' | 'email' | 'number' | string;
-    value?: string | number;
-    placeholder?: string;
-    help?: string;
-    required?: boolean;
-    options?: FieldOption[] | null;
 }
 
 export function _kpBuildModalField({ id, label, type = 'text', value = '', placeholder = '', help = '', required = false, options = null }: BuildFieldOptions): { wrap: HTMLElement, input: HTMLElement } {
@@ -385,4 +352,60 @@ export function _kpBuildModalField({ id, label, type = 'text', value = '', place
     }
 
     return { wrap, input };
+}
+
+/**
+ * Cập nhật Badge (số lượng) trên Sidebar hoặc Header
+ * @param key 'tasks' | 'drafts' | 'basket'
+ * @param count số lượng
+ */
+export function updateBadge(key: string, count: number): void {
+    const el = document.getElementById(`nav-${key}-badge`);
+    if (!el) return;
+    
+    if (count > 0) {
+        el.textContent = String(count);
+        el.style.display = 'inline-flex';
+    } else {
+        el.style.display = 'none';
+    }
+
+    // Đồng bộ với Alpine store nếu nó còn tồn tại (compat layer)
+    const win = window as any;
+    if (win.Alpine?.store('badges')) {
+        win.Alpine.store('badges')[key] = count;
+    }
+}
+
+export interface BuildFieldOptions {
+    id: string;
+    label: string;
+    type?: 'text' | 'select' | 'textarea' | 'time' | 'password' | 'email' | 'number' | string;
+    value?: string | number;
+    placeholder?: string;
+    help?: string;
+    required?: boolean;
+    options?: FieldOption[] | null;
+}
+
+export interface FieldOption {
+    value: string;
+    label: string;
+}
+
+export interface PromptOptions {
+    title?: string;
+    message?: string;
+    placeholder?: string;
+    defaultValue?: string;
+    okText?: string;
+    cancelText?: string;
+}
+
+export interface ConfirmOptions {
+    title?: string;
+    message?: string;
+    okText?: string;
+    cancelText?: string;
+    danger?: boolean;
 }

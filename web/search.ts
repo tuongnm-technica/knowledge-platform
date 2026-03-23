@@ -1,8 +1,7 @@
 import { API, authFetch } from './client';
 import { SearchResult } from './models';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-import { kpOpenModal } from './ui';
+import { kpOpenModal, showToast, escapeHtml } from './ui';
+import { renderMarkdown } from './format';
 
 export class SearchModule {
     private searchPending = false;
@@ -13,6 +12,10 @@ export class SearchModule {
     private searchInput: HTMLInputElement | null;
     private searchBtn: HTMLButtonElement | null;
     private resultsContainer: HTMLElement | null;
+
+    public init(): void {
+        // Initialization if needed
+    }
 
     constructor(inputId: string, btnId: string, resultsContainerId: string) {
         this.searchInput = document.getElementById(inputId) as HTMLInputElement | null;
@@ -45,7 +48,7 @@ export class SearchModule {
 
         const query = this.searchInput.value.trim();
         if (!query) {
-            this.showToast('Vui lòng nhập từ khóa', 'info');
+            showToast('Vui lòng nhập từ khóa', 'info');
             return;
         }
 
@@ -92,7 +95,7 @@ export class SearchModule {
             this.renderSearchResults(results);
         } catch (err) {
             const error = err as Error;
-            this.showToast(`Lỗi: ${error.message}`, 'error');
+            showToast(`Lỗi: ${error.message}`, 'error');
         } finally {
             this.searchPending = false;
             if (this.searchBtn) {
@@ -141,32 +144,32 @@ export class SearchModule {
                              .replace(/```mermaid[\s\S]*?```/g, '[Diagram]')
                              .trim();
 
-            const docAuthor = result.author ? `👤 ${this.escapeHtml(result.author)}` : '';
+            const docAuthor = result.author ? `👤 ${escapeHtml(result.author)}` : '';
             const sourceBadge = (result.source || 'internal').toLowerCase();
             const dateStr = result.updated_at ? new Date(result.updated_at).toLocaleDateString('vi-VN') : '';
 
             item.innerHTML = `
                 <div class="kp-result-header">
-                    <span class="kp-result-title">${this.escapeHtml(docTitle)}</span>
+                    <span class="kp-result-title">${escapeHtml(docTitle)}</span>
                     <div class="kp-result-actions">
                         ${score != null ? `
                             <div class="kp-result-score-wrap" title="${this.formatScoreBreakdown(result.score_breakdown)}">
                                 <span class="kp-result-score">${score}% match</span>
                             </div>
                         ` : ''}
-                        <button class="secondary-btn mini kp-pin-btn" title="Ghim nháp" data-doc-id="${this.escapeHtml(docId)}" data-doc-title="${this.escapeHtml(docTitle)}">📌</button>
+                        <button class="secondary-btn mini kp-pin-btn" title="Ghim nháp" data-doc-id="${escapeHtml(docId)}" data-doc-title="${escapeHtml(docTitle)}">📌</button>
                     </div>
                 </div>
-                <div class="kp-result-snippet">${this.escapeHtml(snippet)}...</div>
+                <div class="kp-result-snippet">${escapeHtml(snippet)}...</div>
                 <div class="kp-result-meta">
                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                        <span class="kp-result-badge source-${sourceBadge}">${this.escapeHtml(result.source || 'N/A')}</span>
+                        <span class="kp-result-badge source-${sourceBadge}">${escapeHtml(result.source || 'N/A')}</span>
                         ${docAuthor ? `<span class="kp-result-author">${docAuthor}</span>` : ''}
                         ${dateStr ? `<span style="font-size: 11px; color: var(--text-muted);">🕒 ${dateStr}</span>` : ''}
                     </div>
                     <div class="kp-result-footer-actions">
-                        <button class="secondary-btn mini view-doc-btn" data-doc-id="${this.escapeHtml(docId)}">📄 Xem chi tiết</button>
-                        ${result.url ? `<a class="kp-result-url" href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener">Link gốc ↗</a>` : ''}
+                        <button class="secondary-btn mini view-doc-btn" data-doc-id="${escapeHtml(docId)}">📄 Xem chi tiết</button>
+                        ${result.url ? `<a class="kp-result-url" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Link gốc ↗</a>` : ''}
                     </div>
                 </div>
             `;
@@ -224,21 +227,15 @@ export class SearchModule {
             if (!res.ok) throw new Error('Không thể tải nội dung tài liệu (hoặc bạn không có quyền truy cập).');
             const doc = await res.json() as SearchResult;
 
-            let htmlContent = '';
-            try {
-                const rawHtml = marked.parse(doc.content || '') as string;
-                htmlContent = DOMPurify.sanitize(rawHtml);
-            } catch (e) {
-                htmlContent = this.escapeHtml(doc.content || '').replace(/\n/g, '<br>');
-            }
+            let htmlContent = renderMarkdown(doc.content || 'Không có nội dung.');
 
             const body = document.createElement('div');
             body.innerHTML = `
                 <div style="margin-bottom: 16px; font-size: 13px; color: var(--text-dim); display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                    <span class="kp-result-badge">${this.escapeHtml(doc.source || 'N/A')}</span>
-                    ${doc.author ? `<span>👤 ${this.escapeHtml(doc.author)}</span>` : ''}
+                    <span class="kp-result-badge">${escapeHtml(doc.source || 'N/A')}</span>
+                    ${doc.author ? `<span>👤 ${escapeHtml(doc.author)}</span>` : ''}
                     ${doc.score_breakdown ? `<span style="color: var(--success); font-weight: 600;">🎯 ${this.formatScoreBreakdown(doc.score_breakdown)}</span>` : ''}
-                    ${doc.url ? `<a href="${this.escapeHtml(doc.url)}" target="_blank" style="color: var(--accent);">Mở URL gốc ↗</a>` : ''}
+                    ${doc.url ? `<a href="${escapeHtml(doc.url)}" target="_blank" style="color: var(--accent);">Mở URL gốc ↗</a>` : ''}
                 </div>
                 <div style="max-height: 60vh; overflow-y: auto; line-height: 1.6; color: var(--text); padding-right: 8px;">
                     ${htmlContent}
@@ -253,17 +250,7 @@ export class SearchModule {
             });
         } catch (err) {
             const error = err as Error;
-            this.showToast(error.message, 'error');
-        }
-    }
-
-    // --- Helpers ---
-    private showToast(message: string, type: 'success' | 'error' | 'warning' | 'info'): void {
-        const win = window as any;
-        if (typeof win.showToast === 'function') {
-            win.showToast(message, type);
-        } else {
-            console.warn(`[${type.toUpperCase()}] ${message}`);
+            showToast(error.message, 'error');
         }
     }
 
@@ -276,12 +263,4 @@ export class SearchModule {
         return parts.length > 0 ? parts.join(' | ') : '';
     }
 
-    private escapeHtml(unsafe: string): string {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
 }

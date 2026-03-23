@@ -3,12 +3,17 @@ import { Config } from './config';
 import { ChatMessage, AskJobResponse, JobStatusResponse, AskResponse } from './models';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { escapeHtml } from './ui';
 
 export class ChatModule {
     private container: HTMLElement | null;
     private input: HTMLInputElement | HTMLTextAreaElement | null;
     private sendBtn: HTMLButtonElement | null;
     private currentSessionId: string | null = null;
+
+    public init(): void {
+        // No async init needed for now, but following the pattern
+    }
 
     constructor(containerId: string, inputId: string, sendBtnId: string) {
         this.container = document.getElementById(containerId);
@@ -247,8 +252,8 @@ export class ChatModule {
                     <li class="thinking-step">
                         <div class="step-number">${p.step}</div>
                         <div class="step-body">
-                            <div class="step-reason">${this.escapeHtml(p.reason)}</div>
-                            <div class="step-query">${this.escapeHtml(p.query)}</div>
+                            <div class="step-reason">${escapeHtml(p.reason)}</div>
+                            <div class="step-query">${escapeHtml(p.query)}</div>
                         </div>
                     </li>
                 `).join('');
@@ -256,7 +261,7 @@ export class ChatModule {
                 const expandedQuery = result.rewritten_query ? `
                     <div class="rewritten-query-box">
                         <span class="rewritten-query-label">Expanded Query (AI):</span>
-                        <span class="rewritten-query-text">"${this.escapeHtml(result.rewritten_query)}"</span>
+                        <span class="rewritten-query-text">"${escapeHtml(result.rewritten_query)}"</span>
                     </div>
                 ` : '';
 
@@ -278,7 +283,7 @@ export class ChatModule {
                     thoughtsHtml += `
                         <div class="thinking-step-live ${isLast ? 'active' : 'done'}">
                             <span class="thinking-step-icon">${isLast ? '⚙️' : '✓'}</span>
-                            <span>${this.escapeHtml(text)}</span>
+                            <span>${escapeHtml(text)}</span>
                         </div>
                     `;
                 });
@@ -322,7 +327,7 @@ export class ChatModule {
                             <span class="source-type-tag">${sourceName}</span>
                             ${score > 0 ? `<span class="source-score-badge">${score}% Match</span>` : ''}
                         </div>
-                        <div class="source-title">${this.escapeHtml(s.title || 'Untitled Document')}</div>
+                        <div class="source-title">${escapeHtml(s.title || 'Untitled Document')}</div>
                     </a>
                 `;
             }).join('');
@@ -339,7 +344,7 @@ export class ChatModule {
             const rawHtml = marked.parse(content) as string;
             return DOMPurify.sanitize(rawHtml);
         } catch (e) {
-            return this.escapeHtml(content);
+            return escapeHtml(content);
         }
     }
 
@@ -362,8 +367,8 @@ export class ChatModule {
                     <li class="thinking-step">
                         <div class="step-number">${p.step}</div>
                         <div class="step-body">
-                            <div class="step-reason">${this.escapeHtml(p.reason)}</div>
-                            <div class="step-query">${this.escapeHtml(p.query)}</div>
+                            <div class="step-reason">${escapeHtml(p.reason)}</div>
+                            <div class="step-query">${escapeHtml(p.query)}</div>
                         </div>
                     </li>
                 `).join('');
@@ -371,7 +376,7 @@ export class ChatModule {
                 const expandedQuery = msg.rewritten_query ? `
                     <div class="rewritten-query-box">
                         <span class="rewritten-query-label">Expanded Query (AI):</span>
-                        <span class="rewritten-query-text">"${this.escapeHtml(msg.rewritten_query)}"</span>
+                        <span class="rewritten-query-text">"${escapeHtml(msg.rewritten_query)}"</span>
                     </div>
                 ` : '';
                 
@@ -399,9 +404,9 @@ export class ChatModule {
                                 <span class="source-type-tag">${sourceName}</span>
                                 ${score > 0 ? `<span class="source-score-badge">${score}% Match</span>` : ''}
                             </div>
-                            <div class="source-title">${this.escapeHtml(s.title || 'Untitled Document')}</div>
+                            <div class="source-title">${escapeHtml(s.title || 'Untitled Document')}</div>
                             <div class="source-footer">
-                                <span>📄 ${this.escapeHtml(s.author || 'System')}</span>
+                                <span>📄 ${escapeHtml(s.author || 'System')}</span>
                             </div>
                         </a>
                     `;
@@ -434,11 +439,11 @@ export class ChatModule {
         } else if (msg.role === 'system') {
             html = `
                 <div class="chat-bubble" style="background:var(--bg3);border:1px solid var(--border);font-size:13px;color:var(--text-muted)">
-                    <div class="message-content">${this.escapeHtml(msg.content)}</div>
+                    <div class="message-content">${escapeHtml(msg.content)}</div>
                 </div>
             `;
         } else {
-            const safeContent = this.escapeHtml(msg.content);
+            const safeContent = escapeHtml(msg.content);
             html = `
                 <div style="flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-end">
                     <div class="chat-bubble chat-bubble-user">
@@ -472,9 +477,5 @@ export class ChatModule {
     private setLoading(isLoading: boolean): void {
         if (this.sendBtn) this.sendBtn.disabled = isLoading;
         if (this.input) this.input.disabled = isLoading;
-    }
-
-    private escapeHtml(unsafe: string): string {
-        return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 }

@@ -2,7 +2,7 @@
     <div class="connectors-content">
         <div class="documents-header">
             <div class="count-pill">
-                <span class="count-bold" x-data="{count: 0}" x-init="const res = await fetch(`${API}/tasks/count`); if(res.ok) count = (await res.json()).count" x-text="count">0</span> tài liệu
+                <span class="count-bold" id="doc-total-count">0</span> tài liệu
             </div>
             <div class="header-actions">
                 <a href="/graph" data-navigo class="secondary-btn graph-btn">

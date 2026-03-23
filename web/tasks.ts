@@ -1,6 +1,6 @@
 import { API, authFetch } from './client';
 import { Task } from './models';
-import { showToast, kpOpenModal, kpConfirm } from './ui';
+import { showToast, kpOpenModal, kpConfirm, updateBadge, escapeHtml, formatDateTime } from './ui';
 
 export class TasksModule {
     private tasks: Task[] = [];
@@ -48,11 +48,10 @@ export class TasksModule {
             const res = await authFetch(`${API}/tasks/count`);
             if (!res.ok) return;
             const data = await res.json() as { total_pending: number };
-            // Update Alpine store for badges (compat layer)
-            const alpine = (window as any).Alpine;
-            if (alpine?.store('badges')) {
-                alpine.store('badges').tasks = data.total_pending || 0;
-            }
+            
+            // Centralized badge update (Pure TS)
+            updateBadge('tasks', data.total_pending || 0);
+            
             // Update text in UI if visible
             const countEl = document.querySelector('#tasks-open-count');
             if (countEl) countEl.textContent = String(data.total_pending || 0);
@@ -173,16 +172,6 @@ export class TasksModule {
         this.render();
     }
 
-    private formatDate(dateStr: string) {
-        if (!dateStr) return 'N/A';
-        try { return new Date(dateStr).toLocaleString('vi-VN'); } catch (e) { return dateStr; }
-    }
-
-    private escapeHtml(unsafe: string) {
-        if (!unsafe) return '';
-        return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    }
-
     private viewTaskDetails(task: any) {
         const body = document.createElement('div');
         body.className = 'kp-modal-form';
@@ -201,7 +190,7 @@ export class TasksModule {
             <div style="display: flex; flex-direction: column; gap: 16px;">
                 <div>
                     <label class="kp-modal-label">Tiêu đề (Title)</label>
-                    <input type="text" id="editTaskTitle" class="admin-input" style="width: 100%; font-weight: 600;" value="${this.escapeHtml(task.title)}">
+                    <input type="text" id="editTaskTitle" class="admin-input" style="width: 100%; font-weight: 600;" value="${escapeHtml(task.title)}">
                 </div>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 120px;">
@@ -213,20 +202,20 @@ export class TasksModule {
                     </div>
                     <div style="flex: 1; min-width: 120px;">
                         <label class="kp-modal-label">Assignee</label>
-                        <input type="text" id="editTaskAssignee" class="admin-input" style="width: 100%" value="${this.escapeHtml(assignee)}">
+                        <input type="text" id="editTaskAssignee" class="admin-input" style="width: 100%" value="${escapeHtml(assignee)}">
                     </div>
                     <div style="flex: 1; min-width: 120px;">
                         <label class="kp-modal-label">Parent Key</label>
-                        <input type="text" id="editTaskParent" class="admin-input" style="width: 100%" value="${this.escapeHtml(parentKey)}">
+                        <input type="text" id="editTaskParent" class="admin-input" style="width: 100%" value="${escapeHtml(parentKey)}">
                     </div>
                 </div>
                 <div>
                     <label class="kp-modal-label">Mô tả chi tiết</label>
-                    <textarea id="editTaskDesc" class="admin-input" style="width: 100%; height: 180px; resize: vertical; font-family: monospace;">${this.escapeHtml(desc)}</textarea>
+                    <textarea id="editTaskDesc" class="admin-input" style="width: 100%; height: 180px; resize: vertical; font-family: monospace;">${escapeHtml(desc)}</textarea>
                 </div>
                 ${evidence ? `<div style="border-top: 1px dashed var(--border); padding-top: 16px;">
                     <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 800;">Evidence</div>
-                    <div style="font-size: 13px; color: var(--text-muted); background: var(--bg); padding: 12px; border-radius: 8px; border-left: 3px solid var(--accent); font-style: italic;">"${this.escapeHtml(evidence)}"</div>
+                    <div style="font-size: 13px; color: var(--text-muted); background: var(--bg); padding: 12px; border-radius: 8px; border-left: 3px solid var(--accent); font-style: italic;">"${escapeHtml(evidence)}"</div>
                 </div>` : ''}
             </div>`;
 
@@ -252,7 +241,7 @@ export class TasksModule {
         });
     }
 
-    private render() {
+    public render() {
         const listDiv = document.querySelector('.task-list-flex');
         const emptyDiv = document.querySelector('#tasks-empty-state') as HTMLElement;
         const loadingDiv = document.querySelector('#tasks-loading') as HTMLElement;
@@ -289,14 +278,14 @@ export class TasksModule {
                         </div>
                         <div class="task-card-body">
                             <div class="task-card-header">
-                                <div class="task-card-title">${this.escapeHtml(task.title || 'Untitled')}</div>
+                                <div class="task-card-title">${escapeHtml(task.title || 'Untitled')}</div>
                                 <div class="task-status-wrap">
                                     <span class="status-badge status-${task.status || 'pending'}">${task.status || 'pending'}</span>
                                 </div>
                             </div>
                             <div class="task-card-meta">
                                 <span class="source-tag">${sourceEmoji} ${(task.source || 'system').toUpperCase()}</span>
-                                <span>Tạo lúc: ${this.formatDate(task.created_at)}</span>
+                                <span>Tạo lúc: ${formatDateTime(task.created_at)}</span>
                                 ${task.meta?.issue_type ? `<span class="meta-tag type-tag">Type: ${task.meta.issue_type}</span>` : ''}
                                 ${task.meta?.assignee ? `<span class="meta-tag assignee-tag">👤 ${task.meta.assignee}</span>` : ''}
                             </div>

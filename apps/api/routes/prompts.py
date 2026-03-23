@@ -17,6 +17,7 @@ router = APIRouter(prefix="/prompts", tags=["prompts"])
 
 class PromptUpdateRequest(BaseModel):
     system_prompt: str
+    group: str | None = None
 
 
 # ─── List all ─────────────────────────────────────────────────────────────────
@@ -35,12 +36,14 @@ async def list_prompts(
     # Enrich with group name for UI sorting/categorization
     for row in rows:
         dt = row.get("doc_type")
-        group_name = "Other"
-        for gname, types in SKILL_DOC_TYPE_GROUPS.items():
-            if dt in types:
-                group_name = gname
-                break
-        row["group"] = group_name
+        # Use DB 'group' if available, otherwise fallback to hardcoded groups
+        if not row.get("group"):
+            group_name = "Other"
+            for gname, types in SKILL_DOC_TYPE_GROUPS.items():
+                if dt in types:
+                    group_name = gname
+                    break
+            row["group"] = group_name
         
     return {"prompts": rows}
 
@@ -80,13 +83,12 @@ async def update_prompt(
         raise HTTPException(status_code=400, detail="system_prompt must not be empty.")
 
     repo = SkillPromptRepository(db)
-    updated = await repo.update_prompt(
+    updated = await repo.upsert(
         doc_type=doc_type,
         system_prompt=system_prompt,
+        group=req.group,
         updated_by=user.user_id,
     )
-    if not updated:
-        raise HTTPException(status_code=404, detail=f"Prompt '{doc_type}' not found.")
     return {"ok": True, "doc_type": doc_type}
 
 

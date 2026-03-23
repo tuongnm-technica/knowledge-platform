@@ -22,7 +22,7 @@ class SkillPromptRepository:
         """Return all skill prompts ordered by doc_type."""
         result = await self._session.execute(
             text("""
-                SELECT doc_type, label, description, system_prompt,
+                SELECT doc_type, label, description, system_prompt, "group",
                        updated_at, updated_by
                 FROM skill_prompts
                 ORDER BY doc_type
@@ -34,7 +34,7 @@ class SkillPromptRepository:
         """Return a single skill prompt by doc_type."""
         result = await self._session.execute(
             text("""
-                SELECT doc_type, label, description, system_prompt,
+                SELECT doc_type, label, description, system_prompt, "group",
                        updated_at, updated_by
                 FROM skill_prompts
                 WHERE doc_type = :doc_type
@@ -53,19 +53,21 @@ class SkillPromptRepository:
         label: str,
         description: str,
         system_prompt: str,
+        group: str | None = None,
         updated_by: str = "system",
     ) -> None:
         await self._session.execute(
             text("""
                 INSERT INTO skill_prompts
-                    (doc_type, label, description, system_prompt, updated_at, updated_by)
+                    (doc_type, label, description, system_prompt, "group", updated_at, updated_by)
                 VALUES
-                    (:doc_type, :label, :description, :system_prompt, :updated_at, :updated_by)
+                    (:doc_type, :label, :description, :system_prompt, :group, :updated_at, :updated_by)
                 ON CONFLICT (doc_type)
                 DO UPDATE SET
                     label         = EXCLUDED.label,
                     description   = EXCLUDED.description,
                     system_prompt = EXCLUDED.system_prompt,
+                    "group"       = EXCLUDED.group,
                     updated_at    = EXCLUDED.updated_at,
                     updated_by    = EXCLUDED.updated_by
             """),
@@ -74,6 +76,7 @@ class SkillPromptRepository:
                 "label": label,
                 "description": description,
                 "system_prompt": system_prompt,
+                "group": group,
                 "updated_at": datetime.utcnow(),
                 "updated_by": updated_by,
             },
@@ -137,21 +140,23 @@ class SkillPromptRepository:
         """Populate skill_prompts from hardcoded defaults (INSERT OR UPDATE). Returns rows affected."""
         count = 0
         for doc_type, system_prompt in SKILL_SYSTEM_PROMPTS.items():
-            label_tuple = SKILL_AGENT_LABELS.get(doc_type, ("", ""))
+            label_tuple = SKILL_AGENT_LABELS.get(doc_type, ("", "", ""))
             label = label_tuple[0] if label_tuple else doc_type
             description = label_tuple[1] if label_tuple else ""
+            group = label_tuple[2] if len(label_tuple) > 2 else None
             
             # Use EXCLUDED to update existing items with latest full prompts from filesystem
             result = await self._session.execute(
                 text("""
                     INSERT INTO skill_prompts
-                        (doc_type, label, description, system_prompt, updated_at, updated_by)
+                        (doc_type, label, description, system_prompt, "group", updated_at, updated_by)
                     VALUES
-                        (:doc_type, :label, :description, :system_prompt, :updated_at, 'system')
+                        (:doc_type, :label, :description, :system_prompt, :group, :updated_at, 'system')
                     ON CONFLICT (doc_type) DO UPDATE SET
                         label         = EXCLUDED.label,
                         description   = EXCLUDED.description,
                         system_prompt = EXCLUDED.system_prompt,
+                        "group"       = EXCLUDED.group,
                         updated_at    = EXCLUDED.updated_at,
                         updated_by    = 'system'
                     RETURNING doc_type
@@ -161,6 +166,7 @@ class SkillPromptRepository:
                     "label": label,
                     "description": description,
                     "system_prompt": system_prompt,
+                    "group": group,
                     "updated_at": datetime.utcnow(),
                 },
             )

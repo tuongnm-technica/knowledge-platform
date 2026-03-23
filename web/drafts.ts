@@ -1,6 +1,6 @@
 import { API, authFetch } from './client';
 import { Draft } from './models';
-import { showToast, formatDateTime, kpConfirm } from './ui';
+import { showToast, formatDateTime, kpConfirm, updateBadge, escapeHtml } from './ui';
 import { AIEditor } from './editor';
 
 export class DraftsModule {
@@ -37,11 +37,8 @@ export class DraftsModule {
         } finally {
             this.isLoading = false;
             this.render();
-            // Sync badges count
-            const alpine = (window as any).Alpine;
-            if (alpine?.store('badges')) {
-                alpine.store('badges').drafts = this.drafts.length;
-            }
+            // Unified badge update (Pure TS)
+            updateBadge('drafts', this.drafts.length);
         }
     }
 
@@ -138,11 +135,6 @@ export class DraftsModule {
         }
     }
 
-    private escapeHtml(unsafe: string) {
-        if (!unsafe) return '';
-        return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    }
-
     private render() {
         const listContainer = document.querySelector('#drafts-list-view') as HTMLElement;
         const editorContainer = document.querySelector('#drafts-editor-view') as HTMLElement;
@@ -173,7 +165,7 @@ export class DraftsModule {
                                 <span class="draft-type-tag">${(d.doc_type || 'doc').toUpperCase()}</span>
                                 <span class="draft-date">${formatDateTime(d.created_at)}</span>
                             </div>
-                            <div class="draft-card-title">${this.escapeHtml(d.title || d.id)}</div>
+                            <div class="draft-card-title">${escapeHtml(d.title || d.id)}</div>
                             <div class="draft-card-footer">
                                 <button class="secondary-btn mini edit-btn" data-id="${d.id}">✏️ Sửa</button>
                                 <button class="danger-btn mini ghost-btn delete-btn" data-id="${d.id}">🗑 Xóa</button>

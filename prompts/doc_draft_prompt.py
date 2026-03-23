@@ -26,71 +26,87 @@ SUPPORTED_DOC_TYPES: dict[str, str] = {
 # mygpt-ba Skill — 9-Agent BA Pipeline (docskill/mygpt-ba)
 # Each key maps to the doc_type that maps to that agent's expertise.
 # ─────────────────────────────────────────────────────────────────────────────
-SKILL_AGENT_LABELS: dict[str, tuple[str, str]] = {
-    # doc_type → (agent label, short description)
+SKILL_AGENT_LABELS: dict[str, tuple[str, str, str]] = {
+    # doc_type → (agent label, short description, group)
     "requirements_intake": (
         "📋 GPT-1: Requirement Analyst",
         "Biến idea thô → FR · NFR · BR · Assumptions · Traceability seed",
+        "Phân tích yêu cầu",
     ),
     "requirement_review": (
         "🔍 GPT-2: Architect Reviewer",
         "Review business logic · Permission model · Edge cases · BR conflicts",
+        "Kiến trúc & Review",
     ),
     "solution_design": (
         "🏗️ GPT-3: Solution Designer",
         "Architecture + ADR · API contract · Data model · Deployment topology",
+        "Giải pháp kỹ thuật",
     ),
     "srs": (
         "📄 GPT-4: Document Writer — SRS",
         "SRS 10 mục + Glossary + Traceability Matrix",
+        "Tài liệu đặc tả",
     ),
     "brd": (
         "📋 GPT-4: Document Writer — BRD",
         "BRD đầy đủ business case (12 or 17-section)",
+        "Tài liệu đặc tả",
     ),
     "use_cases": (
         "📐 GPT-4: Document Writer — Use Cases",
         "Use Cases chi tiết + FE Technical Notes",
+        "Tài liệu đặc tả",
     ),
     "validation_rules": (
         "✅ GPT-4: Document Writer — Validation Rules",
         "Validation Rules với UX behavior (FE + BE rules)",
+        "Tài liệu đặc tả",
     ),
     "user_stories": (
         "🎯 GPT-5: User Story Writer",
         "User Stories · Gherkin AC · INVEST · DoD · Epic→Story→Task",
+        "User Story & Task",
     ),
     "fe_spec": (
         "🖥️ GPT-6: FE Technical Spec",
         "Component tree · UI State matrix · a11y · Error boundary · Perf budget",
+        "Phát triển FE",
     ),
     "qa_test_spec": (
         "🧪 GPT-7: QA Reviewer",
         "Test cases (5 levels) · OWASP · UAT exit criteria · Test data strategy",
+        "Kiểm thử & QA",
     ),
     "api_spec": (
         "🔌 GPT-3: API Spec (Solution Designer)",
         "OpenAPI spec skeleton · RFC 7807 errors · Status codes · Idempotency",
+        "Giải pháp kỹ thuật",
     ),
     "deployment_spec": (
         "🚀 GPT-8: Deployment Spec",
         "CI/CD · Environment config · Monitoring alerts · Runbook · DR plan",
+        "Triển khai & Vận hành",
     ),
     "change_request": (
         "📝 GPT-9: Change & Release Mgr — CR",
         "Change Request · Impact Analysis 6 dimensions · Risk · Rollback plan",
+        "Thay đổi & Phát hành",
     ),
     "release_notes": (
         "📢 GPT-9: Change & Release Mgr — Release Notes",
         "Release Notes: What's new · Improvements · Bug fixes · Rollback",
+        "Thay đổi & Phát hành",
     ),
     "function_list": (
         "📊 GPT-9: Change & Release Mgr — Function List",
         "Function List: Module/Feature/Function + Status + Links",
+        "Thay đổi & Phát hành",
     ),
     "risk_log": (
         "⚠️ GPT-9: Change & Release Mgr — Risk Log",
         "Risk Log: Risk-ID · Likelihood · Impact · Mitigation · Owner",
+        "Thay đổi & Phát hành",
     ),
 }
 

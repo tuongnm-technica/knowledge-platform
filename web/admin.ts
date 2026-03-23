@@ -16,7 +16,7 @@ export class AdminModule {
         });
     }
 
-    public async init() {
+    public async init(_subpage?: string) {
         if (!AuthModule.isAuthenticated()) return;
         await Promise.all([this.loadUsersTable(), this.loadGroupsTable()]);
         this.bindGlobalActions();

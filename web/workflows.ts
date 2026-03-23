@@ -4,6 +4,10 @@ import { escapeHtml, showToast, kpConfirm, kpOpenModal, _kpBuildModalField } fro
 import { renderMarkdown } from './format';
 
 export class WorkflowsModule {
+    public async init(): Promise<void> {
+        await this.loadWorkflowsPage();
+    }
+
     public async loadWorkflowsPage(): Promise<void> {
         const container = document.getElementById('page-workflows');
         if (container) container.innerHTML = '<div style="padding:40px; text-align:center;">Đang tải danh sách AI Workflows...</div>';

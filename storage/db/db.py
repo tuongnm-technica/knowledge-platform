@@ -14,16 +14,21 @@ from sqlalchemy import (
     String,
     Text,
     text,
+    create_engine,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config.settings import settings
 
 
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG, pool_size=10)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+# Synchronous engine for maintenance/scripts if needed
+sync_engine = create_engine(settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
+SyncSessionLocal = sessionmaker(bind=sync_engine)
 
 
 class Base(DeclarativeBase):
@@ -324,9 +329,32 @@ class AIWorkflowNodeORM(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class SkillPromptORM(Base):
+    __tablename__ = "skill_prompts"
+
+    doc_type = Column(String(80), primary_key=True)
+    label = Column(Text, nullable=False, default="")
+    description = Column(Text, nullable=False, default="")
+    system_prompt = Column(Text, nullable=False, default="")
+    group = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_by = Column(String(255), nullable=False, default="system")
+
+
 async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
+
+
+from contextlib import contextmanager
+
+@contextmanager
+def get_sync_db():
+    session = SyncSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 async def create_tables():
@@ -593,6 +621,9 @@ async def create_tables():
                 updated_by    VARCHAR(255) NOT NULL DEFAULT 'system'
             )
         """))
+        await conn.execute(text(
+            "ALTER TABLE skill_prompts ADD COLUMN IF NOT EXISTS \"group\" VARCHAR(100)"
+        ))
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_skill_prompts_doc_type ON skill_prompts (doc_type)"
         ))

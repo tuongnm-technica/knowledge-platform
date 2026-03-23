@@ -4,6 +4,10 @@ import { escapeHtml, showToast, kpOpenModal, _kpBuildModalField, kpConfirm } fro
 import { renderMarkdown } from './format';
 
 export class PromptsModule {
+    public async init(): Promise<void> {
+        await this.loadPromptsPage();
+    }
+
     public async loadPromptsPage(): Promise<void> {
         const container = document.getElementById('page-prompts');
         if (container) container.innerHTML = '<div style="padding:40px; text-align:center;">Đang tải danh sách Skill Prompts...</div>';
@@ -130,52 +134,54 @@ export class PromptsModule {
             body.style.flexDirection = 'row';
             body.style.gap = '20px';
             body.style.alignItems = 'stretch';
-            body.style.minHeight = '450px';
+            body.style.minHeight = '500px';
 
             const leftPanel = document.createElement('div');
-            leftPanel.style.flex = '1.6'; // More space for the editor
+            leftPanel.style.flex = '1'; // Balanced 50-50 ratio
             leftPanel.style.display = 'flex';
             leftPanel.style.flexDirection = 'column';
             leftPanel.style.gap = '8px';
 
             const rightPanel = document.createElement('div');
-            rightPanel.style.flex = '1';
+            rightPanel.style.flex = '1'; // Balanced 50-50 ratio
             rightPanel.style.display = 'flex';
             rightPanel.style.flexDirection = 'column';
             rightPanel.style.gap = '8px';
 
             const { wrap: areaWrap, input: areaInput } = _kpBuildModalField({
-                id: 'promptContent', label: 'System Prompt Content (Instructions)', type: 'textarea', 
-                value: data.template || (data as any).system_prompt || '', 
+                id: 'promptContent', label: 'System Instructions (Editor)', type: 'textarea', 
+                value: data.system_prompt || data.template || '', 
                 placeholder: 'Enter the AI instructions here...'
             });
             const ta = areaInput as HTMLTextAreaElement;
-            ta.style.height = '500px';
-            ta.style.fontFamily = "'JetBrains Mono', 'Fira Code', monospace";
-            ta.style.fontSize = '13px';
-            ta.style.lineHeight = '1.6';
-            ta.style.padding = '12px';
+            ta.style.height = '520px';
+            ta.style.fontFamily = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
+            ta.style.fontSize = '12.5px';
+            ta.style.lineHeight = '1.7';
+            ta.style.padding = '16px';
             ta.style.border = '1px solid var(--border)';
-            ta.style.borderRadius = '8px';
+            ta.style.borderRadius = '10px';
             ta.style.background = 'var(--bg2)';
             ta.style.color = 'var(--text)';
             ta.style.outline = 'none';
             ta.style.resize = 'none';
+            ta.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)';
 
             const previewLabel = document.createElement('label');
             previewLabel.className = 'kp-modal-label';
-            previewLabel.textContent = 'Preview (Markdown)';
+            previewLabel.textContent = 'Live Preview (Rendered)';
             
             const previewBox = document.createElement('div');
-            previewBox.className = 'markdown-body';
-            previewBox.style.padding = '12px';
+            previewBox.className = 'markdown-body premium-scrollbar';
+            previewBox.style.padding = '16px';
             previewBox.style.background = 'var(--bg3)';
             previewBox.style.border = '1px solid var(--border)';
-            previewBox.style.borderRadius = '8px';
+            previewBox.style.borderRadius = '10px';
             previewBox.style.flex = '1';
             previewBox.style.fontSize = '13px';
             previewBox.style.overflowY = 'auto';
             previewBox.style.boxSizing = 'border-box';
+            previewBox.style.height = '540px'; 
             previewBox.innerHTML = renderMarkdown(ta.value);
 
             ta.addEventListener('input', () => {

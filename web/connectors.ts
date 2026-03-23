@@ -15,6 +15,10 @@ export class ConnectorsModule {
     private activeTab: string = 'confluence';
     private syncPollTimer: any = null;
 
+    public async init(): Promise<void> {
+        await this.loadConnectorStats();
+    }
+
     constructor() {
         this.initEvents();
     }

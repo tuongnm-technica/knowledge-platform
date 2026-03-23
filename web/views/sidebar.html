@@ -16,18 +16,18 @@
     <a href="/documents" class="nav-item" id="nav-documents" data-navigo data-target="documents">
       <span class="nav-icon">📁</span> Knowledge Base
     </a>
-    <!-- Giỏ hàng là Drawer, không chuyển trang, chỉ bật cờ isDrawerOpen của Alpine -->
-    <div class="nav-item" id="nav-basket" style="cursor:pointer" @click="isDrawerOpen = true">
+    
+    <div class="nav-item" id="nav-basket" style="cursor:pointer">
       <span class="nav-icon">📌</span> Giỏ ngữ cảnh
-      <span class="nav-badge" x-cloak x-show="$store.badges.basket > 0" x-text="$store.badges.basket"></span>
+      <span class="nav-badge" id="nav-basket-badge" style="display: none;"></span>
     </div>
     <a href="/drafts" class="nav-item" id="nav-drafts" data-navigo data-target="drafts">
       <span class="nav-icon">📝</span> Drafts
-      <span class="nav-badge" x-cloak x-show="$store.badges.drafts > 0" x-text="$store.badges.drafts"></span>
+      <span class="nav-badge" id="nav-drafts-badge" style="display: none;"></span>
     </a>
     <a href="/tasks" class="nav-item" id="nav-tasks" data-navigo data-target="tasks">
       <span class="nav-icon">🤖</span> Tasks
-      <span class="nav-badge" x-data x-cloak x-show="$store.badges.tasks > 0" x-text="$store.badges.tasks"></span>
+      <span class="nav-badge" id="nav-tasks-badge" style="display: none;"></span>
     </a>
     <a href="/memory" class="nav-item" id="nav-memory" data-navigo data-target="memory">
       <span class="nav-icon">🧠</span> Project Memory
@@ -52,7 +52,7 @@
   </nav>
 
   <div class="sidebar-bottom">
-    <div style="font-size: 8px; color: var(--text-dim); text-align: right; padding-right: 12px; margin-bottom: 4px; opacity: 0.8; font-weight: bold;">v1.3.0-graph-user-fix</div>
+    <div style="font-size: 8px; color: var(--text-dim); text-align: right; padding-right: 12px; margin-bottom: 4px; opacity: 0.8; font-weight: bold;">v1.4.0-pure-ts</div>
     <div class="user-card premium-card">
       <div class="avatar" id="sidebarAvatar">A</div>
       <div class="user-info">
