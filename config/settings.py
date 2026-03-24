@@ -33,17 +33,17 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: Optional[str] = None
 
     OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
-    OLLAMA_LLM_MODEL: str = "qwen2.5:7b"
+    OLLAMA_LLM_MODEL: str = "qwen2.5:14b"
     OLLAMA_EMBED_MODEL: str = "bge-m3"
 
     LLM_PROVIDER: str = "ollama"  # ollama | vllm | openai
     INFERENCE_BASE_URL: Optional[str] = None # For vLLM/OpenAI compatible services
-    RAG_SERVICE_URL: str = "http://rag-service:8000"
+    RAG_SERVICE_URL: str = "http://localhost:8001"
 
     EMBEDDING_MODEL: str = OLLAMA_EMBED_MODEL
     EMBEDDING_CONCURRENCY: int = 2  # Concurrency limit for embedding API calls
-    LLM_TIMEOUT: int = 300
-    ARQ_AI_JOB_TIMEOUT: int = 1200
+    LLM_TIMEOUT: int = 900
+    ARQ_AI_JOB_TIMEOUT: int = 1500
     VECTOR_DIM: int = 1024
     
     # Ingestion batch size: process documents in smaller batches to prevent timeout
@@ -112,7 +112,7 @@ class Settings(BaseSettings):
     VISION_CAPTION_MAX_CHARS: int = 900
 
     AGENT_MAX_STEPS: int = 5
-    AGENT_REACT_TIMEOUT: int = 600
+    AGENT_REACT_TIMEOUT: int = 900
     AGENT_MAX_PLAN_STEPS: int = 3
     FRONTEND_POLLING_INTERVAL_MS: int = 5000
 

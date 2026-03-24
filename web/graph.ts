@@ -25,13 +25,10 @@ export class GraphModule {
     
     private searchQuery: string = '';
     private currentView: string = 'view';
+    private timeFilterDays: number = 365; // Mặc định xem 1 năm
     
     private animationFrameId: number | null = null;
     private simulationAlpha: number = 1; // Nhiệt độ mô phỏng (từ 1 giảm dần về 0)
-
-    public async init(): Promise<void> {
-        await this.loadGraphDashboard();
-    }
 
     constructor() {
         this.canvas = document.getElementById('graphCanvas') as HTMLCanvasElement;
@@ -53,6 +50,12 @@ export class GraphModule {
         document.getElementById('refreshGraphBtn')?.addEventListener('click', () => this.loadGraphDashboard());
         document.getElementById('graphSearchInput')?.addEventListener('input', () => this.graphSearchChanged());
         document.getElementById('resetGraphBtn')?.addEventListener('click', () => this.resetGraphView());
+
+        (window as any).graphModule = this; // Expose for onclick events
+    }
+
+    public async init(): Promise<void> {
+        await this.loadGraphDashboard();
     }
 
     private handleResize(): void {
@@ -147,6 +150,7 @@ export class GraphModule {
 
             this.resetGraphView();
             this.startSimulation();
+            this.updateTimelineUI();
         } catch (err) {
             const error = err as Error;
             console.error('Graph Load Error:', error);
@@ -278,6 +282,7 @@ export class GraphModule {
 
             this.resetGraphView();
             this.startSimulation();
+            this.updateTimelineUI();
             showToast(successMsg, 'success');
         } catch (err) { 
             const error = err as Error;
@@ -285,6 +290,16 @@ export class GraphModule {
         } finally { 
             this.hideGraphLoading(); 
         }
+    }
+
+    public async loadTrace(docId: string): Promise<void> {
+        this.currentView = 'trace';
+        await this.loadAdvancedGraph(`${API}/graph/trace?doc_id=${encodeURIComponent(docId)}&depth=4`, 'Đã tải Trace Root Cause');
+    }
+
+    public async loadImpact(docId: string): Promise<void> {
+        this.currentView = 'impact';
+        await this.loadAdvancedGraph(`${API}/graph/impact?doc_id=${encodeURIComponent(docId)}&depth=3`, 'Đã tải Impact Analysis');
     }
 
     private showGraphLoading(): void {
@@ -301,6 +316,31 @@ export class GraphModule {
     private hideGraphLoading(): void {
         const hint = document.getElementById('graphHintOverlay');
         if (hint) hint.style.display = 'none';
+    }
+
+    private updateTimelineUI(): void {
+        const wrap = this.canvas?.parentElement;
+        if (!wrap) return;
+
+        let timeline = document.getElementById('graphTimelineContainer');
+        if (!timeline) {
+            timeline = document.createElement('div');
+            timeline.id = 'graphTimelineContainer';
+            timeline.className = 'graph-timeline-container';
+            timeline.innerHTML = `
+                <div class="timeline-label">🕒 Thời gian: <span id="timelineValue">365</span> ngày</div>
+                <input type="range" id="graphTimeSlider" min="1" max="365" value="365">
+            `;
+            wrap.appendChild(timeline);
+            
+            document.getElementById('graphTimeSlider')?.addEventListener('input', (e) => {
+                const val = parseInt((e.target as HTMLInputElement).value);
+                this.timeFilterDays = val;
+                const display = document.getElementById('timelineValue');
+                if (display) display.textContent = val.toString();
+                this.draw();
+            });
+        }
     }
 
     // ─── Canvas Interaction ──────────────────────────────────────────────────
@@ -413,10 +453,30 @@ export class GraphModule {
     }
 
     // ─── Search & Reset ──────────────────────────────────────────────────────
-
+    
+    private searchTimeout: number | null = null;
+    
     public graphSearchChanged(): void {
         const input = document.getElementById('graphSearchInput') as HTMLInputElement;
-        this.searchQuery = input?.value.toLowerCase().trim() || '';
+        const query = input?.value.trim() || '';
+        
+        if (this.searchTimeout) clearTimeout(this.searchTimeout);
+        
+        if (!query) {
+            this.searchQuery = '';
+            this.draw();
+            return;
+        }
+
+        this.searchQuery = query.toLowerCase();
+        
+        // Luồng Query-to-Subgraph: Nếu gõ xong 800ms thì tự động fetch subgraph
+        this.searchTimeout = window.setTimeout(() => {
+            if (query.length >= 3) {
+                this.loadAdvancedGraph(`${API}/graph/query?query=${encodeURIComponent(query)}&limit=15`, `Đã tìm thấy subgraph cho: ${query}`);
+            }
+        }, 800);
+        
         this.draw();
     }
 
@@ -496,11 +556,11 @@ export class GraphModule {
     }
     
     private applyPhysics(): void {
-        const damping = 0.82; // Tăng damping để giảm văng (0.75 -> 0.82)
-        const repulsion = 800; // Giảm lực đẩy (1200 -> 800)
-        const springK = 0.08;
-        const targetLength = 100;
-        const maxVelocity = 15; // Giới hạn vận tốc tối đa
+        const damping = 0.65; // Giảm xuống để dừng nhanh hơn (tăng ma sát)
+        const repulsion = 450; // Giảm lực đẩy
+        const springK = 0.12;  // Tăng lực kéo để các node gắn kết hơn
+        const targetLength = 65; // Khoảng cách dây ngắn lại
+        const maxVelocity = 10;
         
         // Lực đẩy giữa các nodes (Repulsion)
         for (let i = 0; i < this.nodes.length; i++) {
@@ -511,9 +571,9 @@ export class GraphModule {
                 let dSq = dx * dx + dy * dy;
                 if (dSq === 0) { dx = Math.random(); dy = Math.random(); dSq = dx*dx+dy*dy; }
                 
-                // Giới hạn vùng tác dụng lực & Capping dSq để tránh "explosive repulsion"
-                if (dSq < 80000) { 
-                    const f = (repulsion / Math.max(dSq, 400)) * this.simulationAlpha;
+                // Chỉ tác dụng trong phạm vi gần (40000 = 200px^2)
+                if (dSq < 40000) { 
+                    const f = (repulsion / Math.max(dSq, 300)) * this.simulationAlpha;
                     n1.vx! += dx * f; n1.vy! += dy * f;
                     n2.vx! -= dx * f; n2.vy! -= dy * f;
                 }
@@ -538,19 +598,22 @@ export class GraphModule {
             t.vx! -= fx; t.vy! -= fy;
         });
         
-        // Cập nhật vị trí và Lực hút tâm (Gravity)
+        // Cập nhật vị trí và Lực hút tâm (Gravity mạnh hơn)
         this.nodes.forEach(n => {
-            n.vx! += (0 - n.x!) * 0.01 * this.simulationAlpha;
-            n.vy! += (0 - n.y!) * 0.01 * this.simulationAlpha;
+            n.vx! += (0 - n.x!) * 0.06 * this.simulationAlpha;
+            n.vy! += (0 - n.y!) * 0.06 * this.simulationAlpha;
             
             if (n !== this.draggedNode) {
-                // Hover Lock: Nếu đang hover thì giữ node đứng yên tương đối
                 const isHovered = this.hoveredNode === n;
-                const nodeDamping = isHovered ? 0.3 : damping;
+                const nodeDamping = isHovered ? 0.2 : damping;
                 
                 n.x! += Math.max(-maxVelocity, Math.min(maxVelocity, n.vx!)) * nodeDamping;
                 n.y! += Math.max(-maxVelocity, Math.min(maxVelocity, n.vy!)) * nodeDamping;
             }
+            
+            // Damping thực dể tránh tích tụ vận tốc
+            n.vx! *= 0.5;
+            n.vy! *= 0.5;
         });
     }
 
@@ -584,6 +647,21 @@ export class GraphModule {
             
             const isSearched = this.searchQuery && node.label.toLowerCase().includes(this.searchQuery);
             const isHovered = this.hoveredNode === node;
+            
+            // Lọc theo thời gian (Temporal Filter)
+            let opacity = 1.0;
+            if (node.updated_at) {
+                const updated = new Date(node.updated_at);
+                const ageDays = (new Date().getTime() - updated.getTime()) / (1000 * 3600 * 24);
+                if (ageDays > this.timeFilterDays) {
+                    opacity = 0.15;
+                    if (!isHovered && !isSearched) {
+                        // Skip rendering or draw very faint
+                    }
+                }
+            }
+            
+            ctx.globalAlpha = opacity;
             const radius = (node.radius || 25) + (isHovered ? 6 : 0);
             
             // Glow shadow for premium look
@@ -610,6 +688,16 @@ export class GraphModule {
             ctx.strokeStyle = isHovered ? '#1e40af' : 'rgba(255,255,255,0.8)';
             ctx.lineWidth = isHovered ? 3 : 2;
             ctx.stroke();
+            
+            // Draw Icon
+            const iconChar = this.getIconChar((node.icon || node.subkind || node.kind || '') as string);
+            if (iconChar) {
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.font = `bold ${radius * 0.8}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(iconChar, node.x, node.y);
+            }
 
             // Vẽ Label
             if (this.scale > 0.4 || isHovered || isSearched) {
@@ -625,8 +713,36 @@ export class GraphModule {
                 ctx.fillText(node.label, node.x, node.y + radius + 20);
             }
         });
-
+        
+        ctx.globalAlpha = 1.0;
         ctx.restore();
+    }
+
+    private getIconChar(icon: string): string {
+        const map: Record<string, string> = {
+            'user': '👤',
+            'person': '👤',
+            'bug': '🐛',
+            'issue': '🐛',
+            'jira_issue': '🐛',
+            'jira': '🔹',
+            'confluence': '📄',
+            'slack': '💬',
+            'channel': '📢',
+            'server': '⚙️',
+            'service': '⚙️',
+            'cluster': '🧶',
+            'briefcase': '💼',
+            'project': '💼',
+            'align-left': '📝',
+            'chunk': '📝',
+            'file': '📎',
+            'folder': '📁',
+            'spec': '📋',
+            'api_doc': '🔌',
+            'page': '📄'
+        };
+        return map[icon] || '';
     }
 
     private lightenColor(hex: string, percent: number): string {
@@ -684,6 +800,19 @@ export class GraphModule {
                         `;
                     }
                     extra.outerHTML = html;
+                }
+                
+                // Giai đoạn 3: Actionable UI - Thêm nút thao tác nhanh
+                if (node.type === 'document' || node.kind === 'document' || data.type === 'document') {
+                    const docId = node.id;
+                    const actions = `
+                        <div class="graph-detail-actions" style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <button class="graph-action-btn" onclick="window.graphModule.loadTrace('${docId}')">🔍 Truy vết lỗi</button>
+                            <button class="graph-action-btn" onclick="window.graphModule.loadImpact('${docId}')">⚡ Phân tích ảnh hưởng</button>
+                        </div>
+                    `;
+                    const body = document.querySelector('.graph-detail-body');
+                    if (body) body.insertAdjacentHTML('beforeend', actions);
                 }
             }
         } catch (e) {

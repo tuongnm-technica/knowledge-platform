@@ -52,7 +52,7 @@ def _get_http_client() -> httpx.AsyncClient:
     global _http_client
 
     if _http_client is None:
-        _http_client = httpx.AsyncClient(timeout=120)
+        _http_client = httpx.AsyncClient(timeout=300)
 
     return _http_client
 

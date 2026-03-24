@@ -30,6 +30,7 @@ async def describe_image(
     image_bytes: bytes,
     hint: str = "",
     max_chars: int | None = None,
+    retries: int = 1,
 ) -> str:
     if not settings.VISION_ENABLED:
         return ""
@@ -44,24 +45,39 @@ async def describe_image(
         prompt = f"{prompt}\nHint/context: {hint}".strip()
 
     b64 = base64.b64encode(image_bytes).decode("ascii")
-    try:
-        text = await ollama_chat(
-            model=model,
-            messages=[
-                {"role": "system", "content": VISION_SYSTEM},
-                {"role": "user", "content": prompt, "images": [b64]},
-            ],
-            options={"num_predict": 350, "temperature": 0.1},
-            timeout=180,
-        )
-    except Exception as exc:
-        log.warning("vision.describe.failed", error=str(exc))
-        return ""
-
-    limit = int(max_chars or settings.VISION_CAPTION_MAX_CHARS or 900)
-    if limit > 50 and len(text) > limit:
-        text = text[:limit].rstrip() + "..."
-    return text
+    
+    for attempt in range(retries + 1):
+        try:
+            text = await ollama_chat(
+                model=model,
+                messages=[
+                    {"role": "system", "content": VISION_SYSTEM},
+                    {"role": "user", "content": prompt, "images": [b64]},
+                ],
+                options={"num_predict": 350, "temperature": 0.1},
+                timeout=180,
+            )
+            
+            limit = int(max_chars or settings.VISION_CAPTION_MAX_CHARS or 900)
+            if limit > 50 and len(text) > limit:
+                text = text[:limit].rstrip() + "..."
+            return text
+            
+        except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
+            # Handle timeout specifically. If it's a job cancellation, we still catch it here
+            # to avoid killing the whole doc, but usually CancelledError should be respected
+            # if it's from the top level. However, for a sub-task, we can return empty.
+            log.warning("vision.describe.timeout", attempt=attempt, error=str(exc))
+            if attempt >= retries:
+                return ""
+            await asyncio.sleep(1)
+        except Exception as exc:
+            log.warning("vision.describe.failed", attempt=attempt, error=str(exc))
+            if attempt >= retries:
+                return ""
+            await asyncio.sleep(1)
+    
+    return ""
 
 
 async def describe_images_batch(
@@ -83,4 +99,4 @@ async def describe_images_batch(
                 hint=str(item.get("hint") or "").strip(),
             )
 
-    return await asyncio.gather(*[_one(item) for item in items])
+    return await asyncio.gather(*[_one(item) for item in items], return_exceptions=True)

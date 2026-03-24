@@ -323,7 +323,12 @@ class AssetIngestor:
             data = it["bytes"]
             filename = str(it["filename"] or "").strip() or "image"
             mime_type = str(it["mime_type"] or "").strip() or _guess_mime_from_filename(filename)
-            caption = str(captions[idx] if idx < len(captions) else "" or "").strip()
+            raw_caption = captions[idx] if idx < len(captions) else ""
+            if isinstance(raw_caption, Exception):
+                log.warning("assets.vision.item_failed", index=idx, error=str(raw_caption))
+                caption = ""
+            else:
+                caption = str(raw_caption or "").strip()
 
             # Dedup by (doc_id, sha256).
             sha = None

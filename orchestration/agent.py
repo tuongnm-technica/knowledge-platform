@@ -229,7 +229,7 @@ class Agent:
         log.info("agent.search.delegated", q=query.raw, limit=query.limit, offset=query.offset)
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 payload = {
                     "raw": query.raw,
                     "effective": query.effective,

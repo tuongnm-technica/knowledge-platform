@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import Request
 from contextlib import asynccontextmanager
@@ -8,6 +8,7 @@ from pathlib import Path
 from storage.db.db import create_tables
 from apps.api.routes import search, ask, ingest, health, connectors, auth, users, groups, graph, docs, documents, assets, prompts, tasks, history, memory, workflows
 from config.settings import settings
+import httpx
 from utils.logging import configure_logging
 from scheduler.sync_scheduler import start_scheduler, stop_scheduler
 from storage.vector.vector_store import get_qdrant
@@ -75,6 +76,31 @@ app.include_router(tasks.router, prefix="/api")
 app.include_router(memory.router, prefix="/api")
 app.include_router(history.router, prefix="/api")
 app.include_router(workflows.router, prefix="/api")
+
+# ==========================================
+# SDLC MULTI-AGENT PROXY ROUTES
+# ==========================================
+RAG_SERVICE_URL = getattr(settings, "RAG_SERVICE_URL", "http://localhost:8001")
+
+@app.post("/api/sdlc/stream")
+async def proxy_stream_sdlc(request: Request):
+    req_data = await request.json()
+    
+    async def stream_generator():
+        # Timeout lớn (10 phút) vì Local LLM chạy khá lâu cho 3 Agents
+        async with httpx.AsyncClient(timeout=600.0) as client: 
+            async with client.stream("POST", f"{RAG_SERVICE_URL}/stream-sdlc", json=req_data) as response:
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+                    
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+@app.post("/api/sdlc/generate")
+async def proxy_generate_sdlc(request: Request):
+    req_data = await request.json()
+    async with httpx.AsyncClient(timeout=600.0) as client:
+        response = await client.post(f"{RAG_SERVICE_URL}/generate-sdlc", json=req_data)
+        return response.json()
 
 if WEB_DIR.exists():
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

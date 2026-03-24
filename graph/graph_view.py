@@ -30,6 +30,15 @@ def _safe_str(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _iso_date(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    try:
+        return dt.isoformat()
+    except Exception:
+        return None
+
+
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -58,6 +67,10 @@ class GraphPalette:
     FILE = "#F97316"
     USER = "#64748B"
     SUPER = "#0F766E"
+    CHUNK = "#8B5CF6"
+    ENTITY = "#EC4899"
+    ISSUE = "#EF4444"
+    SERVICE = "#10B981"
 
 
 class GraphViewBuilder:
@@ -112,6 +125,7 @@ class GraphViewBuilder:
         max_docs: int = 260,
         semantic_k: int = 4,
         semantic_min_weight: float = 3.0,
+        include_chunks: bool = True,
     ) -> dict:
         node_id = _safe_str(node_id)
         depth = max(1, min(int(depth), 5))
@@ -123,6 +137,9 @@ class GraphViewBuilder:
             doc_ids = await self._docs_for_user_entity(node_id.split(":", 1)[1], limit=max_docs)
         elif node_id.startswith("doc:"):
             doc_ids = [node_id.split(":", 1)[1]]
+        elif node_id.startswith("chunk:"):
+            # Focus on a chunk: get its document and neighbors
+            doc_ids = await self._doc_id_for_chunk(node_id.split(":", 1)[1])
         else:
             doc_ids = await self._docs_for_super_node(node_id, limit=max_docs)
 
@@ -133,8 +150,77 @@ class GraphViewBuilder:
             semantic_min_weight=semantic_min_weight,
             bfs_root_nodes=[node_id] if node_id else None,
             depth=depth,
+            include_chunks=include_chunks,
         )
         return {"detail": detail, "super": self._build_super_graph(detail), "insights": self._gap_insights(detail)}
+
+    async def build_query_subgraph(
+        self,
+        *,
+        query: str,
+        limit: int = 15,
+        depth: int = 2,
+    ) -> dict:
+        from indexing.vector_index import VectorIndex
+
+        query = _safe_str(query)
+        if not query:
+            return {"error": "Query is empty"}
+
+        vindex = VectorIndex(self._session)
+        # Find top-k chunks
+        hits = await vindex.search(query, limit=limit)
+        if not hits:
+            return {"nodes": [], "edges": [], "info": "No relevant chunks found"}
+
+        chunk_ids = [h["chunk_id"] for h in hits]
+        doc_ids = list(set(h["document_id"] for h in hits))
+        
+        docs = await self._fetch_docs_by_ids(doc_ids)
+        detail = await self._build_detail_graph(
+            docs,
+            semantic_k=3,
+            semantic_min_weight=2.0,
+            bfs_root_nodes=[f"chunk:{cid}" for cid in chunk_ids],
+            depth=depth,
+            include_chunks=True,
+            limit_chunks=chunk_ids, # Only show found chunks or neighbors
+        )
+        
+        # Highlight entry nodes
+        highlight = {f"chunk:{cid}": True for cid in chunk_ids}
+        for n in detail.get("nodes") or []:
+            if n["id"] in highlight:
+                n["highlight"] = True
+                n["size"] = n.get("size", 11) * 1.5
+
+        return {
+            "detail": detail,
+            "super": self._build_super_graph(detail),
+            "insights": self._gap_insights(detail)
+        }
+
+    async def traverse_graph(
+        self,
+        *,
+        node_id: str,
+        limit: int = 15,
+        relation_kind: str | None = None,
+    ) -> dict:
+        """Helper for LLM reasoning to explore neighbors."""
+        detail = await self.build_focus(node_id=node_id, depth=1, include_chunks=True)
+        nodes = detail.get("detail", {}).get("nodes", [])
+        edges = detail.get("detail", {}).get("edges", [])
+        
+        if relation_kind:
+            edges = [e for e in edges if e.get("kind") == relation_kind]
+            node_ids = {e.get("source") for e in edges} | {e.get("target") for e in edges}
+            nodes = [n for n in nodes if n.get("id") in node_ids]
+            
+        nodes_out = list(nodes)[:limit]
+        edges_out = list(edges)[:limit]
+            
+        return {"nodes": nodes_out, "edges": edges_out}
 
     async def trace_root_cause(
         self,
@@ -326,6 +412,17 @@ class GraphViewBuilder:
             )
         return out
 
+    async def _doc_id_for_chunk(self, chunk_id: str) -> list[str]:
+        chunk_id = _safe_str(chunk_id)
+        if not chunk_id:
+            return []
+        result = await self._session.execute(
+            text("SELECT document_id::text FROM chunks WHERE id = :id LIMIT 1"),
+            {"id": chunk_id},
+        )
+        row = result.scalar()
+        return [str(row)] if row else []
+
     async def _jira_doc_id_for_key(self, jira_key: str) -> str | None:
         jira_key = _safe_str(jira_key).upper()
         if not jira_key:
@@ -432,6 +529,8 @@ class GraphViewBuilder:
         semantic_min_weight: float,
         bfs_root_nodes: list[str] | None = None,
         depth: int | None = None,
+        include_chunks: bool = False,
+        limit_chunks: list[str] | None = None,
     ) -> dict:
         nodes: list[dict] = []
         edges: list[dict] = []
@@ -491,6 +590,100 @@ class GraphViewBuilder:
                         meta={"roles": roles},
                     )
                 )
+
+        # Entity nodes (API, Issue, Service, etc.)
+        entity_links = await self._fetch_doc_entities(doc_ids)
+        all_entity_ids = set()
+        for ents in entity_links.values():
+            for e in ents:
+                all_entity_ids.add(e["id"])
+        
+        entity_meta = await self._fetch_entity_details(list(all_entity_ids))
+        for doc_id, entities in entity_links.items():
+            for ent in entities:
+                ent_id = ent["id"]
+                ent_type = ent["type"]
+                meta = entity_meta.get(ent_id) or {}
+                ent_node_id = f"entity:{ent_id}"
+                
+                if ent_node_id not in node_by_id:
+                    color = GraphPalette.ENTITY
+                    icon = "circle"
+                    if ent_type == "jira_issue":
+                        color = GraphPalette.ISSUE
+                        icon = "bug"
+                    elif ent_type == "service":
+                        color = GraphPalette.SERVICE
+                        icon = "server"
+                    elif ent_type == "project":
+                        color = GraphPalette.SUPER
+                        icon = "briefcase"
+                    
+                    node = {
+                        "id": ent_node_id,
+                        "kind": "entity",
+                        "subkind": ent_type,
+                        "label": meta.get("name") or ent_id,
+                        "color": color,
+                        "icon": icon,
+                        "meta": meta,
+                    }
+                    nodes.append(node)
+                    node_by_id[ent_node_id] = node
+                
+                edges.append(
+                    self._edge(
+                        f"doc:{doc_id}",
+                        ent_node_id,
+                        kind="extraction",
+                        relation="mentions",
+                        weight=1.0,
+                    )
+                )
+
+        # Chunk nodes
+        if include_chunks:
+            chunks_by_doc = await self._fetch_chunks_for_docs(doc_ids, limit_chunks=limit_chunks)
+            for doc_id, doc_chunks in chunks_by_doc.items():
+                for chunk in doc_chunks:
+                    chunk_node_id = f"chunk:{chunk['id']}"
+                    if chunk_node_id not in node_by_id:
+                        node = {
+                            "id": chunk_node_id,
+                            "kind": "chunk",
+                            "subkind": "chunk",
+                            "label": f"Chunk {chunk['chunk_index']}",
+                            "color": GraphPalette.CHUNK,
+                            "icon": "align-left",
+                            "meta": {"index": chunk["chunk_index"], "snippet": chunk["content"][:200]},
+                        }
+                        nodes.append(node)
+                        node_by_id[chunk_node_id] = node
+                    
+                    edges.append(
+                        self._edge(
+                            f"doc:{doc_id}",
+                            chunk_node_id,
+                            kind="membership",
+                            relation="contains",
+                            weight=1.5,
+                        )
+                    )
+                    
+                    # Link Chunk to Entities mentioned in it (if text contains entity name)
+                    doc_ents = entity_links.get(doc_id, [])
+                    for ent in doc_ents:
+                        ent_meta = entity_meta.get(ent["id"])
+                        if ent_meta and ent_meta.get("name") and ent_meta["name"].lower() in chunk["content"].lower():
+                            edges.append(
+                                self._edge(
+                                    chunk_node_id,
+                                    f"entity:{ent['id']}",
+                                    kind="textual",
+                                    relation="mentions",
+                                    weight=1.2,
+                                )
+                            )
 
         # Explicit doc-doc links (persisted at ingestion).
         edges.extend(await self._fetch_explicit_doc_links(doc_ids))
@@ -566,6 +759,34 @@ class GraphViewBuilder:
         out: dict[str, list[dict]] = defaultdict(list)
         for r in rows:
             out[str(r["document_id"])].append({"id": str(r["entity_id"]), "type": str(r.get("entity_type") or "")})
+        return out
+
+    async def _fetch_entity_details(self, entity_ids: list[str]) -> dict[str, dict]:
+        if not entity_ids:
+            return {}
+        rows = (
+            await self._session.execute(
+                text("SELECT id::text, name, entity_type, normalized_name FROM entities WHERE id::text = ANY(:ids)"),
+                {"ids": entity_ids},
+            )
+        ).mappings().all()
+        return {str(r["id"]): dict(r) for r in rows}
+
+    async def _fetch_chunks_for_docs(self, doc_ids: list[str], limit_chunks: list[str] | None = None) -> dict[str, list[dict]]:
+        if not doc_ids:
+            return {}
+        
+        query = "SELECT id::text, document_id::text, content, chunk_index FROM chunks WHERE document_id::text = ANY(:doc_ids)"
+        params = {"doc_ids": doc_ids}
+        
+        if limit_chunks:
+            query += " AND id::text = ANY(:chunk_ids)"
+            params["chunk_ids"] = limit_chunks
+            
+        rows = (await self._session.execute(text(query), params)).mappings().all()
+        out: dict[str, list[dict]] = defaultdict(list)
+        for r in rows:
+            out[str(r["document_id"])].append(dict(r))
         return out
 
     async def _fetch_explicit_doc_links(self, doc_ids: list[str]) -> list[dict]:
@@ -869,6 +1090,8 @@ class GraphViewBuilder:
                 "color": GraphPalette.JIRA,
                 "icon": subkind or "jira",
                 "url": doc.url or "",
+                "created_at": _iso_date(doc.updated_at),
+                "updated_at": _iso_date(doc.updated_at),
                 "meta": {**meta, "topic_key": self._topic_key_for_doc(doc)},
             }
 
@@ -883,6 +1106,8 @@ class GraphViewBuilder:
                 "color": GraphPalette.CONFLUENCE,
                 "icon": subkind,
                 "url": doc.url or "",
+                "created_at": _iso_date(doc.updated_at),
+                "updated_at": _iso_date(doc.updated_at),
                 "meta": {**meta, "topic_key": self._topic_key_for_doc(doc)},
             }
 
@@ -896,6 +1121,8 @@ class GraphViewBuilder:
                 "color": GraphPalette.SLACK,
                 "icon": "slack",
                 "url": doc.url or "",
+                "created_at": _iso_date(doc.updated_at),
+                "updated_at": _iso_date(doc.updated_at),
                 "meta": {**meta, "topic_key": self._topic_key_for_doc(doc)},
             }
 
@@ -910,6 +1137,8 @@ class GraphViewBuilder:
                 "color": GraphPalette.FILE,
                 "icon": "file",
                 "url": doc.url or "",
+                "created_at": _iso_date(doc.updated_at),
+                "updated_at": _iso_date(doc.updated_at),
                 "meta": {**meta, "topic_key": self._topic_key_for_doc(doc)},
             }
 

@@ -145,13 +145,22 @@ class TaskDraftRepository:
         )
         return [dict(r) for r in result.mappings().all()]
 
-    async def get_all(self, limit: int = 50, source: str | None = None) -> list[dict]:
-        """Lấy tất cả task drafts với tùy chọn lọc theo nguồn (source_type)."""
-        where_clause = ""
+    async def get_all(self, limit: int = 50, source: str | None = None, status: str | None = None) -> list[dict]:
+        """Lấy tất cả task drafts với tùy chọn lọc theo nguồn (source_type) và trạng thái (status)."""
+        where_clauses = []
         params = {"limit": limit}
+        
         if source:
-            where_clause = "WHERE source_type = :source"
+            where_clauses.append("source_type = :source")
             params["source"] = source
+        
+        if status:
+            where_clauses.append("status = :status")
+            params["status"] = status
+            
+        where_clause = ""
+        if where_clauses:
+            where_clause = "WHERE " + " AND ".join(where_clauses)
 
         result = await self._session.execute(
             text(
@@ -173,6 +182,15 @@ class TaskDraftRepository:
         """), {"id": draft_id})
         row = result.fetchone()
         return dict(row._mapping) if row else None
+
+    async def delete(self, draft_id: str) -> bool:
+        """Xóa vĩnh viễn một task draft."""
+        result = await self._session.execute(
+            text("DELETE FROM ai_task_drafts WHERE id = :id"),
+            {"id": draft_id}
+        )
+        await self._session.commit()
+        return result.rowcount > 0
 
     async def count_pending(self) -> int:
         result = await self._session.execute(

@@ -13,6 +13,7 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
     // Tự động xử lý khi token hết hạn
     if (response.status === 401) {
         localStorage.removeItem('kp_access_token');
+        localStorage.removeItem('kp_user');
         // Thay vì redirect mạnh bằng reload toàn trang, ta bắn event để Main.ts xử lý
         document.dispatchEvent(new CustomEvent('kp-unauthorized'));
     }

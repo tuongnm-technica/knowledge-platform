@@ -779,3 +779,92 @@
   .graph-detail { width: calc(100% - 32px); }
   #graphResultPanel { padding: 14px 16px; }
 }
+
+/* ── TIMELINE SLIDER ── */
+.graph-timeline-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+[data-theme="dark"] .graph-timeline-container {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(255,255,255,0.1);
+}
+
+.timeline-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#timelineValue {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+#graphTimeSlider {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  appearance: none;
+  outline: none;
+}
+
+#graphTimeSlider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* ── ACTION BUTTONS ── */
+.graph-detail-actions {
+  padding: 12px 0 0;
+  border-top: 1px dashed var(--border);
+}
+
+.graph-action-btn {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+[data-theme="dark"] .graph-action-btn {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.graph-action-btn:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.24);
+}

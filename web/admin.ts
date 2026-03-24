@@ -23,11 +23,57 @@ export class AdminModule {
         this.bindGlobalActions();
 
         if (subpage === 'groups') {
-            setTimeout(() => {
-                const groupsSection = document.querySelector('.section-header[style*="margin-top: 40px"]');
-                if (groupsSection) groupsSection.scrollIntoView({ behavior: 'smooth' });
-            }, 100);
+            this.switchTab('groups');
+        } else {
+            this.switchTab('users');
         }
+        this.updateStats();
+    }
+
+    public switchTab(tabId: string) {
+        // Update tab buttons
+        document.querySelectorAll('.admin-tab').forEach(btn => {
+            const isTarget = btn.getAttribute('data-admin-tab') === tabId;
+            btn.classList.toggle('active', isTarget);
+            btn.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+        });
+
+        // Update panels
+        const usersPanel = document.getElementById('admin-users-panel');
+        const groupsPanel = document.getElementById('admin-groups-panel');
+        
+        if (usersPanel) {
+            usersPanel.classList.toggle('active', tabId === 'users');
+            if (tabId === 'users') usersPanel.removeAttribute('hidden');
+            else usersPanel.setAttribute('hidden', '');
+        }
+        if (groupsPanel) {
+            groupsPanel.classList.toggle('active', tabId === 'groups');
+            if (tabId === 'groups') groupsPanel.removeAttribute('hidden');
+            else groupsPanel.setAttribute('hidden', '');
+        }
+    }
+
+    public updateStats() {
+        const totalUsers = this.users.length;
+        const totalAdmins = this.users.filter(u => u.is_admin).length;
+        const totalGroups = this.groups.length;
+        const unassigned = this.users.filter(u => !u.group_ids || u.group_ids.length === 0).length;
+
+        const elUsers = document.getElementById('admin-stat-users');
+        const elAdmins = document.getElementById('admin-stat-admins');
+        const elGroups = document.getElementById('admin-stat-groups');
+        const elUnassigned = document.getElementById('admin-stat-unassigned');
+
+        if (elUsers) elUsers.textContent = totalUsers.toString();
+        if (elAdmins) elAdmins.textContent = totalAdmins.toString();
+        if (elGroups) elGroups.textContent = totalGroups.toString();
+        if (elUnassigned) elUnassigned.textContent = unassigned.toString();
+
+        const userTabCount = document.getElementById('admin-users-tab-count');
+        const groupTabCount = document.getElementById('admin-groups-tab-count');
+        if (userTabCount) userTabCount.textContent = totalUsers.toString();
+        if (groupTabCount) groupTabCount.textContent = totalGroups.toString();
     }
 
     public async loadUsersTable() {
@@ -43,6 +89,7 @@ export class AdminModule {
         } finally {
             this.isLoadingUsers = false;
             this.render();
+            this.updateStats();
         }
     }
 
@@ -59,6 +106,7 @@ export class AdminModule {
         } finally {
             this.isLoadingGroups = false;
             this.render();
+            this.updateStats();
         }
     }
 
@@ -249,6 +297,22 @@ export class AdminModule {
     private bindGlobalActions() {
         if (this.isEventsBound) return;
         this.isEventsBound = true;
+
+        // Tabs switching
+        document.querySelectorAll('.admin-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabId = btn.getAttribute('data-admin-tab');
+                if (tabId) this.switchTab(tabId);
+            });
+        });
+
+        // Actions using data attributes
+        document.querySelector('[data-admin-action="add-user"]')?.addEventListener('click', () => this.openUserModal());
+        document.querySelector('[data-admin-action="refresh-users"]')?.addEventListener('click', () => this.loadUsersTable());
+        document.querySelector('[data-admin-action="add-group"]')?.addEventListener('click', () => this.openGroupModal());
+        document.querySelector('[data-admin-action="refresh-groups"]')?.addEventListener('click', () => this.loadGroupsTable());
+
+        // Also support old IDs if any remain
         document.querySelector('#admin-add-user')?.addEventListener('click', () => this.openUserModal());
         document.querySelector('#admin-refresh-users')?.addEventListener('click', () => this.loadUsersTable());
         document.querySelector('#admin-add-group')?.addEventListener('click', () => this.openGroupModal());

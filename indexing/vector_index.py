@@ -103,3 +103,14 @@ class VectorIndex:
             # Có thể throw exception ra ngoài để worker Retry lại cả job
 
         log.info("vector_index.done", indexed=len(chunks))
+
+    async def search(self, query: str, limit: int = 10) -> list[dict]:
+        if not query:
+            return []
+        
+        try:
+            vector = await self._embedding_service.get_embedding(query)
+            return self._store.similarity_search(vector, top_k=limit)
+        except Exception as e:
+            log.error("vector_index.search_failed", error=str(e))
+            return []

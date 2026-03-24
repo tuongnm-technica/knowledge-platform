@@ -49,6 +49,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - PYTHONPATH=/app
     volumes:
       - .:/app

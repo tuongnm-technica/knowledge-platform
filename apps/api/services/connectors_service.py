@@ -863,9 +863,9 @@ async def start_connector_sync(
         redis = await get_redis_pool()
         queue_name = getattr(settings, "ARQ_INGESTION_QUEUE_NAME", "ingestion")
         await redis.enqueue_job("sync_connector_job", connector_type, instance_id, incremental, _queue_name=queue_name)
-        log.info("connectors.sync.queued", key=connector_key)
+        log.info("connectors.sync.queued", key=connector_key, queue=queue_name)
     except Exception as e:
-        log.warning("connectors.sync.redis_failed_fallback", error=str(e))
+        log.error("connectors.sync.redis_failed_fallback", error=str(e), advice="Check if Redis is running and REDIS_URL is correct.")
         background_tasks.add_task(_run_sync_task, connector_type, instance_id, incremental)
 
     return {"status": "started", "connector": connector_key, "incremental": incremental}
@@ -968,8 +968,9 @@ async def start_all_configured_syncs(
                 redis = await get_redis_pool()
                 queue_name = getattr(settings, "ARQ_INGESTION_QUEUE_NAME", "ingestion")
                 await redis.enqueue_job("sync_connector_job", t, inst["id"], incremental, _queue_name=queue_name)
+                log.info("connectors.sync.all_queued", key=connector_key, queue=queue_name)
             except Exception as e:
-                log.warning("connectors.sync.redis_failed_fallback", error=str(e))
+                log.error("connectors.sync.redis_failed_fallback", error=str(e), advice="Check if Redis is running and REDIS_URL is correct.")
                 background_tasks.add_task(_run_sync_task, t, inst["id"], incremental)
                 
             started.append(connector_key)

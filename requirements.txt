@@ -41,3 +41,7 @@ networkx
 Pillow
 
 aiohttp
+
+langgraph
+langchain-ollama
+httpx

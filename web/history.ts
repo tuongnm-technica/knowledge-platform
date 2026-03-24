@@ -3,6 +3,13 @@ import { ChatSession } from './models';
 import { escapeHtml, formatDateTime } from './ui';
 
 export class HistoryModule {
+    constructor() {
+        document.addEventListener('kp-refresh-history', () => {
+            console.log('HistoryModule: Refreshing history list...');
+            this.loadHistoryPage('chatHistoryList');
+        });
+    }
+
     public async loadHistoryPage(targetId: string = 'chatHistoryList'): Promise<void> {
         const list = document.getElementById(targetId);
         if (list) list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Đang tải...</div>';

@@ -1,6 +1,7 @@
 import json
 import re
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
@@ -11,6 +12,7 @@ from graph.knowledge_graph import KnowledgeGraph
 from retrieval.hybrid.hybrid_search import HybridSearch
 from persistence.document_repository import DocumentRepository
 from ranking.scorer import RankingScorer
+from orchestration.agent_workflow import run_sdlc_pipeline, stream_sdlc_pipeline
 
 log = structlog.get_logger(__name__)
 
@@ -23,6 +25,11 @@ class RAGSearchRequest(BaseModel):
     offset: int = 0
     user_id: str
     entities: list[str] = Field(default_factory=list)
+
+class SDLCGenerateRequest(BaseModel):
+    request: str
+    context: str = ""
+    user_id: str
 
 slack_ts_re = re.compile(r"^\[\d{2}:\d{2}\|([0-9]+\.[0-9]+)\]", re.MULTILINE)
 
@@ -127,7 +134,7 @@ async def perform_rag_search(req: RAGSearchRequest, session: AsyncSession = Depe
         scored = scorer.score(raw, doc_meta)
 
         # 6. Deduplicate by document_id
-        unique_results = []
+        unique_results: list[dict] = []
         seen_docs = set()
         for item in scored:
             doc_id = str(item.get("document_id", ""))
@@ -174,3 +181,45 @@ async def perform_rag_search(req: RAGSearchRequest, session: AsyncSession = Depe
     except Exception as e:
         log.exception("rag_service.search.failed", error=str(e))
         raise HTTPException(status_code=500, detail="RAG Search execution failed")
+
+@app.post("/generate-sdlc")
+async def generate_sdlc_documents(req: SDLCGenerateRequest, session: AsyncSession = Depends(get_db)):
+    """
+    Endpoint kích hoạt luồng Multi-Agent cho thư viện SDLC
+    """
+    log.info("rag_service.sdlc.start", user_id=req.user_id, request=req.request[:50])
+    try:
+        # Chạy toàn bộ pipeline (Search -> BA -> SA -> QA...)
+        final_state = await run_sdlc_pipeline(
+            user_request=req.request, 
+            context=req.context,
+            user_id=req.user_id,
+            session=session
+        )
+        
+        # Trả về các JSON đã được validate bằng schema
+        return {
+            "status": "success",
+            "data": final_state
+        }
+    except Exception as e:
+        log.exception("rag_service.sdlc.failed", error=str(e))
+        raise HTTPException(status_code=500, detail="SDLC Multi-Agent pipeline failed")
+
+@app.post("/stream-sdlc")
+async def stream_sdlc_documents(req: SDLCGenerateRequest, session: AsyncSession = Depends(get_db)):
+    """
+    Endpoint Streaming kích hoạt luồng Multi-Agent cho UI trải nghiệm Real-time
+    """
+    log.info("rag_service.sdlc_stream.start", user_id=req.user_id)
+    
+    return StreamingResponse(
+        stream_sdlc_pipeline(
+            user_request=req.request, 
+            context=req.context,
+            user_id=req.user_id,
+            session=session
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    )

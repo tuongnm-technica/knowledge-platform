@@ -74,7 +74,7 @@ async def expand_query(query: str, use_llm: bool = True) -> list[str]:
                 {"role": "user", "content": f'Query: "{query}"'},
             ],
             options={"num_predict": 120, "temperature": 0.3},
-            timeout=15,
+            timeout=45,
             client=client,
         )
 

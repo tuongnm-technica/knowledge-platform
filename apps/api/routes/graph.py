@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
@@ -34,7 +35,7 @@ async def graph_health(
         allowed_docs = await perm_filter.allowed_docs(current_user.user_id)
         
         # Build query - admins see all, others see filtered
-        params = {}
+        params: dict[str, Any] = {}
         base_query = "SELECT source, COUNT(*) AS c FROM documents"
         if allowed_docs is not None:
             # User is non-admin: filter by allowed documents
@@ -175,7 +176,7 @@ async def graph_snapshot(
             JOIN entities e ON e.id = de.entity_id
         """
         
-        params = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         
         if allowed_docs is not None:
             entity_query += " WHERE de.document_id::text = ANY(:allowed)"
@@ -256,6 +257,40 @@ async def graph_view(
     except Exception as e:
         log.exception("graph.view.error", user_id=current_user.user_id, error=str(e))
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to build view")
+
+
+@router.get("/query")
+async def graph_query(
+    query: str,
+    limit: int = 15,
+    depth: int = 2,
+    session: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """GET /graph/query — Semantic search to subgraph"""
+    try:
+        builder = GraphViewBuilder(session)
+        return await builder.build_query_subgraph(query=query, limit=limit, depth=depth)
+    except Exception as e:
+        log.exception("graph.query.error", user_id=current_user.user_id, query=query, error=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to search graph")
+
+
+@router.get("/traverse")
+async def graph_traverse(
+    node_id: str,
+    limit: int = 15,
+    relation_kind: str | None = None,
+    session: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """GET /graph/traverse — Explore neighbors for reasoning"""
+    try:
+        builder = GraphViewBuilder(session)
+        return await builder.traverse_graph(node_id=node_id, limit=limit, relation_kind=relation_kind)
+    except Exception as e:
+        log.exception("graph.traverse.error", user_id=current_user.user_id, node_id=node_id, error=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to traverse graph")
 
 
 @router.get("/focus")
@@ -368,17 +403,26 @@ async def graph_node_detail(
         allowed_docs = await perm_filter.allowed_docs(current_user.user_id)
         
         # Check if node is an entity or document
-        entity_result = await session.execute(
-            text("SELECT id::text, name AS label, entity_type AS type FROM entities WHERE id::text = :node_id"),
-            {"node_id": node_id}
-        )
-        entity_row = entity_result.mappings().first()
+        raw_id = node_id
+        kind = "entity"
+        
+        if ":" in node_id:
+            kind, raw_id = node_id.split(":", 1)
+            
+        entity_row = None
+        if kind in ["entity", "user", "person"]:
+            # Node is an entity or user
+            entity_result = await session.execute(
+                text("SELECT id::text, name AS label, entity_type AS type FROM entities WHERE id::text = :node_id"),
+                {"node_id": raw_id}
+            )
+            entity_row = entity_result.mappings().first()
         
         if entity_row:
             # Node is an entity
             # Get mention count
             mention_query = "SELECT COUNT(*) AS mentions FROM document_entities WHERE entity_id::text = :node_id"
-            params = {"node_id": node_id}
+            params: dict[str, Any] = {"node_id": raw_id}
             
             if allowed_docs is not None:
                 mention_query += " AND document_id::text = ANY(:allowed)"
@@ -400,7 +444,7 @@ async def graph_node_detail(
             
             relations_result = await session.execute(
                 text(relation_query),
-                {"node_id": node_id}
+                {"node_id": raw_id}
             )
             related = [
                 {
@@ -426,17 +470,29 @@ async def graph_node_detail(
             doc_query = "SELECT id::text, title, source, updated_at FROM documents WHERE id::text = :node_id"
             
             if allowed_docs is not None:
-                if node_id not in allowed_docs:
+                if raw_id not in allowed_docs:
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this document")
             
             doc_result = await session.execute(
                 text(doc_query),
-                {"node_id": node_id}
+                {"node_id": raw_id}
             )
             doc_row = doc_result.mappings().first()
             
             if not doc_row:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Node not found")
+                # Try special container nodes (slack channels, etc)
+                if kind in ["slack_channel", "confluence_space", "file_folder"]:
+                    return {
+                        "id": node_id,
+                        "label": raw_id,
+                        "type": kind,
+                        "metadata": {
+                            "category": "Container",
+                            "type": kind,
+                        },
+                        "related": [],
+                    }
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Node not found: {node_id}")
             
             # Get related documents
             related_docs_query = """
@@ -452,7 +508,7 @@ async def graph_node_detail(
             
             related_result = await session.execute(
                 text(related_docs_query),
-                {"doc_id": node_id}
+                {"doc_id": raw_id}
             )
             related_docs = [
                 {

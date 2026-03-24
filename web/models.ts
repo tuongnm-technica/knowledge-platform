@@ -192,6 +192,10 @@ export interface GraphNode {
     subkind?: string;
     size?: number;
     color?: string;
+    icon?: string;
+    highlight?: boolean;
+    created_at?: string;
+    updated_at?: string;
     radius?: number;
     x?: number;
     y?: number;
