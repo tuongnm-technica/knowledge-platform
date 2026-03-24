@@ -10,6 +10,7 @@ export class DraftsModule {
     private currentDraftId: string | null = null;
     private currentDraft: Draft | null = null;
     private editorInstance: AIEditor | null = null;
+    private isEventsBound = false;
 
     constructor() {
         document.addEventListener('kp-refresh-drafts', () => {
@@ -37,12 +38,14 @@ export class DraftsModule {
         } finally {
             this.isLoading = false;
             this.render();
-            // Unified badge update (Pure TS)
             updateBadge('drafts', this.drafts.length);
         }
     }
 
     private bindGlobalActions() {
+        if (this.isEventsBound) return;
+        this.isEventsBound = true;
+
         document.querySelector('#drafts-refresh-btn')?.addEventListener('click', () => this.loadDraftsPage(true));
         document.querySelector('#drafts-filter')?.addEventListener('change', (e) => {
             this.filterType = (e.currentTarget as HTMLSelectElement).value;
@@ -61,11 +64,10 @@ export class DraftsModule {
             if (!res.ok) throw new Error('Không tải được draft');
             const data = await res.json() as { draft: Draft };
             this.currentDraft = data.draft;
-            
-            this.isLoading = false;
-            this.render(); // Render editor container first
 
-            // Khởi tạo AI Editor sau khi render
+            this.isLoading = false;
+            this.render();
+
             setTimeout(() => {
                 const editorEl = document.getElementById('draftTipTapEditor');
                 if (!editorEl) {
@@ -106,10 +108,10 @@ export class DraftsModule {
             const res = await authFetch(`${API}/docs/drafts/${this.currentDraftId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    title: this.currentDraft.title, 
-                    content: content, 
-                    status: this.currentDraft.status 
+                body: JSON.stringify({
+                    title: this.currentDraft.title,
+                    content: content,
+                    status: this.currentDraft.status
                 }),
             });
             if (!res.ok) throw new Error('Lưu thất bại');
@@ -120,10 +122,10 @@ export class DraftsModule {
     }
 
     public async deleteDraft(draftId: string) {
-        if (!await kpConfirm({ 
-            title: 'Xóa bản nháp', 
-            message: 'Bạn có chắc chắn muốn xóa bản nháp này?', 
-            danger: true 
+        if (!await kpConfirm({
+            title: 'Xóa bản nháp',
+            message: 'Bạn có chắc chắn muốn xóa bản nháp này?',
+            danger: true
         })) return;
         try {
             const res = await authFetch(`${API}/docs/drafts/${draftId}`, { method: 'DELETE' });
@@ -147,7 +149,7 @@ export class DraftsModule {
         if (this.currentDraftId) {
             listContainer.style.display = 'none';
             editorContainer.style.display = 'block';
-            
+
             const titleEl = editorContainer.querySelector('#draft-editor-title') as HTMLInputElement;
             if (titleEl && this.currentDraft) titleEl.value = this.currentDraft.title || '';
         } else {
@@ -173,7 +175,6 @@ export class DraftsModule {
                         </div>
                     `).join('');
 
-                    // Bind events
                     grid.querySelectorAll('.edit-btn').forEach(btn => {
                         btn.addEventListener('click', (e) => {
                             e.stopPropagation();

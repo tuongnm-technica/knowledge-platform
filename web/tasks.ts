@@ -9,9 +9,9 @@ export class TasksModule {
     private includeSubmitted = false;
     private slackDays = 1;
     private confluenceDays = 1;
+    private isEventsBound = false;
 
     constructor() {
-        // Initial setup
         document.addEventListener('kp-refresh-tasks', () => {
             this.loadTasks();
             this.loadTasksCount();
@@ -27,7 +27,7 @@ export class TasksModule {
     public async loadTasks() {
         this.isLoading = true;
         this.selectedIds = [];
-        this.render(); // Render loading state
+        this.render();
         try {
             const query = this.includeSubmitted ? '?limit=50' : '?limit=50&status=pending';
             const res = await authFetch(`${API}/tasks${query}`);
@@ -48,11 +48,8 @@ export class TasksModule {
             const res = await authFetch(`${API}/tasks/count`);
             if (!res.ok) return;
             const data = await res.json() as { total_pending: number };
-            
-            // Centralized badge update (Pure TS)
             updateBadge('tasks', data.total_pending || 0);
-            
-            // Update text in UI if visible
+
             const countEl = document.querySelector('#tasks-open-count');
             if (countEl) countEl.textContent = String(data.total_pending || 0);
         } catch (e) {
@@ -63,14 +60,14 @@ export class TasksModule {
     public async triggerScan() {
         showToast('Đang quét dữ liệu từ Slack & Confluence...', 'info');
         try {
-            const res = await authFetch(`${API}/tasks/scan`, { 
+            const res = await authFetch(`${API}/tasks/scan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ slack_days: this.slackDays, confluence_days: this.confluenceDays })
             });
             if (!res.ok) throw new Error('Lỗi khi quét');
             const data = await res.json() as { status: string, stats?: any };
-            
+
             let message = 'Đã quét xong.';
             if (data.stats) {
                 const s = data.stats;
@@ -78,7 +75,7 @@ export class TasksModule {
                 const confluence = s.confluence_tasks_created || 0;
                 message = `Quét hoàn tất: +${slack} task từ Slack, +${confluence} từ Confluence.`;
             }
-            
+
             showToast(message, 'success');
             await this.loadTasks();
             await this.loadTasksCount();
@@ -116,10 +113,10 @@ export class TasksModule {
     }
 
     public async deleteTask(id: string) {
-        if (!await kpConfirm({ 
-            title: 'Xóa Task', 
-            message: 'Bạn có chắc chắn muốn xóa task này?', 
-            danger: true 
+        if (!await kpConfirm({
+            title: 'Xóa Task',
+            message: 'Bạn có chắc chắn muốn xóa task này?',
+            danger: true
         })) return;
         try {
             const res = await authFetch(`${API}/tasks/${id}`, { method: 'DELETE' });
@@ -134,11 +131,11 @@ export class TasksModule {
 
     private async bulkConfirmTasks() {
         if (this.selectedIds.length === 0) return;
-        if (!await kpConfirm({ 
-            title: 'Duyệt hàng loạt', 
-            message: `Bạn có chắc muốn duyệt ${this.selectedIds.length} tasks đã chọn?` 
+        if (!await kpConfirm({
+            title: 'Duyệt hàng loạt',
+            message: `Bạn có chắc muốn duyệt ${this.selectedIds.length} tasks đã chọn?`
         })) return;
-        
+
         showToast(`Đang duyệt ${this.selectedIds.length} tasks...`, 'info');
         for (const id of this.selectedIds) {
             await this.approveTask(id, true);
@@ -151,10 +148,10 @@ export class TasksModule {
 
     private async bulkRejectTasks() {
         if (this.selectedIds.length === 0) return;
-        if (!await kpConfirm({ 
-            title: 'Xóa hàng loạt', 
-            message: `Bạn có chắc muốn xóa ${this.selectedIds.length} tasks đã chọn?`, 
-            danger: true 
+        if (!await kpConfirm({
+            title: 'Xóa hàng loạt',
+            message: `Bạn có chắc muốn xóa ${this.selectedIds.length} tasks đã chọn?`,
+            danger: true
         })) return;
 
         showToast(`Đang xóa ${this.selectedIds.length} tasks...`, 'info');
@@ -181,8 +178,8 @@ export class TasksModule {
         const issueType = task.issue_type || meta.issue_type || 'Task';
         const parentKey = task.jira_project || meta.parent_key || '';
         const evidence = meta.evidence || task.source_summary || '';
-        
-        const typeOptions = ['Task', 'Story', 'Bug', 'Epic', 'Sub-task'].map(t => 
+
+        const typeOptions = ['Task', 'Story', 'Bug', 'Epic', 'Sub-task'].map(t =>
             `<option value="${t}" ${issueType === t ? 'selected' : ''}>${t}</option>`
         ).join('');
 
@@ -223,11 +220,23 @@ export class TasksModule {
             title: '✏️ Chỉnh sửa & Duyệt Task',
             content: body, okText: '💾 Lưu & Duyệt',
             onOk: async () => {
+                const issueTypeVal = (document.getElementById('editTaskType') as HTMLSelectElement).value.trim();
+                const assigneeVal = (document.getElementById('editTaskAssignee') as HTMLInputElement).value.trim();
+                const parentKeyVal = (document.getElementById('editTaskParent') as HTMLInputElement).value.trim();
+                const descriptionVal = (document.getElementById('editTaskDesc') as HTMLTextAreaElement).value.trim();
                 const updated = {
                     title: (document.getElementById('editTaskTitle') as HTMLInputElement).value.trim(),
-                    description: (document.getElementById('editTaskDesc') as HTMLTextAreaElement).value.trim(),
-                    suggested_assignee: (document.getElementById('editTaskAssignee') as HTMLInputElement).value.trim(),
-                    jira_project: (document.getElementById('editTaskParent') as HTMLInputElement).value.trim(),
+                    description: descriptionVal,
+                    suggested_assignee: assigneeVal,
+                    jira_project: parentKeyVal,
+                    issue_type: issueTypeVal,
+                    meta: {
+                        ...meta,
+                        description: descriptionVal,
+                        issue_type: issueTypeVal,
+                        assignee: assigneeVal,
+                        parent_key: parentKeyVal
+                    }
                 };
                 try {
                     await authFetch(`${API}/tasks/${task.id}`, {
@@ -250,7 +259,7 @@ export class TasksModule {
         if (!listDiv || !emptyDiv || !loadingDiv || !bulkBar) return;
 
         loadingDiv.style.display = this.isLoading ? 'block' : 'none';
-        
+
         if (this.isLoading) {
             listDiv.innerHTML = '';
             emptyDiv.style.display = 'none';
@@ -298,12 +307,11 @@ export class TasksModule {
                 `;
             }).join('');
 
-            // Bind card event listeners
             listDiv.querySelectorAll('.task-card-modern').forEach(card => {
                 const id = card.getAttribute('data-id')!;
                 const task = this.tasks.find(t => t.id === id);
                 card.addEventListener('click', () => this.viewTaskDetails(task));
-                
+
                 card.querySelector('.task-checkbox')?.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.toggleSelection(id);
@@ -321,19 +329,22 @@ export class TasksModule {
     }
 
     private bindGlobalActions() {
+        if (this.isEventsBound) return;
+        this.isEventsBound = true;
+
         document.querySelector('#tasks-refresh-btn')?.addEventListener('click', () => this.loadTasks());
         document.querySelector('#tasks-scan-btn')?.addEventListener('click', () => this.triggerScan());
         document.querySelector('#tasks-bulk-confirm')?.addEventListener('click', () => this.bulkConfirmTasks());
         document.querySelector('#tasks-bulk-reject')?.addEventListener('click', () => this.bulkRejectTasks());
         document.querySelector('#tasks-clear-selection')?.addEventListener('click', () => this.clearSelection());
-        
+
         const slackDaysIn = document.querySelector('#tasks-slack-days') as HTMLInputElement;
         const confDaysIn = document.querySelector('#tasks-conf-days') as HTMLInputElement;
         const showSubIn = document.querySelector('#tasks-show-submitted') as HTMLInputElement;
 
         slackDaysIn?.addEventListener('change', () => { this.slackDays = parseInt(slackDaysIn.value) || 1; });
         confDaysIn?.addEventListener('change', () => { this.confluenceDays = parseInt(confDaysIn.value) || 1; });
-        showSubIn?.addEventListener('change', () => { 
+        showSubIn?.addEventListener('change', () => {
             this.includeSubmitted = showSubIn.checked;
             this.loadTasks();
         });

@@ -43,7 +43,8 @@ class WorkflowRunRequest(BaseModel):
 
 @router.get("", response_model=dict)
 async def list_workflows(
-    session: AsyncSession = Depends(get_db)
+    session: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(get_current_user)
 ):
     repo = WorkflowRepository(session)
     workflows = await repo.list_all() # Changed from list_workflows to list_all to match existing repo method
@@ -51,7 +52,7 @@ async def list_workflows(
 
 
 @router.post("/demo", response_model=dict)
-async def seed_demo_workflow(session: AsyncSession = Depends(get_db)):
+async def seed_demo_workflow(session: AsyncSession = Depends(get_db), _: CurrentUser = Depends(get_current_user)):
     repo = WorkflowRepository(session)
     # Check if demo exists
     existing = await repo.list_all() # Changed from list_workflows to list_all
@@ -210,4 +211,3 @@ async def run_workflow(
         raise HTTPException(status_code=500, detail="Failed to enqueue background job")
 
     return {"ok": True, "job_id": job_id, "session_id": session_id}
-

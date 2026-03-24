@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.auth.dependencies import CurrentUser, get_current_user
+from apps.api.auth.dependencies import CurrentUser, get_current_user, require_admin
 from persistence.document_repository import DocumentRepository
 from storage.db.db import get_db
 
@@ -103,7 +103,7 @@ async def documents_batch(
 async def delete_documents_batch(
     req: BatchRequest,
     session: AsyncSession = Depends(get_db),
-    _: CurrentUser = Depends(get_current_user),
+    _: CurrentUser = Depends(require_admin),
 ):
     ids = [str(i or "").strip() for i in (req.ids or []) if str(i or "").strip()]
     doc_ids = list(set(ids))

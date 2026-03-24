@@ -593,7 +593,6 @@ body {
 /* Styles removed - now managed in modules/admin.css */
 
 /* ── Documents & Knowledge Base ── */
-@import url('./components/editor.css');
 
 .documents-header {
   display: flex;
@@ -1028,6 +1027,3 @@ body {
   .nav-item { flex: 0 0 60px !important; min-width: 60px !important; }
   .nav-item span:not(.nav-icon):not(.nav-badge) { display: none !important; }
 }
-
-
-

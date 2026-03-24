@@ -8,6 +8,7 @@ export class AdminModule {
     private groups: Group[] = [];
     private isLoadingUsers = false;
     private isLoadingGroups = false;
+    private isEventsBound = false;
 
     constructor() {
         document.addEventListener('kp-refresh-users', () => {
@@ -35,8 +36,8 @@ export class AdminModule {
         try {
             const resp = await authFetch(`${API}/users`);
             if (!resp.ok) throw new Error('Không thể tải danh sách User');
-            const data = await resp.json() as any;
-            this.users = Array.isArray(data) ? data : (data.users || []);
+            const data = await resp.json() as { users: User[] };
+            this.users = data.users || [];
         } catch (err) {
             showToast((err as Error).message, 'error');
         } finally {
@@ -51,7 +52,7 @@ export class AdminModule {
         try {
             const resp = await authFetch(`${API}/groups`);
             if (!resp.ok) throw new Error('Không thể tải danh sách Group');
-            const data = await resp.json() as any;
+            const data = await resp.json() as Group[] | { groups: Group[] };
             this.groups = Array.isArray(data) ? data : (data.groups || []);
         } catch (err) {
             showToast((err as Error).message, 'error');
@@ -246,6 +247,8 @@ export class AdminModule {
     }
 
     private bindGlobalActions() {
+        if (this.isEventsBound) return;
+        this.isEventsBound = true;
         document.querySelector('#admin-add-user')?.addEventListener('click', () => this.openUserModal());
         document.querySelector('#admin-refresh-users')?.addEventListener('click', () => this.loadUsersTable());
         document.querySelector('#admin-add-group')?.addEventListener('click', () => this.openGroupModal());

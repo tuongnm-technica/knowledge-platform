@@ -47,13 +47,16 @@ export class AIEditor {
         try {
             const res = await authFetch(`${API}/docs/skills`);
             if (res.ok) {
-                const data = await res.json() as any;
+                const data = await res.json() as { agents?: Array<{ doc_type?: string, label?: string, description?: string }> };
                 const agents = data.agents || [];
-                const groups = data.groups || [];
-                this.skills = [
-                    ...agents.map((a: any) => ({ name: a.name, description: a.description || '', template: a.prompt_template || '', type: 'agent' })),
-                    ...groups.map((g: any) => ({ name: g.title || g.name, description: g.description || '', template: g.description || '', type: 'group' }))
-                ];
+                this.skills = agents.map((agent) => ({
+                    id: agent.doc_type || agent.label || '',
+                    name: agent.label || agent.doc_type || 'Untitled Skill',
+                    description: agent.description || '',
+                    template: agent.doc_type || '',
+                    doc_type: agent.doc_type || '',
+                    type: 'agent',
+                }));
             }
         } catch (err) {
             console.error('Failed to load skills for editor slash menu', err);

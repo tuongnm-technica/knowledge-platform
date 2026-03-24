@@ -2,16 +2,16 @@ import { API, authFetch } from './client';
 import { escapeHtml } from './ui';
 
 export class MemoryModule {
-    public async init(): Promise<void> {
-        await this.loadMemoryPage();
-    }
-
     constructor() {
         this.initEvents();
     }
     
     private initEvents() {
         document.getElementById('refreshMemoryBtn')?.addEventListener('click', () => this.loadMemoryPage());
+    }
+
+    public async init(): Promise<void> {
+        await this.loadMemoryPage();
     }
 
     public async loadMemoryPage(): Promise<void> {
@@ -63,4 +63,4 @@ export class MemoryModule {
         html += '</div>';
         container.innerHTML = html;
     }
-}
+}

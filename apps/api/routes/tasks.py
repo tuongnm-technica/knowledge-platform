@@ -18,6 +18,7 @@ class TaskUpdatePayload(BaseModel):
     description: str | None = None
     suggested_assignee: str | None = None
     jira_project: str | None = None
+    issue_type: str | None = None
     meta: dict | None = None
 
 class ScanRequest(BaseModel):
@@ -28,16 +29,19 @@ class ScanRequest(BaseModel):
 async def get_tasks(
     limit: int = Query(50, ge=1, le=100),
     source: str | None = None,
-    db: AsyncSession = Depends(get_db)
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_task_manager)
 ) -> dict[str, Any]:
     """Lấy danh sách các task (draft) đã được tạo từ AI scanner."""
     repo = TaskDraftRepository(db)
-    tasks = await repo.get_all(limit=limit, source=source)
+    tasks = await repo.get_all(limit=limit, source=source, status=status)
     return {"tasks": tasks}
 
 @router.get("/count")
 async def get_tasks_count(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_task_manager)
 ) -> dict[str, Any]:
     """Đếm số lượng task đang chờ xử lý để hiển thị Notification Badge."""
     repo = TaskDraftRepository(db)
@@ -48,7 +52,8 @@ async def get_tasks_count(
 async def update_task_details(
     task_id: str,
     req: TaskUpdatePayload,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_task_manager)
 ) -> dict[str, Any]:
     """Cập nhật nội dung chi tiết của task (Title, Description, Assignee...)."""
     repo = TaskDraftRepository(db)
@@ -66,6 +71,7 @@ async def update_task_details(
         "description": req.description,
         "suggested_assignee": req.suggested_assignee,
         "jira_project": req.jira_project,
+        "issue_type": req.issue_type,
         "meta": req.meta
     }
     
@@ -90,7 +96,8 @@ async def update_task_details(
 async def update_task_status(
     task_id: str,
     req: StatusUpdateRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_task_manager)
 ) -> dict[str, Any]:
     """Cập nhật trạng thái của task (Approve/Reject)."""
     repo = TaskDraftRepository(db)
@@ -104,7 +111,8 @@ async def update_task_status(
 @router.delete("/{task_id}")
 async def delete_task(
     task_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: CurrentUser = Depends(require_task_manager)
 ) -> dict[str, Any]:
     """Xóa vĩnh viễn một task bị reject khỏi hệ thống."""
     repo = TaskDraftRepository(db)
