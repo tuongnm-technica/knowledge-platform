@@ -53,7 +53,11 @@ class ProjectMemoryRepository:
                 "updated_at": now,
             },
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return await self.get(memory_type, key)
 
     async def get(self, memory_type: str, key: str) -> dict[str, Any] | None:

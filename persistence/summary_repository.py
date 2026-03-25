@@ -22,4 +22,8 @@ class SummaryRepository:
             """),
             {"id": document_id, "summary": summary},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise

@@ -109,7 +109,11 @@ class WorkflowRepository:
             )
             self._session.add(node)
 
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return str(workflow_id)
 
     async def update_workflow(
@@ -152,7 +156,11 @@ class WorkflowRepository:
             )
             self._session.add(node)
 
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return True
 
     async def delete_workflow(self, workflow_id: str) -> bool:

@@ -162,6 +162,7 @@ class ReActLoop:
         source_urls: set[str] = set()
         used_tools: list[str] = []
         executed: list[ExecutedStep] = []
+        graph_rels: set[str] = set()
 
         groups = _group_parallel(plan)
 
@@ -175,6 +176,7 @@ class ReActLoop:
                     sources,
                     source_urls,
                     used_tools,
+                    graph_rels,
                 )
                 for p in group
             ]
@@ -236,6 +238,7 @@ class ReActLoop:
                     sources,
                     source_urls,
                     used_tools,
+                    graph_rels,
                 )
                 executed.append(
                     ExecutedStep(
@@ -281,8 +284,15 @@ class ReActLoop:
                 })
             except Exception:
                 pass
+        
+        # Use compressed context if available, fallback to raw sources if compression failed
+        final_context = compressed_context if compressed_context else "\n\n".join([f"SOURCE: {s['title']}\nCONTENT:\n{s['content']}" for s in sources])
+        
+        if graph_rels:
+            graph_context = "\n### KNOWLEDGE GRAPH\n" + "\n".join([f"- {rel}" for rel in sorted(graph_rels)])
+            final_context = (final_context or "") + "\n" + graph_context
 
-        answer = await self._summarize(question, compressed_context, on_token=on_token)
+        answer = await self._summarize(question, final_context, on_token=on_token)
 
         # ─────────────────────────────
         # Logic Agent: contradiction check (best-effort)
@@ -501,6 +511,7 @@ class ReActLoop:
         sources: list,
         source_urls: set,
         used_tools: list,
+        graph_rels: set,
     ) -> str:
 
         if tool_name not in self._tools:
@@ -515,15 +526,16 @@ class ReActLoop:
                 timeout=300,
             )
 
-            if result.success and isinstance(result.data, list):
-
-                for r in result.data:
-
-                    url = r.get("url")
-
-                    if url and url not in source_urls:
-                        sources.append(r)
-                        source_urls.add(url)
+            if result.success:
+                if result.data and isinstance(result.data, list):
+                    for r in result.data:
+                        url = r.get("url")
+                        if url and url not in source_urls:
+                            sources.append(r)
+                            source_urls.add(url)
+                
+                if result.graph_data:
+                    graph_rels.update(result.graph_data)
 
             used_tools.append(tool_name)
 

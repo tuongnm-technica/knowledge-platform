@@ -80,6 +80,15 @@ OllamaLLM = InferenceClient
 
 
 class Agent:
+    """
+    Agent điều phối chính của hệ thống.
+    Sử dụng vòng lặp ReAct (Reasoning and Acting) để giải quyết các câu hỏi của người dùng.
+    Hệ thống có khả năng:
+    - Sử dụng Inference Gateway để tương tác với LLM (Ollama/vLLM).
+    - Gọi các công cụ (Tools) như Search, GraphQuery để thu thập dữ liệu.
+    - Xử lý các câu hỏi liên quan đến hình ảnh (Vision) thông qua các asset đính kèm.
+    - Trả về câu trả lời kèm theo nguồn trích dẫn và các bước tư duy của Agent.
+    """
     def __init__(self, session: AsyncSession, user_id: str):
         """
         Initialize Agent with user context from the start.

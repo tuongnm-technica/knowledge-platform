@@ -68,8 +68,8 @@ async def reset_database():
 
     # 4. Tạo tài khoản Admin mới
     async with AsyncSessionLocal() as session:
-        admin_email = "tuongnm@technica.ai"
-        admin_pass = "123456"
+        admin_email = os.getenv("ADMIN_EMAIL", "tuongnm@technica.ai")
+        admin_pass = os.getenv("ADMIN_PASSWORD", "123456")
         hashed_pw = bcrypt.hashpw(admin_pass.encode(), bcrypt.gensalt()).decode()
         user_id = f"user_admin_{uuid.uuid4().hex[:6]}"
 

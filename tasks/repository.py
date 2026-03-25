@@ -104,7 +104,11 @@ class TaskDraftRepository:
             "jira_project": (jira_project or settings.DEFAULT_JIRA_PROJECT or "").strip() or "ECOS2025",
             "scope_group_id": (scope_group_id or "").strip() or None,
         })
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         log.info("task_draft.created", id=draft_id, title=title[:50])
         return draft_id
 
@@ -189,7 +193,11 @@ class TaskDraftRepository:
             text("DELETE FROM ai_task_drafts WHERE id = :id"),
             {"id": draft_id}
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.rowcount > 0
 
     async def count_pending(self) -> int:
@@ -230,7 +238,11 @@ class TaskDraftRepository:
             WHERE id = :id AND status IN ('pending', 'confirmed')
         """
         result = await self._session.execute(text(sql), params)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.rowcount > 0
 
     async def update_fields(self, draft_id: str, updates: dict) -> bool:
@@ -266,7 +278,11 @@ class TaskDraftRepository:
             WHERE id = :id AND status IN ('pending', 'confirmed')
         """
         result = await self._session.execute(text(sql), params)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.rowcount > 0
 
     async def reject(self, draft_id: str, user_id: str) -> bool:
@@ -276,7 +292,11 @@ class TaskDraftRepository:
             SET status = 'rejected', confirmed_by = :user_id, confirmed_at = NOW()
             WHERE id = :id AND status IN ('pending', 'confirmed')
         """), {"id": draft_id, "user_id": user_id})
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.rowcount > 0
 
     async def update_status(self, draft_id: str, status: str) -> bool:
@@ -296,7 +316,11 @@ class TaskDraftRepository:
             ),
             {"id": draft_id, "status": status},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.rowcount > 0
 
     async def mark_submitted(self, draft_id: str, jira_key: str, jira_meta: dict | None = None) -> None:
@@ -343,7 +367,11 @@ class TaskDraftRepository:
             ),
             {"id": draft_id, "jira_key": jira_key, "sf": (json.dumps(suggested_fields) if jira_meta else None)},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         log.info("task_draft.submitted", id=draft_id, jira_key=jira_key)
 
     async def suggest_assignee_from_history(self, *, labels: list[str] | None = None, components: list[str] | None = None) -> str | None:

@@ -65,7 +65,11 @@ class AssetRepository:
                     ),
                     {"id": existing, "caption": caption, "ocr_text": ocr_text, "meta": json.dumps(meta or {})},
                 )
-                await self._session.commit()
+                try:
+                    await self._session.commit()
+                except Exception:
+                    await self._session.rollback()
+                    raise
                 return str(existing)
 
         await self._session.execute(
@@ -98,7 +102,11 @@ class AssetRepository:
                 "created_at": now,
             },
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return asset_id
 
     async def find_by_doc_sha256(self, *, document_id: str, sha256: str) -> dict[str, Any] | None:
@@ -142,7 +150,11 @@ class AssetRepository:
                 ),
                 {"chunk_id": chunk_id, "asset_id": asset_id},
             )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
 
     async def get_asset(self, asset_id: str) -> dict[str, Any] | None:
         r = await self._session.execute(

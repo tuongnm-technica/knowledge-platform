@@ -13,6 +13,7 @@ class ToolResult:
     data: Any                        # kết quả thực tế
     summary: str                     # 1-2 câu tóm tắt cho LLM đọc
     error: str = ""
+    graph_data: list[str] = field(default_factory=list)
 
     def to_observation(self) -> str:
         """Format để đưa vào ReAct observation block."""

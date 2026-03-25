@@ -42,7 +42,11 @@ class SyncRepository:
             ),
             {"connector": connector},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return int(result.scalar() or 0)
 
     async def update_progress(
@@ -85,7 +89,11 @@ class SyncRepository:
             ),
             params,
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.rowcount > 0
 
     async def finish_sync(
@@ -112,7 +120,11 @@ class SyncRepository:
             ),
             {"id": int(log_id), "status": status, "fetched": int(fetched), "indexed": int(indexed), "errors": int(errors)},
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
 
     async def get_stats(self, connector: str) -> dict:
         """Lấy thống kê sync gần nhất của connector."""

@@ -96,11 +96,15 @@ class KnowledgeGraph:
             )
 
         for left, right in zip(entity_ids, entity_ids[1:]):
+            # To avoid duplicate edges for the same pair (e.g. A->B and B->A), 
+            # we can store them in a consistent order if the relation is inherently bidirectional.
+            # But 'co_occurs' is fine as is if we query both directions.
             await self._session.execute(
                 text("""
-                    INSERT INTO entity_relations (id, source_id, target_id, relation_type)
-                    VALUES (:id, :source_id, :target_id, 'co_occurs')
-                    ON CONFLICT DO NOTHING
+                    INSERT INTO entity_relations (id, source_id, target_id, relation_type, weight)
+                    VALUES (:id, :source_id, :target_id, 'co_occurs', 1)
+                    ON CONFLICT (source_id, target_id, relation_type) 
+                    DO UPDATE SET weight = entity_relations.weight + 1
                 """),
                 {
                     "id": str(uuid.uuid4()),
@@ -109,7 +113,11 @@ class KnowledgeGraph:
                 },
             )
 
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
 
     async def link_document_identities(self, document_id: str, identities: list[ResolvedIdentity]) -> None:
         await self._session.execute(
@@ -131,7 +139,11 @@ class KnowledgeGraph:
                 },
             )
 
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
 
     async def find_related_documents(
         self,
@@ -161,23 +173,33 @@ class KnowledgeGraph:
         )
         return list(result.scalars().all())
 
-    async def find_related_entities(self, entity_name: str) -> list[str]:
+    async def find_related_entities(self, entity_name: str, min_weight: int = 1, limit: int = 20) -> list[str]:
         normalized_values = self._normalize_candidates([entity_name])
         if not normalized_values:
             return []
 
+        # Find entities where this entity is either source or target
         result = await self._session.execute(
             text("""
-                SELECT e2.name
-                FROM entities e1
-                LEFT JOIN entity_aliases ea1 ON ea1.entity_id = e1.id
-                JOIN entity_relations er ON er.source_id = e1.id
-                JOIN entities e2 ON e2.id = er.target_id
-                WHERE e1.normalized_name = ANY(:normalized_values)
-                   OR ea1.normalized_alias = ANY(:normalized_values)
-                LIMIT 20
+                WITH start_nodes AS (
+                    SELECT id FROM entities WHERE normalized_name = ANY(:normalized_values)
+                    UNION
+                    SELECT entity_id FROM entity_aliases WHERE normalized_alias = ANY(:normalized_values)
+                ),
+                peers AS (
+                    SELECT target_id as peer_id, weight FROM entity_relations 
+                    WHERE source_id IN (SELECT id FROM start_nodes) AND weight >= :min_weight
+                    UNION
+                    SELECT source_id as peer_id, weight FROM entity_relations 
+                    WHERE target_id IN (SELECT id FROM start_nodes) AND weight >= :min_weight
+                )
+                SELECT DISTINCT e.name, p.weight
+                FROM entities e
+                JOIN peers p ON e.id = p.peer_id
+                ORDER BY p.weight DESC
+                LIMIT :limit
             """),
-            {"normalized_values": normalized_values},
+            {"normalized_values": normalized_values, "min_weight": min_weight, "limit": limit},
         )
         return [row[0] for row in result.all()]
 

@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 50
 
     QUERY_EXPANSION_ENABLED: bool = True
+    GRAPH_AUGMENTATION_ENABLED: bool = True
     RERANKING_ENABLED: bool = True
     # none | llm | cross_encoder
     RERANKER_BACKEND: str = "llm"

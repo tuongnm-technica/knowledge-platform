@@ -81,7 +81,11 @@ class SkillPromptRepository:
                 "updated_by": updated_by,
             },
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
 
     async def update_prompt(
         self,
@@ -107,7 +111,11 @@ class SkillPromptRepository:
                 "updated_by": updated_by,
             },
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.scalar() is not None
 
     async def reset_to_default(self, *, doc_type: str, updated_by: str) -> bool:
@@ -131,7 +139,11 @@ class SkillPromptRepository:
                 "updated_by": updated_by,
             },
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return result.scalar() is not None
 
     # ─── Seeder ───────────────────────────────────────────────────────────────

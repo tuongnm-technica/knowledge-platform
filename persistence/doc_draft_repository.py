@@ -52,7 +52,11 @@ class DocDraftRepository:
                 "updated_at": now,
             },
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return await self.get(draft_id)
 
     async def get(self, draft_id: str) -> dict[str, Any] | None:
@@ -134,7 +138,11 @@ class DocDraftRepository:
             ),
             updates,
         )
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return await self.get(draft_id)
 
     async def list_recent(

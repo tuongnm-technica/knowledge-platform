@@ -1,3 +1,13 @@
+"""
+Hệ thống Knowledge Platform - API Server Chính.
+File này chịu trách nhiệm:
+- Khởi tạo ứng dụng FastAPI.
+- Cấu hình Middleware (CORS, Logging).
+- Thiết lập lifespan (khởi tạo DB, Vector store, Scheduler).
+- Đăng ký (Register) tất cả các tuyến đường (routes) API.
+- Cung cấp proxy cho các luồng Multi-Agent nâng cao.
+- Serve frontend tĩnh (Static files) và SPA routing.
+"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse

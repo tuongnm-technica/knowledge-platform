@@ -154,6 +154,10 @@ class DocumentLinker:
                 {"id": str(uuid.uuid4()), "src": source_document_id, "dst": target_id},
             )
 
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
         return {"explicit_links": len(target_ids), "explicit_targets": len(target_ids)}
 

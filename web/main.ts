@@ -1,3 +1,8 @@
+/**
+ * Điểm bắt đầu của ứng dụng Frontend Knowledge Platform.
+ * Quản lý khởi tạo ứng dụng, xác thực người dùng, định tuyến (Routing) bằng Navigo,
+ * và điều phối các module chức năng (Chat, Search, Graph, Documents, v.v.).
+ */
 import './css/main.css';
 import Navigo from 'navigo';
 import { AuthModule } from './auth';

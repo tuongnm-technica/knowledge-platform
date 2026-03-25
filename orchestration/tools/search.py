@@ -44,7 +44,7 @@ class _BaseSearchTool(BaseTool):
             except Exception:
                 limit = 5
 
-            results = await self._rag.searchv2(
+            response = await self._rag.searchv2(
                 query_text=query,
                 limit=limit,
                 source=source_filter,
@@ -54,7 +54,10 @@ class _BaseSearchTool(BaseTool):
                 context_window=5
             )
 
-            if not results:
+            results = response.get("hits", [])
+            relationships = response.get("relationships", [])
+
+            if not results and not relationships:
                 return ToolResult(
                     success=True,
                     data=[],
@@ -66,6 +69,12 @@ class _BaseSearchTool(BaseTool):
                 f"[{source_filter.upper()} RESULTS] "
                 f"{len(results)} kết quả cho query: '{query}'"
             ]
+
+            if relationships:
+                lines.append("\n### KNOWLEDGE GRAPH (Relationships discovered)")
+                for rel in relationships:
+                    lines.append(f"- {rel}")
+                lines.append("")
 
             for i, r in enumerate(results, 1):
                 content = r.get("content", "").strip()
@@ -80,12 +89,14 @@ class _BaseSearchTool(BaseTool):
                 source=source_filter,
                 query=query[:60],
                 found=len(results),
+                graph_rels=len(relationships)
             )
 
             return ToolResult(
                 success=True,
                 data=results,
                 summary=summary,
+                graph_data=relationships
             )
 
         except Exception as e:

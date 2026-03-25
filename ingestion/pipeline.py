@@ -97,6 +97,7 @@ class IngestionPipeline:
                 except Exception as e:
                     log.error("ingestion.doc.error", doc_id=doc.id, error=str(e))
                     stats["errors"] += 1
+                    await self._session.rollback()
 
                 # Lightweight progress heartbeat for UI.
                 if (stats["indexed"] + stats["errors"]) % flush_every == 0 or (time.monotonic() - last_flush) > 2.0:

@@ -39,6 +39,7 @@ log = structlog.get_logger()
 _rerank_cache: dict[str, tuple[list[dict], float]] = {}
 
 _CACHE_TTL = 120
+_MAX_CACHE_SIZE = 1000
 
 SHORT_ID_LEN = 12
 MAX_CHARS = 1500
@@ -204,6 +205,13 @@ async def _rerank_llm(
 
         result = (reranked + rest)[:top_k]
 
+        # Dọn dẹp cache nếu vượt quá giới hạn (Memory Leak Protection)
+        if len(_rerank_cache) > _MAX_CACHE_SIZE:
+            log.debug("reranker.cache_cleanup", current_size=len(_rerank_cache))
+            keys_to_delete = list(_rerank_cache.keys())[:200]
+            for k in keys_to_delete:
+                _rerank_cache.pop(k, None)
+
         _rerank_cache[cache_key] = (result, time.time())
 
         log.info(
@@ -323,6 +331,13 @@ async def _rerank_cross_encoder(
     )
 
     result = (reranked + rest)[:top_k]
+    
+    # Dọn dẹp cache tương tự cho Cross Encoder
+    if len(_rerank_cache) > _MAX_CACHE_SIZE:
+        keys_to_delete = list(_rerank_cache.keys())[:200]
+        for k in keys_to_delete:
+            _rerank_cache.pop(k, None)
+            
     _rerank_cache[cache_key] = (result, time.time())
 
     log.info(
@@ -384,7 +399,8 @@ async def _llm_score(
 
     raw = re.sub(r"```(?:json)?|```", "", raw).strip()
 
-    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    # Cải thiện Regex để bắt JSON an toàn hơn (bắt từ ngoặc nhọn đầu tiên đến cuối cùng)
+    m = re.search(r"\{[\s\S]*\}", raw)
 
     if not m:
         return []

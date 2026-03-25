@@ -202,6 +202,7 @@ class EntityRelationORM(Base):
     source_id = Column(UUID(as_uuid=True), ForeignKey("entities.id"))
     target_id = Column(UUID(as_uuid=True), ForeignKey("entities.id"))
     relation_type = Column(String(100))
+    weight = Column(Integer, nullable=False, default=1)
 
 
 class DocumentEntityORM(Base):
@@ -405,6 +406,9 @@ async def create_tables():
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_chunks_fts "
             "ON chunks USING GIN (to_tsvector('simple', content))"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE entity_relations ADD COLUMN IF NOT EXISTS weight INTEGER NOT NULL DEFAULT 1"
         ))
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS document_entities (

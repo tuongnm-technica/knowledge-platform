@@ -22,6 +22,16 @@ from persistence.asset_repository import AssetRepository
 log = structlog.get_logger(__name__)
 
 class RAGService:
+    """
+    Dịch vụ điều phối RAG (Retrieval-Augmented Generation).
+    Chịu trách nhiệm thực hiện các quy trình:
+    1. Kiểm tra quyền truy cập của người dùng đối với tài liệu.
+    2. Mở rộng câu truy vấn (Query Expansion).
+    3. Tìm kiếm lai (Hybrid Search) kết hợp Vector và Từ khóa.
+    4. Củng cố dữ liệu bằng Đồ thị Tri thức (Graph Augmentation).
+    5. Xếp hạng lại kết quả (Reranking) bằng Cross-Encoder.
+    6. Tổng hợp ngữ cảnh và xử lý ảnh (Vision) nếu có.
+    """
     @staticmethod
     def clear_all():
         """ Recreate standard collections. """
@@ -56,10 +66,10 @@ class RAGService:
         use_rerank: bool = False,
         include_context: bool = False,
         context_window: int = 3
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """ 
         Advanced search for Agent Tools. 
-        Returns a list of dicts suitable for LLM observation.
+        Returns a dict with 'hits' and 'relationships'.
         """
         # 1. Permission Check
         allowed_ids = await self._permissions.allowed_docs(self._user_id)
@@ -102,12 +112,53 @@ class RAGService:
         if not unique_hits:
             return []
 
+        # 4.5 Graph-based Augmentation (Multi-hop)
+        # Discover related documents through graph entities
+        graph_doc_ids = []
+        neighbor_relationships = []
+        if getattr(settings, "GRAPH_AUGMENTATION_ENABLED", True):
+            try:
+                # Use entities from top results as seeds for graph traversal
+                seed_doc_ids = list({str(h["document_id"]) for h in unique_hits[:10]})
+                seed_meta = await self._fetch_doc_meta(seed_doc_ids)
+                
+                seed_entities = set()
+                for meta in seed_meta.values():
+                    seed_entities.update(meta.get("entities") or [])
+                
+                if seed_entities:
+                    # Hop 1: Related entities with strong connections (weight >= 2)
+                    tasks = [self._graph.find_related_entities(ent, min_weight=2, limit=5) for ent in list(seed_entities)[:15]]
+                    neighbor_results = await asyncio.gather(*tasks)
+                    
+                    # Track relationships for prompt construction
+                    for i, seeds in enumerate(list(seed_entities)[:15]):
+                        for neighbor in neighbor_results[i]:
+                            neighbor_relationships.append(f"({seeds}) --[related]--> ({neighbor})")
+
+                    neighbor_entities = list(set([ent for sublist in neighbor_results for ent in sublist]))
+                    
+                    if neighbor_entities:
+                        # Hop 2: Documents for these neighbor entities
+                        graph_doc_ids = await self._graph.find_related_documents(neighbor_entities, limit=10)
+                        log.info("rag_service.graph_augmentation", seed_entities=len(seed_entities), neighbors=len(neighbor_entities), found_docs=len(graph_doc_ids))
+            except Exception as e:
+                log.warning("rag_service.graph_augmentation.failed", error=str(e))
+
         # 5. Metadata Enrichment
-        doc_ids = list({str(h["document_id"]) for h in unique_hits})
-        doc_meta = await self._fetch_doc_meta(doc_ids)
+        # Collect all doc IDs including graph-discovered ones
+        all_doc_ids = list({str(h["document_id"]) for h in unique_hits} | set(graph_doc_ids))
+        doc_meta = await self._fetch_doc_meta(all_doc_ids)
+        
+        # Supplement hits with graph-discovered documents if not already present
+        if graph_doc_ids:
+            supplemented = self._supplement_graph_results(graph_doc_ids, unique_hits, doc_meta, query_text)
+            unique_hits.extend(supplemented)
         
         for h in unique_hits:
             h["query"] = query_text # for scoring
+            if h.get("graph_score") is None:
+                h["graph_score"] = 0.0
 
         # 6. Initial Scoring
         scored = self._scorer.score(unique_hits, doc_meta)
@@ -167,7 +218,10 @@ class RAGService:
                 ]
             })
 
-        return results
+        return {
+            "hits": results,
+            "relationships": list(set(neighbor_relationships))
+        }
 
     def _jsonish(self, value):
         if isinstance(value, dict): return value
