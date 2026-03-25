@@ -23,14 +23,16 @@ log = structlog.get_logger(__name__)
 
 class RAGService:
     """
-    Dịch vụ điều phối RAG (Retrieval-Augmented Generation).
-    Chịu trách nhiệm thực hiện các quy trình:
-    1. Kiểm tra quyền truy cập của người dùng đối với tài liệu.
-    2. Mở rộng câu truy vấn (Query Expansion).
-    3. Tìm kiếm lai (Hybrid Search) kết hợp Vector và Từ khóa.
-    4. Củng cố dữ liệu bằng Đồ thị Tri thức (Graph Augmentation).
-    5. Xếp hạng lại kết quả (Reranking) bằng Cross-Encoder.
-    6. Tổng hợp ngữ cảnh và xử lý ảnh (Vision) nếu có.
+    Dịch vụ điều phối RAG (Retrieval-Augmented Generation) cho MyGPT SDLC Suite.
+    Thành phần cốt lõi trong phân hệ RAG & Reranker Engine (Phần 5.4 tài liệu thiết kế).
+    
+    Quy trình xử lý:
+    1. Kiểm tra phân quyền (RBAC) dựa trên Group của User.
+    2. Query Rewrite: Làm sạch câu truy vấn bằng LLM.
+    3. Hybrid Search: Kết hợp Vector (Qdrant) và Keyword (Postgres).
+    4. GraphRAG Augmentation: Củng cố ngữ cảnh bằng dữ liệu từ Đồ thị Tri thức.
+    5. Multi-stage Reranking: Chấm điểm lại bằng Cross-encoder (reranker.py).
+    6. Vision Answer: Xử lý đa phương thức nếu có hình ảnh/diagram đính kèm.
     """
     @staticmethod
     def clear_all():

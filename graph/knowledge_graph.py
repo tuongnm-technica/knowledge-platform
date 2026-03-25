@@ -13,6 +13,14 @@ from graph.identity_resolver import (
 
 
 class KnowledgeGraph:
+    """
+    Quản lý Đồ thị Tri thức (Knowledge Graph).
+    Chịu trách nhiệm:
+    - Lưu trữ và cập nhật các Thực thể (Entities) và Quan hệ (Relationships).
+    - Hợp nhất Danh tính (Identity Resolution) cho người dùng/đối tượng.
+    - Truy vấn Đồ thị để tìm kiếm các tài liệu và thực thể liên quan (GraphRAG).
+    - Cung cấp dữ liệu cho việc hiển thị đồ thị trên UI.
+    """
     def __init__(self, session: AsyncSession):
         self._session = session
         self._extractor = EntityExtractor()

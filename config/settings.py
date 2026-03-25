@@ -1,3 +1,12 @@
+"""
+Cấu hình (Settings) toàn bộ hệ thống Knowledge Platform.
+Sử dụng Pydantic Settings để quản lý các biến môi trường từ file .env hoặc hệ thống.
+Bao gồm thông tin về:
+- DB, Redis, Qdrant.
+- LLM (Ollama, vLLM, OpenAI).
+- Các tham số RAG (Alpha, Weights, Chunking, v.v.).
+- Quyền truy cập và tích hợp (Slack, Jira, Confluence).
+"""
 from typing import Optional
 import os
 

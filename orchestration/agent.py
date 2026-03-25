@@ -81,13 +81,15 @@ OllamaLLM = InferenceClient
 
 class Agent:
     """
-    Agent điều phối chính của hệ thống.
-    Sử dụng vòng lặp ReAct (Reasoning and Acting) để giải quyết các câu hỏi của người dùng.
-    Hệ thống có khả năng:
-    - Sử dụng Inference Gateway để tương tác với LLM (Ollama/vLLM).
-    - Gọi các công cụ (Tools) như Search, GraphQuery để thu thập dữ liệu.
-    - Xử lý các câu hỏi liên quan đến hình ảnh (Vision) thông qua các asset đính kèm.
-    - Trả về câu trả lời kèm theo nguồn trích dẫn và các bước tư duy của Agent.
+    Agent điều phối (Orchestrator) chính của hệ thống.
+    Kết nối với phân hệ MyGPT BA Suite (Pipeline 9 Agents) thông qua SKILL.md.
+    
+    Chức năng chính:
+    - Vận hành vòng lặp ReAct để giải quyết các yêu cầu nghiệp vụ phức tạp.
+    - Gọi các công cụ (Tools) chuyên biệt: Search, GraphQuery, JiraTaskWriter.
+    - Hỗ trợ 4-Layer Structured Output: Đảm bảo output JSON chuẩn schema để tránh ảo giác.
+    - Tích hợp Vision pipeline: Giải thích diagram, screenshot từ Confluence/Jira.
+    - Truyền ID nhất quán (intake_id, design_ref) xuyên suốt chuỗi 9 Agents.
     """
     def __init__(self, session: AsyncSession, user_id: str):
         """

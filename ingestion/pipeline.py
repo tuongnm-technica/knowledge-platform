@@ -24,6 +24,16 @@ log = structlog.get_logger()
 
 
 class IngestionPipeline:
+    """
+    Luồng xử lý nạp dữ liệu (Ingestion Pipeline).
+    Phụ trách việc:
+    1. Lấy dữ liệu từ các Connector (Jira, Confluence, Slack...).
+    2. Làm sạch (Clean) và trích xuất Metadata.
+    3. Trích xuất Thực thể (Entities) và Danh tính (Identities).
+    4. Chia nhỏ văn bản (Chunking) và Vector hóa.
+    5. Đánh chỉ mục (Index) vào Vector DB và Keyword Index.
+    6. Cập nhật Đồ thị Tri thức (Knowledge Graph).
+    """
     def __init__(self, session):
         self._session = session
         self._cleaner = TextCleaner()
