@@ -161,19 +161,27 @@ export class DraftsModule {
                 if (this.drafts.length === 0 && !this.isLoading) {
                     grid.innerHTML = '<div class="empty-state">Chưa có bản nháp nào. Hãy chạy skill để tạo nháp.</div>';
                 } else {
-                    grid.innerHTML = this.drafts.map(d => `
-                        <div class="draft-card" data-id="${d.id}">
+                    grid.innerHTML = this.drafts.map(d => {
+                        const isProcessing = d.status === 'processing';
+                        return `
+                        <div class="draft-card ${isProcessing ? 'processing' : ''}" data-id="${d.id}">
                             <div class="draft-card-header">
                                 <span class="draft-type-tag">${(d.doc_type || 'doc').toUpperCase()}</span>
                                 <span class="draft-date">${formatDateTime(d.created_at)}</span>
                             </div>
-                            <div class="draft-card-title">${escapeHtml(d.title || d.id)}</div>
+                            <div class="draft-card-title">
+                                ${isProcessing ? '<span class="loading-spinner mini"></span> ' : ''}
+                                ${escapeHtml(d.title || d.id)}
+                            </div>
                             <div class="draft-card-footer">
-                                <button class="secondary-btn mini edit-btn" data-id="${d.id}">✏️ Sửa</button>
+                                ${isProcessing 
+                                    ? '<span class="status-tag processing">Đang soạn thảo...</span>' 
+                                    : `<button class="secondary-btn mini edit-btn" data-id="${d.id}">✏️ Sửa</button>`
+                                }
                                 <button class="danger-btn mini ghost-btn delete-btn" data-id="${d.id}">🗑 Xóa</button>
                             </div>
                         </div>
-                    `).join('');
+                    `}).join('');
 
                     grid.querySelectorAll('.edit-btn').forEach(btn => {
                         btn.addEventListener('click', (e) => {

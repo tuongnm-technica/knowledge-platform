@@ -31,7 +31,7 @@ export class BasketModule {
         const fab = document.getElementById('basketFab');
         const overlay = document.getElementById('basketOverlay');
         const close = document.getElementById('basketClose');
-        
+
         if (fab) fab.addEventListener('click', () => { this.isDrawerOpen = !this.isDrawerOpen; this.render(); });
         if (overlay) overlay.addEventListener('click', () => { this.isDrawerOpen = false; this.render(); });
         if (close) close.addEventListener('click', () => { this.isDrawerOpen = false; this.render(); });
@@ -119,12 +119,16 @@ export class BasketModule {
                 <select id="runSkillSelect" class="form-select kp-modal-input" style="width:100%">
                     <option value="">-- Chọn kỹ năng --</option>
                     ${prompts.map((p: PromptSkill) => `
-                        <option value="${p.id}">[${escapeHtml(p.group || 'General')}] ${escapeHtml(p.name)}</option>
+                        <option value="${p.doc_type}">[${escapeHtml(p.group || 'General')}] ${escapeHtml(p.label || p.doc_type || 'Kỹ năng')}</option>
                     `).join('')}
                 </select>
             </div>
             <div style="padding:12px; background:var(--bg3); border-radius:8px; border:1px solid var(--border); font-size:12px;">
                 <strong>Ngữ cảnh:</strong> ${this.items.length} tài liệu (${this.currentTokens} tokens)
+            </div>
+            <div style="margin-top:12px;">
+                <label class="kp-modal-label">Mục tiêu / Yêu cầu chi tiết (Goal)</label>
+                <textarea id="runGoalInput" class="form-control kp-modal-input" style="width:100%; min-height:80px;" placeholder="Ví dụ: Viết SRS cho module quản lý người dùng dựa trên các tài liệu đã chọn..."></textarea>
             </div>
             <div style="margin-top:16px;">
                 <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
@@ -140,24 +144,44 @@ export class BasketModule {
             okText: 'Bắt đầu',
             onOk: async () => {
                 const skillId = (body.querySelector('#runSkillSelect') as HTMLSelectElement).value;
+                const goal = (body.querySelector('#runGoalInput') as HTMLTextAreaElement).value;
                 const isPipeline = (body.querySelector('#runPipelineCheck') as HTMLInputElement).checked;
-                
+
                 if (!skillId) return { error: 'Vui lòng chọn kỹ năng' };
+
+                // Find the selected skill object
+                const selectedSkill = prompts.find((p: any) => p.doc_type === skillId);
+                if (!selectedSkill) return { error: 'Kỹ năng đã chọn không hợp lệ' };
+
+                const itemIds = this.items.map(i => i.id);
+                const title = `Draft từ ${selectedSkill.label || selectedSkill.doc_type} (${this.items.length} tài liệu)`;
 
                 try {
                     const res = await authFetch(`${API}/docs/drafts/from-documents`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            document_ids: this.items.map(i => i.id),
-                            prompt_id: skillId,
-                            run_pipeline: isPipeline
-                        })
+                            doc_type: selectedSkill.doc_type || 'srs',
+                            doc_ids: itemIds,
+                            goal: goal,
+                            title: title,
+                            run_pipeline: isPipeline // Keep this for future/legacy support
+                        }),
                     });
-                    if (!res.ok) throw new Error('Không thể khởi tạo Task');
-                    showToast('Task đã được xếp hàng. Chuyển sang thẻ Tasks để xem.', 'success');
-                    document.dispatchEvent(new CustomEvent('kp-navigate', { detail: 'tasks' }));
-                    return true;
+
+                    if (!res.ok) {
+                        const errData = await res.json();
+                        throw new Error(errData.detail || 'Lỗi khi chạy skill');
+                    }
+
+                    // Redirect to drafts tab immediately
+                    const draftsTab = document.querySelector('.nav-item[data-tab="drafts"]') as HTMLElement;
+                    if (draftsTab) {
+                        draftsTab.click();
+                    }
+
+                    showToast('Đang khởi tạo bản thảo AI...', 'info');
+                    return true; // Close modal
                 } catch (err) {
                     return { error: (err as Error).message };
                 }

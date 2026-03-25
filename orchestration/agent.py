@@ -70,7 +70,8 @@ class InferenceClient:
     async def is_available(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(f"{self._base_url}/health")
+                # Ollama không có /health chuẩn, dùng / (trả về "Ollama is running")
+                resp = await client.get(f"{self._base_url}/")
                 return resp.status_code == 200
         except Exception:
             return False

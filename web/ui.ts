@@ -189,17 +189,33 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
     const handleCancel = () => _kpCloseModal(null);
     const handleOk = async () => {
         if (!KP_MODAL_STATE) return;
+        const oldText = els.okBtn.textContent;
         try {
+            els.okBtn.disabled = true;
+            els.okBtn.textContent = 'Đang xử lý...';
+            els.cancelBtn.disabled = true;
+
             const out = onOk ? await onOk() : true;
             if (out && typeof out === 'object' && 'error' in (out as object)) {
                 _kpSetModalError((out as { error: string }).error);
+                els.okBtn.disabled = false;
+                els.okBtn.textContent = oldText;
+                els.cancelBtn.disabled = false;
                 return;
             }
-            if (out === false) return;
+            if (out === false) {
+                els.okBtn.disabled = false;
+                els.okBtn.textContent = oldText;
+                els.cancelBtn.disabled = false;
+                return;
+            }
             _kpCloseModal(out as T);
         } catch (err) {
             const error = err as Error;
             _kpSetModalError(error.message || 'Action failed.');
+            els.okBtn.disabled = false;
+            els.okBtn.textContent = oldText;
+            els.cancelBtn.disabled = false;
         }
     };
 

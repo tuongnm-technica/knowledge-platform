@@ -113,7 +113,7 @@ export interface Draft {
     doc_type: string;
     title: string;
     content: string;
-    status: 'draft' | 'review' | 'approved' | 'published' | 'rejected';
+    status: 'draft' | 'review' | 'approved' | 'published' | 'rejected' | 'processing';
     created_at: string;
     updated_at: string;
     user_id?: string;

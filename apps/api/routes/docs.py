@@ -17,6 +17,7 @@ from persistence.project_memory_repository import ProjectMemoryRepository
 from prompts.doc_draft_prompt import SUPPORTED_DOC_TYPES, build_doc_system_prompt, build_doc_user_prompt
 from storage.db.db import get_db
 from orchestration.agent import OllamaLLM
+from utils.queue_client import get_redis_pool
 
 
 log = structlog.get_logger()
@@ -218,8 +219,9 @@ async def get_skill_agents(
             "doc_type": doc_type,
             "label": label,
             "description": desc,
+            "group": group,
         }
-        for doc_type, (label, desc) in SKILL_AGENT_LABELS.items()
+        for doc_type, (label, desc, group) in SKILL_AGENT_LABELS.items()
     ]
     return {"agents": agents, "groups": SKILL_DOC_TYPE_GROUPS}
 
@@ -348,48 +350,50 @@ async def create_doc_draft_from_documents(
         documents=docs[:12],
     )
 
-    content = ""
-    llm = OllamaLLM()
-    try:
-        ok = await llm.is_available()
-    except Exception:
-        ok = False
-
-    structured_data = {}
-    if ok:
-        try:
-            from orchestration.doc_orchestrator import DocOrchestrator
-            orchestrator = DocOrchestrator(llm)
-            raw_content = await orchestrator.generate_document_pipeline(system=system, user=user, max_tokens=1800)
-            content, structured_data = _parse_llm_response(raw_content)
-            if structured_data:
-                repo = ProjectMemoryRepository(session)
-                await _extract_and_save_memory(structured_data, repo, current_user.user_id)
-        except Exception as exc:
-            log.error("docs.draft.llm_failed", doc_type=doc_type, error=str(exc))
-            content = ""
-            structured_data = {}
-
-    if not content:
-        content = _fallback_doc(doc_type=doc_type, title=title, question=req.goal or "", sources=sources[:12])
-
+    # Create drafting job in background
     snapshot = {
         "created_at": datetime.utcnow().isoformat(),
         "doc_type": doc_type,
         "source_document_ids": doc_ids,
         "sources": sources[:12],
     }
+    
+    # Create the "Stub" draft first
     draft = await DocDraftRepository(session).create(
         doc_type=doc_type,
         title=title,
-        content=content,
-        structured_data=structured_data,
+        content="[AI đang soạn thảo...]",
+        structured_data={},
         source_document_ids=doc_ids,
         source_snapshot=snapshot,
         created_by=current_user.user_id,
         question=req.goal or "",
         answer="",
     )
+    # Update status to processing
+    await DocDraftRepository(session).update(draft["id"], status="processing")
+
+    # Enqueue the background job
+    try:
+        redis = await get_redis_pool()
+        await redis.enqueue_job(
+            "run_doc_drafting_job",
+            draft_id=draft["id"],
+            system_prompt=system,
+            user_prompt=user,
+            goal=req.goal or "",
+            doc_type=doc_type,
+            title=title,
+            doc_ids=doc_ids,
+            user_id=current_user.user_id,
+            sources=sources[:12],
+            _queue_name="arq:ai"
+        )
+        log.info("docs.draft.enqueued", draft_id=draft["id"])
+    except Exception as e:
+        log.error("docs.draft.enqueue_failed", error=str(e))
+        # Optional: fallback to sync if redis fails? No, better fail or log.
+
     return {"draft": draft, "supported_doc_types": SUPPORTED_DOC_TYPES}
 
 
