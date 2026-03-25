@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     ARQ_INGESTION_QUEUE_NAME: str = "arq:ingestion"
     ARQ_INGESTION_MAX_JOBS: int = 2
-    ARQ_INGESTION_JOB_TIMEOUT: int = 1200
+    ARQ_INGESTION_JOB_TIMEOUT: int = 21600  # Nới lỏng lên 6 tiếng cho các tài liệu lớn
 
     ARQ_AI_QUEUE_NAME: str = "arq:ai"
 
@@ -50,13 +50,13 @@ class Settings(BaseSettings):
     RAG_SERVICE_URL: str = "http://localhost:8001"
 
     EMBEDDING_MODEL: str = OLLAMA_EMBED_MODEL
-    EMBEDDING_CONCURRENCY: int = 2  # Concurrency limit for embedding API calls
+    EMBEDDING_CONCURRENCY: int = 5  # Tăng lên 5 hoặc 10 nếu Ollama Server/GPU đáp ứng được
     LLM_TIMEOUT: int = 900
     ARQ_AI_JOB_TIMEOUT: int = 1500
     VECTOR_DIM: int = 1024
     
     # Ingestion batch size: process documents in smaller batches to prevent timeout
-    INGESTION_BATCH_SIZE: int = 10
+    INGESTION_BATCH_SIZE: int = 20  # Tăng kích thước Batch để giảm số lần ghi log Progress vào DB
 
     HYBRID_ALPHA: float = 0.5
     BM25_WEIGHT: float = 0.3

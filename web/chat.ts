@@ -300,12 +300,20 @@ export class ChatModule {
 
         const answerDiv = el.querySelector('.partial-answer') as HTMLElement;
         if (answerDiv && partialAnswer) {
-            // Chỉ render lại nếu nội dung thực sự thay đổi chiều dài
-            if (answerDiv.dataset.lastLen !== partialAnswer.length.toString()) {
+            const currentLen = partialAnswer.length;
+            const lastLen = parseInt(answerDiv.dataset.lastLen || '0');
+            
+            // Chỉ render lại nếu nội dung tăng thêm đáng kể hoặc là lần đầu
+            if (currentLen > lastLen || lastLen === 0) {
                 answerDiv.innerHTML = this.formatAnswer(partialAnswer);
-                answerDiv.dataset.lastLen = partialAnswer.length.toString();
-                // Cuộn xuống nếu có nội dung mới
-                if (this.container) this.container.scrollTop = this.container.scrollHeight;
+                answerDiv.dataset.lastLen = currentLen.toString();
+                // Cuộn xuống nhẹ nhàng
+                if (this.container) {
+                    const isAtBottom = (this.container.scrollHeight - this.container.scrollTop - this.container.clientHeight) < 100;
+                    if (isAtBottom) {
+                        this.container.scrollTop = this.container.scrollHeight;
+                    }
+                }
             }
         }
 

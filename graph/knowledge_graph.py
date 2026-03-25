@@ -86,39 +86,130 @@ class KnowledgeGraph:
             {"document_id": document_id},
         )
 
-        entity_ids: list[str] = []
-        for entity in entities:
-            entity_id = await self.upsert_entity(entity)
-            entity_ids.append(entity_id)
-            await self._session.execute(
+        if not entities:
+            try:
+                await self._session.commit()
+            except Exception:
+                await self._session.rollback()
+                raise
+            return
+
+        # 1. Bulk fetch existing entities (giảm N Select xuống còn 1)
+        normalized_names = list({e.normalized_name for e in entities if e.normalized_name})
+        existing_entities = {}
+        if normalized_names:
+            result = await self._session.execute(
                 text("""
-                    INSERT INTO document_entities (document_id, entity_id, entity_type)
-                    VALUES (:document_id, :entity_id, :entity_type)
-                    ON CONFLICT DO NOTHING
+                    SELECT id::text AS entity_id, normalized_name, entity_type
+                    FROM entities
+                    WHERE normalized_name = ANY(:names)
                 """),
-                {
-                    "document_id": document_id,
-                    "entity_id": entity_id,
-                    "entity_type": entity.entity_type,
-                },
+                {"names": normalized_names}
+            )
+            existing_entities = {(row["normalized_name"], row["entity_type"]): row["entity_id"] for row in result.mappings().all()}
+
+        entities_to_insert = []
+        entities_to_update = []
+        aliases_to_upsert = []
+        seen_aliases = set()
+        entity_ids = []
+
+        for entity in entities:
+            key = (entity.normalized_name, entity.entity_type)
+            if key in existing_entities:
+                ent_id = existing_entities[key]
+                entities_to_update.append({"id": ent_id, "name": entity.name})
+            else:
+                ent_id = str(uuid.uuid4())
+                existing_entities[key] = ent_id
+                entities_to_insert.append({
+                    "id": ent_id,
+                    "name": entity.name,
+                    "normalized_name": entity.normalized_name,
+                    "entity_type": entity.entity_type
+                })
+            
+            entity_ids.append(ent_id)
+
+            # Chuẩn bị Upsert Alias (thay thế cho việc gọi hàm con nhiều lần)
+            alias_val = entity.name
+            normalized_alias = self._extractor.normalize(alias_val)
+            if normalized_alias:
+                alias_key = (ent_id, normalized_alias)
+                if alias_key not in seen_aliases:
+                    seen_aliases.add(alias_key)
+                    aliases_to_upsert.append({
+                        "entity_id": ent_id,
+                        "normalized_alias": normalized_alias,
+                        "alias_value": alias_val,
+                        "alias_type": entity.entity_type,
+                        "alias_strength": 1
+                    })
+
+        # 2. Bulk Insert / Update Entities
+        if entities_to_update:
+            unique_updates = list({u["id"]: u for u in entities_to_update}.values())
+            await self._session.execute(
+                text("UPDATE entities SET name = :name WHERE id = :id"),
+                unique_updates
+            )
+        if entities_to_insert:
+            await self._session.execute(
+                text("INSERT INTO entities (id, name, normalized_name, entity_type) VALUES (:id, :name, :normalized_name, :entity_type)"),
+                entities_to_insert
             )
 
-        for left, right in zip(entity_ids, entity_ids[1:]):
-            # To avoid duplicate edges for the same pair (e.g. A->B and B->A), 
-            # we can store them in a consistent order if the relation is inherently bidirectional.
-            # But 'co_occurs' is fine as is if we query both directions.
+        # 3. Bulk Upsert Aliases
+        if aliases_to_upsert:
+            await self._session.execute(
+                text("""
+                    INSERT INTO entity_aliases (entity_id, normalized_alias, alias_value, alias_type, alias_strength)
+                    VALUES (:entity_id, :normalized_alias, :alias_value, :alias_type, :alias_strength)
+                    ON CONFLICT (entity_id, normalized_alias) DO UPDATE SET
+                        alias_value = EXCLUDED.alias_value,
+                        alias_type = EXCLUDED.alias_type,
+                        alias_strength = GREATEST(entity_aliases.alias_strength, EXCLUDED.alias_strength)
+                """),
+                aliases_to_upsert
+            )
+
+        # 4. Bulk Insert Document Entities
+        doc_entities_to_insert = []
+        seen_doc_entities = set()
+        for entity, ent_id in zip(entities, entity_ids):
+            de_key = (document_id, ent_id, entity.entity_type)
+            if de_key not in seen_doc_entities:
+                seen_doc_entities.add(de_key)
+                doc_entities_to_insert.append({
+                    "document_id": document_id,
+                    "entity_id": ent_id,
+                    "entity_type": entity.entity_type
+                })
+        if doc_entities_to_insert:
+            await self._session.execute(
+                text("INSERT INTO document_entities (document_id, entity_id, entity_type) VALUES (:document_id, :entity_id, :entity_type) ON CONFLICT DO NOTHING"),
+                doc_entities_to_insert
+            )
+
+        # 5. Bulk Insert Entity Relations (tính toán trọng số trong bộ nhớ trước)
+        relation_weights = {}
+        for left_id, right_id in zip(entity_ids, entity_ids[1:]):
+            r_key = (left_id, right_id)
+            relation_weights[r_key] = relation_weights.get(r_key, 0) + 1
+
+        relations_to_upsert = [
+            {"id": str(uuid.uuid4()), "source_id": s, "target_id": t, "weight_inc": w}
+            for (s, t), w in relation_weights.items()
+        ]
+        if relations_to_upsert:
             await self._session.execute(
                 text("""
                     INSERT INTO entity_relations (id, source_id, target_id, relation_type, weight)
-                    VALUES (:id, :source_id, :target_id, 'co_occurs', 1)
+                    VALUES (:id, :source_id, :target_id, 'co_occurs', :weight_inc)
                     ON CONFLICT (source_id, target_id, relation_type) 
-                    DO UPDATE SET weight = entity_relations.weight + 1
+                    DO UPDATE SET weight = entity_relations.weight + EXCLUDED.weight
                 """),
-                {
-                    "id": str(uuid.uuid4()),
-                    "source_id": left,
-                    "target_id": right,
-                },
+                relations_to_upsert
             )
 
         try:

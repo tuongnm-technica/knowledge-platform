@@ -273,14 +273,21 @@ class ReActLoop:
             compressed_context = ""
 
         # ─────────────────────────────
-        # LLM Summarize
+        # LLM Summarize with Language Detection
         # ─────────────────────────────
+        
+        # Simple language detection (Vietnamese vs English)
+        vni_chars = re.compile(r'[àáảãạăầấẩẫậắẳẵặêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]', re.IGNORECASE)
+        is_vietnamese = bool(vni_chars.search(question))
+        target_lang = "Vietnamese" if is_vietnamese else "English"
+        
+        log.info("agent.language_detected", language=target_lang)
 
         if on_thought:
             try:
                 await on_thought({
                     "step": "summarizing",
-                    "thought": "Đang tổng hợp thông tin từ các nguồn tìm được..."
+                    "thought": f"Đang tổng hợp thông tin bằng {target_lang} từ các nguồn tìm được..."
                 })
             except Exception:
                 pass
@@ -292,7 +299,7 @@ class ReActLoop:
             graph_context = "\n### KNOWLEDGE GRAPH\n" + "\n".join([f"- {rel}" for rel in sorted(graph_rels)])
             final_context = (final_context or "") + "\n" + graph_context
 
-        answer = await self._summarize(question, final_context, on_token=on_token)
+        answer = await self._summarize(question, final_context, target_language=target_lang, on_token=on_token)
 
         # ─────────────────────────────
         # Logic Agent: contradiction check (best-effort)
@@ -564,19 +571,22 @@ class ReActLoop:
             log.warning("agent.history_summarize.failed", error=str(e))
             return history_text
 
-    async def _summarize(self, question: str, context: str, on_token: Any | None = None) -> str:
-
+    async def _summarize(self, question: str, context: str, target_language: str = "Vietnamese", on_token: Any | None = None) -> str:
+ 
         if not context.strip():
-            return "Không tìm thấy dữ liệu liên quan."
-
+            return "Không tìm thấy dữ liệu liên quan." if target_language == "Vietnamese" else "No relevant data found."
+ 
         prompt = f"""
 QUESTION:
 {question}
-
+ 
 CONTEXT:
 {context}
-
-Trả lời câu hỏi dựa trên CONTEXT.
+ 
+TASK:
+Answer the question based ONLY on the CONTEXT.
+Your response MUST be in {target_language}. 
+If the question is in Vietnamese, you MUST answer in Vietnamese even if the context is in English.
 """
 
         try:

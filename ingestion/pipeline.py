@@ -184,10 +184,11 @@ class IngestionPipeline:
                 if isinstance(doc.metadata, dict):
                     doc.metadata["asset_count"] = int(enriched.get("ingested") or 0)
                     doc.metadata["assets_ingested"] = True
-        except (asyncio.CancelledError, asyncio.TimeoutError) as exc:
+        except asyncio.TimeoutError as exc:
             log.error("ingestion.assets.enrich_timeout", doc_id=doc.id, error=str(exc))
-            # Critical timeouts/cancellations should probably stop this document but maybe continue others
-            # if they were caused by a sub-task.
+        except asyncio.CancelledError:
+            log.warning("ingestion.assets.cancelled", doc_id=doc.id)
+            raise  # Bắt buộc phải raise lại để luồng Worker ARQ có thể huỷ Job đúng cách
         except Exception as exc:
             log.warning("ingestion.assets.enrich_failed", doc_id=doc.id, error=str(exc))
 
