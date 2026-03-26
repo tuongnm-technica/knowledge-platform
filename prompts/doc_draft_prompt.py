@@ -273,6 +273,48 @@ OUTPUT_STRUCTURES: dict[str, str] = {
     "user_stories": "US-xx theo format 'As a ... I want ... so that ...' + Gherkin AC + DoD.\n",
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Knowledge Injection Mapping
+# Maps doc_type to related expert knowledge files in knowledge_base/standards/
+# ─────────────────────────────────────────────────────────────────────────────
+KNOWLEDGE_MAPPING: dict[str, list[str]] = {
+    "requirements_intake": ["ba_standards.md", "language_standards.md"],
+    "requirement_review": ["ba_standards.md", "sa_standards.md", "solution_design_standards.md", "language_standards.md"],
+    "solution_design": ["sa_standards.md", "solution_design_standards.md", "be_dev_standards.md", "language_standards.md"],
+    "api_spec": ["sa_standards.md", "solution_design_standards.md", "be_dev_standards.md", "language_standards.md"],
+    "srs": ["ba_standards.md", "language_standards.md"],
+    "brd": ["ba_standards.md", "language_standards.md"],
+    "use_cases": ["ba_standards.md", "language_standards.md"],
+    "validation_rules": ["ba_standards.md", "language_standards.md"],
+    "user_stories": ["ba_standards.md", "language_standards.md"],
+    "fe_spec": ["solution_design_standards.md", "fe_dev_standards.md", "language_standards.md"],
+    "qa_test_spec": ["qa_standards.md", "language_standards.md"],
+    "deployment_spec": ["solution_design_standards.md", "qa_standards.md", "be_dev_standards.md", "language_standards.md"],
+    "change_request": ["ba_standards.md", "language_standards.md"],
+    "release_notes": ["ba_standards.md", "language_standards.md"],
+    "function_list": ["ba_standards.md", "language_standards.md"],
+    "risk_log": ["ba_standards.md", "language_standards.md"],
+}
+
+def get_expert_knowledge(doc_type: str) -> str:
+    files = KNOWLEDGE_MAPPING.get(doc_type, ["ba_standards.md"])
+    base_path = Path(__file__).parent.parent / "knowledge_base" / "standards"
+    
+    knowledge_blocks = []
+    for fname in files:
+        p = base_path / fname
+        if p.exists():
+            try:
+                content = p.read_text(encoding="utf-8")
+                knowledge_blocks.append(f"### KIẾN THỨC CHUYÊN GIA: {fname}\n{content}")
+            except Exception:
+                continue
+                
+    if not knowledge_blocks:
+        return ""
+        
+    return "\n\n## TRI THỨC NỀN TẢNG (EXPERT KNOWLEDGE)\nSử dụng các tiêu chuẩn và tri thức sau đây làm kim chỉ nam để thực hiện Skill này:\n\n" + "\n\n".join(knowledge_blocks)
+
 
 def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> str:
     doc_type = (doc_type or "srs").strip().lower()
@@ -374,5 +416,12 @@ def build_doc_user_prompt(
         lines.append("## Output requirements\n")
         lines.append(structure_hint)
         lines.append("\n**Ghi chú quan trọng:** TOÀN BỘ nội dung viết bằng TIẾNG VIỆT chuyên nghiệp, chi tiết, đầy đủ và có chiều sâu.")
+        lines.append("")
+
+    # Add Expert Knowledge (Knowledge Layer)
+    expert_knowledge = get_expert_knowledge(doc_type)
+    if expert_knowledge:
+        lines.append(expert_knowledge)
+        lines.append("")
 
     return "\n".join(lines).strip() + "\n"
