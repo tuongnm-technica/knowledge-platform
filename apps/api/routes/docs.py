@@ -272,7 +272,7 @@ async def create_doc_draft_from_answer(
         try:
             from orchestration.doc_orchestrator import DocOrchestrator
             orchestrator = DocOrchestrator(llm)
-            raw_content = await orchestrator.generate_document_pipeline(system=system, user=user, max_tokens=1800)
+            raw_content = await orchestrator.generate_document_pipeline(system=system, user=user, max_tokens=8192)
             content, structured_data = _parse_llm_response(raw_content)
             if structured_data:
                 repo = ProjectMemoryRepository(session)

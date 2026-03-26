@@ -119,6 +119,8 @@ export function _kpCloseModal<T>(result: T | null): void {
     els.bodyEl.innerHTML = '';
     els.errorEl.style.display = 'none';
     els.errorEl.textContent = '';
+    els.okBtn.disabled = false;
+    els.cancelBtn.disabled = false;
     document.body.classList.remove('kp-modal-open');
 
     const state = KP_MODAL_STATE;
@@ -159,7 +161,9 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
     els.errorEl.style.display = 'none';
     els.errorEl.textContent = '';
     els.okBtn.textContent = okText;
+    els.okBtn.disabled = false;
     els.cancelBtn.textContent = cancelText || '';
+    els.cancelBtn.disabled = false;
     els.cancelBtn.style.display = cancelText ? '' : 'none';
     els.okBtn.className = okClass;
     

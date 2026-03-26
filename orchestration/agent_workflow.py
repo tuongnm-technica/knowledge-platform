@@ -78,8 +78,8 @@ llm = ChatOllama(
     base_url=settings.OLLAMA_BASE_URL,
     model=settings.OLLAMA_LLM_MODEL,
     temperature=0,
-    num_ctx=8192,        # Mở rộng Context Window lên 8k token (mặc định thường là 2048)
-    num_predict=4096,    # Tăng số lượng token output tối đa để tránh bị cụt đuôi JSON
+    num_ctx=16384,        # Mở rộng Context Window lên 16k token
+    num_predict=8192,    # Tăng số lượng token output tối đa lên 8k
 )
 
 async def search_agent_node(state: SDLCState) -> dict:
@@ -120,7 +120,7 @@ async def search_agent_node(state: SDLCState) -> dict:
         docs = await repo.get_by_ids(all_doc_ids)
         
         context_str = "\n\n".join([
-            f"--- Document: {d.get('title')} ---\n{d.get('content', '')[:1000]}"
+            f"--- Document: {d.get('title')} ---\n{d.get('content', '')[:6000]}"
             for d in docs
         ])
         
@@ -145,7 +145,8 @@ def ba_agent_node(state: SDLCState) -> dict:
     system_prompt = """You are GPT-4 Document Writer in the MyGPT BA Suite pipeline.
 Your job: produce enterprise-grade BA documents in VIETNAMESE.
 GOLDEN RULE: Every document must be complete enough that a developer can implement without asking questions.
-TOÀN BỘ nội dung mô tả, ghi chú kỹ thuật phải được viết bằng TIẾNG VIỆT chuyên nghiệp.
+Phân tích sâu, chi tiết từng Use Case, Validation Rule và Business Rule. 
+TOÀN BỘ nội dung mô tả, ghi chú kỹ thuật phải được viết bằng TIẾNG VIỆT chuyên nghiệp, giàu thông tin.
 Only output valid JSON matching the schema."""
 
     prompt = ChatPromptTemplate.from_messages([
@@ -174,7 +175,8 @@ def sa_agent_node(state: SDLCState) -> dict:
     structured_llm = llm.with_structured_output(SADocumentOutput)
     system_prompt = """You are GPT-3 Solution Designer in the MyGPT BA Suite. 
 Read the BA JSON Document (Use Cases, Validation rules) and produce a high-level technical design and API Contracts.
-Mọi nội dung diễn giải, kiến trúc tổng quan phải được viết bằng TIẾNG VIỆT."""
+Thiết kế hệ thống chi tiết, bao hàm kiến trúc, data model và các API contract đầy đủ.
+Mọi nội dung diễn giải, kiến trúc tổng quan phải được viết bằng TIẾNG VIỆT chuyên nghiệp."""
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -197,8 +199,9 @@ def qa_agent_node(state: SDLCState) -> dict:
     structured_llm = llm.with_structured_output(QADocumentOutput)
     # Sử dụng đúng mẫu QA-01 trong SDLC_Prompt_Library_v1.md của bạn
     system_prompt = """Bạn là QA Engineer có kinh nghiệm theo chuẩn ISTQB. 
-Sinh test cases từ các Use Cases và Validation Rules trong tài liệu BA.
-Mỗi AC scenario -> >=3 test cases (1 positive + 1 negative + 1 boundary)."""
+Sinh test cases chi tiết từ các Use Cases và Validation Rules trong tài liệu BA.
+Mỗi AC scenario -> >=3 test cases (1 positive + 1 negative + 1 boundary).
+Mô tả các steps và expected result rõ ràng, chi tiết bằng TIẾNG VIỆT."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),

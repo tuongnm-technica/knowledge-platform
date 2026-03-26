@@ -17,7 +17,18 @@ async def list_groups(
     db: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_admin),
 ):
-    result = await db.execute(text("SELECT id, name FROM groups ORDER BY name"))
+    result = await db.execute(
+        text("""
+            SELECT
+                g.id,
+                g.name,
+                COUNT(DISTINCT ug.user_id) AS member_count
+            FROM groups g
+            LEFT JOIN user_groups ug ON ug.group_id = g.id
+            GROUP BY g.id, g.name
+            ORDER BY g.name
+        """)
+    )
     return [dict(row) for row in result.mappings().all()]
 
 class GroupCreateRequest(BaseModel):

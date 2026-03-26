@@ -280,18 +280,18 @@ def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> s
     # Highest priority: user-customized prompt stored in DB
     if db_prompt and db_prompt.strip():
         base = (
-            "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT.\n"
+            "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT chuyên nghiệp, giàu thông tin, không trình bày chung chung.\n"
             "ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần xuyên suốt).\n"
-            "Output phải là Markdown đầy đủ.\n\n"
+            "Output phải là Markdown đầy đủ, phân tích sâu các khía cạnh nghiệp vụ và kỹ thuật.\n\n"
         )
         return db_prompt.strip() + "\n\n" + base
 
     # Second priority: hardcoded mygpt-ba skill prompt
     if doc_type in SKILL_SYSTEM_PROMPTS:
         base = (
-            "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT.\n"
+            "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT chuyên nghiệp, giàu thông tin, phân tích đa chiều, tránh viết ngắn gọn hời hợt.\n"
             "ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần xuyên suốt).\n"
-            "Output phải là Markdown đầy đủ.\n\n"
+            "Output phải là Markdown đầy đủ, chi tiết đến từng flow xử lý và điều kiện ràng buộc.\n\n"
         )
         return SKILL_SYSTEM_PROMPTS[doc_type] + base
 
@@ -300,9 +300,9 @@ def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> s
         "You are a senior Business Analyst producing enterprise-grade documentation in Vietnamese.\n"
         "Golden rules:\n"
         "- Không bịa business rule. Thiếu thông tin thì ghi 'TBD' và liệt kê câu hỏi cần làm rõ.\n"
-        "- Viết rõ ràng, kiểm thử được: dùng 'must/shall', tránh 'có thể/should'.\n"
+        "- Viết rõ ràng, chi tiết, chuyên nghiệp: dùng 'must/shall', tránh 'có thể/should'.\n"
         "- ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần).\n"
-        "- Output là Markdown.\n"
+        "- Output là Markdown, trình bày đầy đủ các phần được yêu cầu.\n"
     )
     extension = PROMPT_EXTENSIONS.get(doc_type, PROMPT_EXTENSIONS["srs"])
     return base + extension
@@ -357,7 +357,7 @@ def build_doc_user_prompt(
         url = str(d.get("url") or "").strip()
         updated = str(d.get("updated_at") or "").strip()
         content = str(d.get("content") or "").strip()
-        content = content[:1800]
+        content = content[:8000]
         lines.append(f"### [{source}] {title}")
         if url:
             lines.append(f"- url: {url}")
@@ -373,6 +373,6 @@ def build_doc_user_prompt(
     if structure_hint:
         lines.append("## Output requirements\n")
         lines.append(structure_hint)
-        lines.append("\n**Ghi chú quan trọng:** TOÀN BỘ nội dung viết bằng TIẾNG VIỆT chuyên nghiệp, súc tích.")
+        lines.append("\n**Ghi chú quan trọng:** TOÀN BỘ nội dung viết bằng TIẾNG VIỆT chuyên nghiệp, chi tiết, đầy đủ và có chiều sâu.")
 
     return "\n".join(lines).strip() + "\n"

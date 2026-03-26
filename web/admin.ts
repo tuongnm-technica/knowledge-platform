@@ -82,8 +82,9 @@ export class AdminModule {
         try {
             const resp = await authFetch(`${API}/users`);
             if (!resp.ok) throw new Error('Không thể tải danh sách User');
-            const data = await resp.json() as { users: User[] };
+            const data = await resp.json() as { users: User[], groups?: Group[] };
             this.users = data.users || [];
+            if (data.groups) this.groups = data.groups;
         } catch (err) {
             showToast((err as Error).message, 'error');
         } finally {
@@ -196,14 +197,29 @@ export class AdminModule {
                 const checkedCbs = Array.from(body.querySelectorAll('.user-group-cb:checked')) as HTMLInputElement[];
                 const groupIds = checkedCbs.map(cb => cb.value);
 
+                const name = (nameIn as HTMLInputElement).value.trim();
+                const email = (emailIn as HTMLInputElement).value.trim();
+                const pwd = (pwdIn as HTMLInputElement).value;
+
+                // Validation
+                if (!name) return { error: 'Tên hiển thị không được để trống' };
+                if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    return { error: 'Email không hợp lệ' };
+                }
+                if (!isEdit && !pwd) {
+                    return { error: 'Mật khẩu là bắt buộc cho tài khoản mới' };
+                }
+                if (pwd && pwd.length < 8) {
+                    return { error: 'Mật khẩu phải có ít nhất 8 ký tự' };
+                }
+
                 const payload: Record<string, any> = {
-                    display_name: (nameIn as HTMLInputElement).value.trim(),
-                    email: (emailIn as HTMLInputElement).value.trim(),
+                    display_name: name,
+                    email: email,
                     role: (roleIn as HTMLSelectElement).value,
                     is_admin: (adminIn as HTMLInputElement).checked,
                     group_ids: groupIds
                 };
-                const pwd = (pwdIn as HTMLInputElement).value;
                 if (pwd) payload.password = pwd;
 
                 try {
@@ -325,17 +341,31 @@ export class AdminModule {
         const userLoading = document.querySelector('#admin-users-loading') as HTMLElement;
         if (userTbody && userLoading) {
             userLoading.style.display = this.isLoadingUsers ? 'block' : 'none';
-            userTbody.innerHTML = this.users.map(u => `
-                <tr>
-                    <td style="font-weight: 600;">${escapeHtml(u.display_name)}</td>
-                    <td>${escapeHtml(u.email)}</td>
-                    <td><span class="status-badge status-pending" style="background: var(--bg3); color: var(--text-muted); border: 1px solid var(--border);">${escapeHtml(u.role || 'standard')}</span></td>
-                    <td style="text-align: right;">
-                        <button class="secondary-btn mini edit-user" data-id="${u.id}">✏️</button>
-                        <button class="danger-btn mini ghost-btn delete-user" data-id="${u.id}">🗑</button>
-                    </td>
-                </tr>
-            `).join('');
+            userTbody.innerHTML = this.users.map(u => {
+                const groupNames = (u.groups || []).map(g => g.name).join(', ') || '—';
+                const adminBadge = u.is_admin ? '<span class="status-badge status-active" style="background:var(--primary-light); color:var(--primary); border:1px solid var(--primary)">ROOT</span>' : '<span style="color:var(--text-muted)">Member</span>';
+                const statusBadge = u.is_active !== false 
+                    ? '<span style="color:var(--success)">●</span>' 
+                    : '<span style="color:var(--danger)">●</span>';
+
+                return `
+                    <tr>
+                        <td style="font-weight: 600;">
+                            <div style="display:flex; flex-direction:column">
+                                <span>${escapeHtml(u.display_name)}</span>
+                                <span style="font-size:0.8em; color:var(--text-muted); font-weight:400">${escapeHtml(u.email)}</span>
+                            </div>
+                        </td>
+                        <td>${statusBadge} <span class="status-badge status-pending" style="background: var(--bg3); color: var(--text-muted); border: 1px solid var(--border);">${escapeHtml(u.role || 'standard')}</span></td>
+                        <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${escapeHtml(groupNames)}">${escapeHtml(groupNames)}</td>
+                        <td>${adminBadge}</td>
+                        <td style="text-align: right;">
+                            <button class="secondary-btn mini edit-user" data-id="${u.id}">✏️</button>
+                            <button class="danger-btn mini ghost-btn delete-user" data-id="${u.id}">🗑</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
 
             userTbody.querySelectorAll('.edit-user').forEach(btn => {
                 btn.addEventListener('click', () => this.openUserModal(btn.getAttribute('data-id')));
@@ -353,6 +383,8 @@ export class AdminModule {
             groupTbody.innerHTML = this.groups.map(g => `
                 <tr>
                     <td style="font-weight: 600;">${escapeHtml(g.name)}</td>
+                    <td><span class="status-badge" style="background:var(--bg3)">${g.member_count || 0} tv</span></td>
+                    <td style="color:var(--text-muted); font-size:0.9em">ID: ${escapeHtml(g.id)}</td>
                     <td style="text-align: right;">
                         <button class="secondary-btn mini edit-group" data-id="${g.id}">✏️</button>
                         <button class="danger-btn mini ghost-btn delete-group" data-id="${g.id}">🗑</button>

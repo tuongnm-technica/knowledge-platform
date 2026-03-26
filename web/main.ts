@@ -20,6 +20,7 @@ import { MemoryModule } from './memory';
 import { WorkflowsModule } from './workflows';
 import { HistoryModule } from './history';
 import { SidebarModule } from './sidebar';
+import { ThemeModule } from './theme';
 
 // --- Initialization ---
 
@@ -82,6 +83,7 @@ async function initApp() {
 
     // Setup Sidebar & Global UI
     await sidebarModule.init();
+    ThemeModule.setupThemeToggle('themeToggle');
     basketModule.bindGlobalTriggers();
 
     // Unauthorized handler
@@ -201,7 +203,10 @@ function renderPage(target: string, initFn?: () => void) {
 }
 
 // Start
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', () => {
+    ThemeModule.initTheme();
+    initApp();
+});
 
 // --- SDLC Workflow Logic ---
 ;(window as any).showSdlcTab = function(tabId: string) {

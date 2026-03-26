@@ -15,6 +15,7 @@ export interface User {
     is_admin: boolean;
     group_ids?: string[];
     groups?: Group[];
+    is_active?: boolean;
 }
 
 export interface AuthResponse extends User {
@@ -223,6 +224,7 @@ export interface BasketItem {
 export interface Group {
     id: string;
     name: string;
+    member_count?: number;
 }
 
 export interface PromptSkill {
