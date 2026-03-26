@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gpt1-intake-output.schema.json",
+  "title": "GPT-1 Requirement Analyst Output",
+  "type": "object",
+  "required": [
+    "intake_id", "source", "summary",
+    "functional_requirements", "non_functional_requirements",
+    "business_rules", "assumptions", "out_of_scope",
+    "open_questions", "traceability_seed"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "intake_id": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}-.+$",
+      "description": "Format: YYYY-MM-DD-<slug>"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["email", "meeting", "idea", "document", "other"]
+    },
+    "summary": { "type": "string", "minLength": 10 },
+    "functional_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "priority"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^FR-\\d{2}$" },
+          "description": { "type": "string", "minLength": 5 },
+          "priority": { "type": "string", "enum": ["Must", "Should", "Could", "Won't"] }
+        }
+      }
+    },
+    "non_functional_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^NFR-\\d{2}$" },
+          "category": { "type": "string", "enum": ["Performance", "Security", "Scalability", "UX", "Other"] },
+          "description": { "type": "string", "minLength": 5 }
+        }
+      }
+    },
+    "business_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^BR-\\d{2}$" },
+          "description": { "type": "string", "minLength": 5 },
+          "source": { "type": "string" }
+        }
+      }
+    },
+    "assumptions":    { "type": "array", "items": { "type": "string" } },
+    "out_of_scope":   { "type": "array", "items": { "type": "string" } },
+    "open_questions": { "type": "array", "items": { "type": "string" } },
+    "traceability_seed": {
+      "type": "object",
+      "required": ["epic", "fr_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "epic": { "type": "string", "minLength": 1 },
+        "fr_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^FR-\\d{2}$" }
+        }
+      }
+    }
+  }
+}

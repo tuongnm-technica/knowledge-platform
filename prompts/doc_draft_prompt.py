@@ -29,82 +29,82 @@ SUPPORTED_DOC_TYPES: dict[str, str] = {
 SKILL_AGENT_LABELS: dict[str, tuple[str, str, str]] = {
     # doc_type → (agent label, short description, group)
     "requirements_intake": (
-        "📋 GPT-1: Requirement Analyst",
+        "📋 Step 1: Requirement Analyst",
         "Biến idea thô → FR · NFR · BR · Assumptions · Traceability seed",
         "Phân tích yêu cầu",
     ),
     "requirement_review": (
-        "🔍 GPT-2: Architect Reviewer",
+        "🔍 Step 2: Architect Reviewer",
         "Review business logic · Permission model · Edge cases · BR conflicts",
         "Kiến trúc & Review",
     ),
     "solution_design": (
-        "🏗️ GPT-3: Solution Designer",
+        "🏗️ Step 3: Solution Designer",
         "Architecture + ADR · API contract · Data model · Deployment topology",
         "Giải pháp kỹ thuật",
     ),
     "srs": (
-        "📄 GPT-4: Document Writer — SRS",
+        "📄 Step 4: Document Writer — SRS",
         "SRS 10 mục + Glossary + Traceability Matrix",
         "Tài liệu đặc tả",
     ),
     "brd": (
-        "📋 GPT-4: Document Writer — BRD",
+        "📋 Step 4: Document Writer — BRD",
         "BRD đầy đủ business case (12 or 17-section)",
         "Tài liệu đặc tả",
     ),
     "use_cases": (
-        "📐 GPT-4: Document Writer — Use Cases",
+        "📐 Step 4: Document Writer — Use Cases",
         "Use Cases chi tiết + FE Technical Notes",
         "Tài liệu đặc tả",
     ),
     "validation_rules": (
-        "✅ GPT-4: Document Writer — Validation Rules",
+        "✅ Step 4: Document Writer — Validation Rules",
         "Validation Rules với UX behavior (FE + BE rules)",
         "Tài liệu đặc tả",
     ),
     "user_stories": (
-        "🎯 GPT-5: User Story Writer",
+        "🎯 Step 5: User Story Writer",
         "User Stories · Gherkin AC · INVEST · DoD · Epic→Story→Task",
         "User Story & Task",
     ),
     "fe_spec": (
-        "🖥️ GPT-6: FE Technical Spec",
+        "🖥️ Step 6: FE Technical Spec",
         "Component tree · UI State matrix · a11y · Error boundary · Perf budget",
         "Phát triển FE",
     ),
     "qa_test_spec": (
-        "🧪 GPT-7: QA Reviewer",
+        "🧪 Step 7: QA Reviewer",
         "Test cases (5 levels) · OWASP · UAT exit criteria · Test data strategy",
         "Kiểm thử & QA",
     ),
     "api_spec": (
-        "🔌 GPT-3: API Spec (Solution Designer)",
+        "🔌 Step 3: API Spec (Solution Designer)",
         "OpenAPI spec skeleton · RFC 7807 errors · Status codes · Idempotency",
         "Giải pháp kỹ thuật",
     ),
     "deployment_spec": (
-        "🚀 GPT-8: Deployment Spec",
+        "🚀 Step 8: Deployment Spec",
         "CI/CD · Environment config · Monitoring alerts · Runbook · DR plan",
         "Triển khai & Vận hành",
     ),
     "change_request": (
-        "📝 GPT-9: Change & Release Mgr — CR",
+        "📝 Step 9: Change & Release Mgr — CR",
         "Change Request · Impact Analysis 6 dimensions · Risk · Rollback plan",
         "Thay đổi & Phát hành",
     ),
     "release_notes": (
-        "📢 GPT-9: Change & Release Mgr — Release Notes",
+        "📢 Step 9: Change & Release Mgr — Release Notes",
         "Release Notes: What's new · Improvements · Bug fixes · Rollback",
         "Thay đổi & Phát hành",
     ),
     "function_list": (
-        "📊 GPT-9: Change & Release Mgr — Function List",
+        "📊 Step 9: Change & Release Mgr — Function List",
         "Function List: Module/Feature/Function + Status + Links",
         "Thay đổi & Phát hành",
     ),
     "risk_log": (
-        "⚠️ GPT-9: Change & Release Mgr — Risk Log",
+        "⚠️ Step 9: Change & Release Mgr — Risk Log",
         "Risk Log: Risk-ID · Likelihood · Impact · Mitigation · Owner",
         "Thay đổi & Phát hành",
     ),
@@ -115,39 +115,55 @@ SKILL_AGENT_LABELS: dict[str, tuple[str, str, str]] = {
 # reference mapping for Hybrid Edition (20KB+ deep prompts)
 # ─────────────────────────────────────────────────────────────────────────────
 SKILL_REF_FILES: dict[str, str] = {
-    "requirements_intake": "gpt1-requirement-analyst.md",
-    "requirement_review": "gpt2-architect-reviewer.md",
-    "solution_design": "gpt3-solution-designer.md",
-    "api_spec": "gpt3-solution-designer.md",
-    "srs": "gpt4-document-writer.md",
-    "brd": "gpt4-document-writer.md",
-    "use_cases": "gpt4-document-writer.md",
-    "validation_rules": "gpt4-document-writer.md",
-    "user_stories": "gpt5-user-story-writer.md",
-    "fe_spec": "gpt6-fe-technical-spec.md",
-    "qa_test_spec": "gpt7-qa-reviewer.md",
-    "deployment_spec": "gpt8-deployment-spec.md",
-    "change_request": "gpt9-change-release-mgr.md",
-    "release_notes": "gpt9-change-release-mgr.md",
-    "function_list": "gpt9-change-release-mgr.md",
-    "risk_log": "gpt9-change-release-mgr.md",
+    "requirements_intake": "step1-analyst",
+    "requirement_review": "step2-reviewer",
+    "solution_design": "step3-designer",
+    "api_spec": "step3-designer",
+    "srs": "step4-writer",
+    "brd": "step4-writer",
+    "use_cases": "step4-writer",
+    "validation_rules": "step4-writer",
+    "user_stories": "step5-story-writer",
+    "fe_spec": "step6-fe-spec",
+    "qa_test_spec": "step7-qa-spec",
+    "deployment_spec": "step8-ops-spec",
+    "change_request": "step9-change-mgr",
+    "release_notes": "step9-change-mgr",
+    "function_list": "step9-change-mgr",
+    "risk_log": "step9-change-mgr",
 }
 
-def get_ref_path(filename: str) -> Path:
+def get_agent_path(slug: str) -> Path:
     # Works in both local and Docker (/app)
     base = Path(__file__).parent.parent
-    return base / "docskill" / "mygpt-ba" / "references" / filename
+    return base / "docskill" / "mygpt-ba" / "agents" / slug
 
 def load_full_prompt(doc_type: str) -> str:
-    fname = SKILL_REF_FILES.get(doc_type)
-    if not fname:
+    slug = SKILL_REF_FILES.get(doc_type)
+    if not slug:
         return ""
-    path = get_ref_path(fname)
+    path = get_agent_path(slug) / "gen_prompt.md"
     if path.exists():
         try:
             return path.read_text(encoding="utf-8")
         except Exception:
             return ""
+    return ""
+
+def load_skill_schema(doc_type: str) -> str:
+    slug = SKILL_REF_FILES.get(doc_type)
+    if not slug: return ""
+    path = get_agent_path(slug) / "schema.json"
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    return ""
+
+def load_skill_template(doc_type: str) -> str:
+    slug = SKILL_REF_FILES.get(doc_type)
+    if not slug: return ""
+    path = get_agent_path(slug) / "human_template.md"
+    if path.exists():
+        return path.read_text(encoding="utf-8")
     return ""
 
 # Initialize with full prompts from filesystem
@@ -158,15 +174,15 @@ SKILL_SYSTEM_PROMPTS: dict[str, str] = {
 
 # Map doc_type → agent label for display in UI
 SKILL_DOC_TYPE_GROUPS: dict[str, list[str]] = {
-    "📋 GPT-1: Requirement Analyst": ["requirements_intake"],
-    "🔍 GPT-2: Architect Reviewer": ["requirement_review"],
-    "🏗️ GPT-3: Solution Designer": ["solution_design", "api_spec"],
-    "📄 GPT-4: Document Writer": ["srs", "brd", "use_cases", "validation_rules"],
-    "🎯 GPT-5: User Story Writer": ["user_stories"],
-    "🖥️ GPT-6: FE Technical Spec": ["fe_spec"],
-    "🧪 GPT-7: QA Reviewer": ["qa_test_spec"],
-    "🚀 GPT-8: Deployment Spec": ["deployment_spec"],
-    "📝 GPT-9: Change & Release Mgr": ["change_request", "release_notes", "function_list", "risk_log"],
+    "📋 Step 1: Requirement Analyst": ["requirements_intake"],
+    "🔍 Step 2: Architect Reviewer": ["requirement_review"],
+    "🏗️ Step 3: Solution Designer": ["solution_design", "api_spec"],
+    "📄 Step 4: Document Writer": ["srs", "brd", "use_cases", "validation_rules"],
+    "🎯 Step 5: User Story Writer": ["user_stories"],
+    "🖥️ Step 6: FE Technical Spec": ["fe_spec"],
+    "🧪 Step 7: QA Reviewer": ["qa_test_spec"],
+    "🚀 Step 8: Deployment Spec": ["deployment_spec"],
+    "📝 Step 9: Change & Release Mgr": ["change_request", "release_notes", "function_list", "risk_log"],
 }
 
 PROMPT_EXTENSIONS: dict[str, str] = {
@@ -391,16 +407,40 @@ def build_doc_user_prompt(
             lines.append(f"   - snippet: {snippet[:320]}")
     lines.append("")
 
-    lines.append("## Document details (condensed)")
-    lines.append("Dưới đây là nội dung chi tiết của các tài liệu (được bọc trong thẻ <document>):")
-    for d in (documents or [])[:10]:
+    # Dynamic Truncation Logic based on document count
+    doc_list = documents or []
+    doc_count = len(doc_list)
+    
+    if doc_count <= 2:
+        char_limit = 6000
+    elif doc_count <= 5:
+        char_limit = 3500
+    elif doc_count <= 8:
+        char_limit = 2000
+    else:
+        char_limit = 1200
+
+    lines.append(f"Dưới đây là nội dung chi tiết của tối đa 8 tài liệu (giới hạn {char_limit} ký tự/file để tránh quá tải):")
+    
+    for d in doc_list[:8]:
         title = str(d.get("title") or "").strip() or "Untitled"
         source = str(d.get("source") or "").strip()
         url = str(d.get("url") or "").strip()
         updated = str(d.get("updated_at") or "").strip()
         content = str(d.get("content") or "").strip()
-        content = content[:8000]
+        
+        # Apply dynamic truncation
+        content = content[:char_limit]
+        
         lines.append(f"### [{source}] {title}")
+        if url:
+            lines.append(f"- url: {url}")
+        if updated:
+            lines.append(f"- updated_at: {updated}")
+        if content:
+            lines.append("<document>")
+            lines.append(content)
+            lines.append("</document>")
         if url:
             lines.append(f"- url: {url}")
         if updated:

@@ -45,7 +45,7 @@ async def run_doc_drafting_job(
                 raw_content = await orchestrator.generate_document_pipeline(
                     system=system_prompt, 
                     user=user_prompt, 
-                    max_tokens=2000
+                    max_tokens=8192
                 )
                 
                 # We need the helper functions from routes/docs.py or recreate them

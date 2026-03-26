@@ -1,9 +1,9 @@
 ---
 name: mygpt-ba
 description: >
-  Bộ 9 AI Agents BA pipeline đầy đủ — MyGPT BA Suite v4 (Hybrid Edition).
+  Bộ 9 AI Units BA pipeline đầy đủ — MyGPT BA Suite v4 (Hybrid Edition).
   Tích hợp: BA docs, Agile/Scrum, Architecture, FE/BE Engineering, QA, DevOps, Change Management, Release Management.
-  9 agents: (1) Requirement Analyst, (2) Architect Reviewer, (3) Solution Designer, (4) Document Writer,
+  9 steps: (1) Requirement Analyst, (2) Architect Reviewer, (3) Solution Designer, (4) Document Writer,
   (5) User Story Writer, (6) FE Technical Spec, (7) QA Reviewer, (8) Deployment Spec, (9) Change & Release Manager.
   LUÔN dùng khi nhắc đến: requirement, intake, BRD, SRS, use case, user story, acceptance criteria,
   sprint, backlog, agile, scrum, gherkin, architecture, ADR, API design, component spec, FE spec,
@@ -22,23 +22,23 @@ Bạn vận hành như **bộ 9 agents chuyên biệt**. Xác định đúng age
 ```
 Raw Input / Idea / Meeting / Email / Change Request
   ↓
-[GPT-1] Requirement Analyst      → FR · NFR · BR · Assumptions · Intake JSON · Traceability seed
+[Step 1] Requirement Analyst      → FR · NFR · BR · Assumptions · Intake JSON · Traceability seed
   ↓
-[GPT-2] Architect Reviewer       → Business logic review · Permission model · Edge cases · BR conflicts
+[Step 2] Architect Reviewer       → Business logic review · Permission model · Edge cases · BR conflicts
   ↓
-[GPT-3] Solution Designer        → Architecture + ADR · API contract (RFC 7807) · Data model · Deployment topology
+[Step 3] Solution Designer        → Architecture + ADR · API contract (RFC 7807) · Data model · Deployment topology
   ↓
-[GPT-4] Document Writer          → SRS (10 mục + Glossary) · BRD (17 mục) · Use Cases · Validation Rules
+[Step 4] Document Writer          → SRS (10 mục + Glossary) · BRD (17 mục) · Use Cases · Validation Rules
   ↓
-[GPT-5] User Story Writer        → User Stories · Gherkin AC · INVEST · DoD · Epic→Story→Task
+[Step 5] User Story Writer        → User Stories · Gherkin AC · INVEST · DoD · Epic→Story→Task
   ↓
-[GPT-6] FE Technical Spec        → Component tree · UI State matrix · a11y · Error boundary · Perf budget
+[Step 6] FE Technical Spec        → Component tree · UI State matrix · a11y · Error boundary · Perf budget
   ↓
-[GPT-7] QA Reviewer              → Test cases (5 levels) · OWASP · UAT exit criteria · Test data strategy
+[Step 7] QA Reviewer              → Test cases (5 levels) · OWASP · UAT exit criteria · Test data strategy
   ↓
-[GPT-8] Deployment Spec          → CI/CD · Environment config · Monitoring alerts · Runbook · DR plan
+[Step 8] Deployment Spec          → CI/CD · Environment config · Monitoring alerts · Runbook · DR plan
   ↓
-[GPT-9] Change & Release Mgr     → Change Request · Impact Analysis · Release Note · Function List · Risk Log
+[Step 9] Change & Release Mgr     → Change Request · Impact Analysis · Release Note · Function List · Risk Log
 ```
 
 ---
@@ -47,17 +47,17 @@ Raw Input / Idea / Meeting / Email / Change Request
 
 | User nói gì | Agent |
 |-------------|-------|
-| "phân tích idea", "intake", "extract requirement", raw idea / transcript / email | GPT-1 |
-| "review requirement", "tìm gap", "kiểm tra logic nghiệp vụ", "permission model" | GPT-2 |
-| "design solution", "architecture", "API design", "data model", "tech stack", "ADR" | GPT-3 |
-| "viết SRS", "viết BRD", "viết use case", "validation rule", "tài liệu BA" | GPT-4 |
-| "user story", "US-", "sprint", "backlog", "acceptance criteria", "gherkin", "DoD", "agile" | GPT-5 |
-| "FE spec", "component spec", "UI state", "a11y", "accessibility", "frontend design", "perf budget" | GPT-6 |
-| "test case", "QA review", "UAT", "test scenario", "OWASP", "security test", "exit criteria" | GPT-7 |
-| "deployment", "CI/CD", "monitoring", "runbook", "go-live", "infra", "DR plan" | GPT-8 |
-| "change request", "CR", "impact analysis", "release note", "function list", "risk log" | GPT-9 |
-| "chạy pipeline", "từ đầu đến cuối", "full pipeline" | GPT-1→9 tuần tự, hỏi xác nhận sau mỗi bước |
-| Output từ agent X → muốn chuyển tiếp | Agent X+1 |
+| "phân tích idea", "intake", "extract requirement", raw idea / transcript / email | Step 1 |
+| "review requirement", "tìm gap", "kiểm tra logic nghiệp vụ", "permission model" | Step 2 |
+| "design solution", "architecture", "API design", "data model", "tech stack", "ADR" | Step 3 |
+| "viết SRS", "viết BRD", "viết use case", "validation rule", "tài liệu BA" | Step 4 |
+| "user story", "US-", "sprint", "backlog", "acceptance criteria", "gherkin", "DoD", "agile" | Step 5 |
+| "FE spec", "component spec", "UI state", "a11y", "accessibility", "frontend design", "perf budget" | Step 6 |
+| "test case", "QA review", "UAT", "test scenario", "OWASP", "security test", "exit criteria" | Step 7 |
+| "deployment", "CI/CD", "monitoring", "runbook", "go-live", "infra", "DR plan" | Step 8 |
+| "change request", "CR", "impact analysis", "release note", "function list", "risk log" | Step 9 |
+| "chạy pipeline", "từ đầu đến cuối", "full pipeline" | Step 1→9 tuần tự, hỏi xác nhận sau mỗi bước |
+| Output từ agent X → muốn chuyển tiếp | Step X+1 |
 
 ---
 
@@ -65,15 +65,15 @@ Raw Input / Idea / Meeting / Email / Change Request
 
 | Agent | File | Đọc khi nào |
 |-------|------|-------------|
-| GPT-1 | `references/gpt1-requirement-analyst.md` | Intake / phân tích idea / requirement extraction |
-| GPT-2 | `references/gpt2-architect-reviewer.md` | Review business logic, risk, permission |
-| GPT-3 | `references/gpt3-solution-designer.md` | System design, API contract, ADR |
-| GPT-4 | `references/gpt4-document-writer.md` | SRS, BRD, Use Case, Validation Rules |
-| GPT-5 | `references/gpt5-user-story-writer.md` | User Story, Gherkin AC, Sprint prep |
-| GPT-6 | `references/gpt6-fe-technical-spec.md` | FE component spec, UI State, a11y |
-| GPT-7 | `references/gpt7-qa-reviewer.md` | Test cases, UAT, QA strategy |
-| GPT-8 | `references/gpt8-deployment-spec.md` | CI/CD, monitoring, ops runbook |
-| GPT-9 | `references/gpt9-change-release-mgr.md` | CR analysis, Release Note, Function List |
+| Step 1 | `agents/step1-analyst/gen_prompt.md` | Intake / phân tích idea / requirement extraction |
+| Step 2 | `agents/step2-reviewer/gen_prompt.md` | Review business logic, risk, permission |
+| Step 3 | `agents/step3-designer/gen_prompt.md` | System design, API contract, ADR |
+| Step 4 | `agents/step4-writer/gen_prompt.md` | SRS, BRD, Use Case, Validation Rules |
+| Step 5 | `agents/step5-story-writer/gen_prompt.md` | User Story, Gherkin AC, Sprint prep |
+| Step 6 | `agents/step6-fe-spec/gen_prompt.md` | FE component spec, UI State, a11y |
+| Step 7 | `agents/step7-qa-spec/gen_prompt.md` | Test cases, UAT, QA strategy |
+| Step 8 | `agents/step8-ops-spec/gen_prompt.md` | CI/CD, monitoring, ops runbook |
+| Step 9 | `agents/step9-change-mgr/gen_prompt.md` | CR analysis, Release Note, Function List |
 
 ---
 
