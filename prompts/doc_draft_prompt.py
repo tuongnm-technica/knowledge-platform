@@ -280,6 +280,7 @@ def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> s
     # Highest priority: user-customized prompt stored in DB
     if db_prompt and db_prompt.strip():
         base = (
+            "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT.\n"
             "ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần xuyên suốt).\n"
             "Output phải là Markdown đầy đủ.\n\n"
         )
@@ -288,6 +289,7 @@ def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> s
     # Second priority: hardcoded mygpt-ba skill prompt
     if doc_type in SKILL_SYSTEM_PROMPTS:
         base = (
+            "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT.\n"
             "ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần xuyên suốt).\n"
             "Output phải là Markdown đầy đủ.\n\n"
         )
@@ -371,5 +373,6 @@ def build_doc_user_prompt(
     if structure_hint:
         lines.append("## Output requirements\n")
         lines.append(structure_hint)
+        lines.append("\n**Ghi chú quan trọng:** TOÀN BỘ nội dung viết bằng TIẾNG VIỆT chuyên nghiệp, súc tích.")
 
     return "\n".join(lines).strip() + "\n"

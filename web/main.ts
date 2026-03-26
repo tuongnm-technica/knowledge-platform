@@ -28,10 +28,6 @@ const router = new Navigo('/');
 let appInitialized = false;
 let isInitializing = false;
 
-// Anti-loop protection
-// ... (omitting reload logic for brevity if possible, but replace_file_content needs exact match)
-// Actually I will just replace the module instantiation section
-
 const sidebarModule = new SidebarModule();
 const chatModule = new ChatModule('chatMessages', 'chatInput', 'sendBtn');
 const historyModule = new HistoryModule();
@@ -217,7 +213,6 @@ document.addEventListener('DOMContentLoaded', initApp);
 document.addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
     
-    // Sử dụng event delegation để bắt click dù DOM load sau
     if (target && target.id === 'btn-start-sdlc') {
         const requestInput = document.getElementById('sdlc-request') as HTMLTextAreaElement;
         const requestText = requestInput ? requestInput.value : '';
@@ -226,7 +221,7 @@ document.addEventListener('click', async (e) => {
         
         if (!requestText) return alert("Vui lòng nhập yêu cầu nghiệp vụ!");
         
-        if (progressDiv) progressDiv.innerHTML = "<b>🚀 Đang khởi động Multi-Agent Swarm...</b><br/>";
+        if (progressDiv) progressDiv.innerHTML = "<b>🚀 Đang bắt đầu tác vụ ngầm (Async Work)...</b><br/>";
         if (resultsDiv) resultsDiv.style.display = "none";
 
         try {
@@ -234,9 +229,10 @@ document.addEventListener('click', async (e) => {
             const stepContainer = document.getElementById('step-cards-container');
             
             if (stepLiveView) stepLiveView.style.display = 'block';
-            if (stepContainer) stepContainer.innerHTML = ''; // Reset
+            if (stepContainer) stepContainer.innerHTML = ''; 
 
-            const response = await fetch('/api/sdlc/stream', {
+            // 1. Khởi tạo job
+            const response = await fetch('/api/sdlc/async', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -245,81 +241,65 @@ document.addEventListener('click', async (e) => {
                     user_id: "current-user"
                 })
             });
+            const jobData = await response.json();
+            const jobId = jobData.job_id;
 
-            if (!response.body) throw new Error("Trình duyệt không hỗ trợ streaming");
+            if (progressDiv) progressDiv.innerHTML += `Job ID: <code>${jobId}</code><br/>Đang xếp hàng xử lý...<br/>`;
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let isDone = false;
+            // 2. Bắt đầu polling
+            pollSDLCStatus(jobId);
 
-            while (!isDone) {
-                const { value, done } = await reader.read();
-                isDone = done;
-                if (value) {
-                    const chunk = decoder.decode(value, { stream: true });
-                    const events = chunk.split("\n\n");
-                    
-                    for (const event of events) {
-                        if (event.startsWith("data: ")) {
-                            try {
-                                const data = JSON.parse(event.replace("data: ", ""));
-                                if (progressDiv) {
-                                    progressDiv.innerHTML += `👉 ${data.status}<br/>`;
-                                    progressDiv.scrollTop = progressDiv.scrollHeight;
-                                }
-                                
-                                if (data.status.includes("BA:")) {
-                                    addStepCard("Business Analysis Agent", data.status);
-                                } else if (data.status.includes("SA:")) {
-                                    addStepCard("System Architect Agent", data.status, "Business Analysis Agent");
-                                } else if (data.status.includes("QA:")) {
-                                    addStepCard("Quality Assurance Agent", data.status, "System Architect Agent");
-                                }
-
-                                if (data.status === "DONE") {
-                                    if (progressDiv) progressDiv.innerHTML += `<b>✅ Hoàn tất luồng Agent! Đang tải tài liệu JSON...</b>`;
-                                    markAllStepsComplete();
-                                    fetchFinalSDLCDocuments(requestText);
-                                }
-                            } catch (e) {
-                                console.error("Parse error:", e);
-                            }
-                        }
-                    }
-                }
-            }
         } catch (error) {
             if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">Lỗi: ${error}</span>`;
         }
     }
 });
 
-async function fetchFinalSDLCDocuments(requestText: string) {
-    try {
-        const res = await fetch('/api/sdlc/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ request: requestText, user_id: "current-user" })
-        });
-        
-        const finalData = await res.json();
-        
-        if (finalData.status === "success") {
-            const resultsDiv = document.getElementById('sdlc-results');
-            if (resultsDiv) resultsDiv.style.display = "block";
-            
-            ;(window as any).showSdlcTab('ba-result');
-            
-            const baResult = document.getElementById('ba-result');
-            const saResult = document.getElementById('sa-result');
-            const qaResult = document.getElementById('qa-result');
-            
-            if (baResult) baResult.textContent = JSON.stringify(finalData.data.ba_document_json, null, 2);
-            if (saResult) saResult.textContent = JSON.stringify(finalData.data.sa_document_json, null, 2);
-            if (qaResult) qaResult.textContent = JSON.stringify(finalData.data.qa_document_json, null, 2);
+async function pollSDLCStatus(jobId: string) {
+    const progressDiv = document.getElementById('sdlc-progress');
+    const resultsDiv = document.getElementById('sdlc-results');
+    
+    let attempts = 0;
+
+    const interval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/sdlc/jobs/${jobId}`);
+            const data = await res.json();
+            attempts++;
+
+            if (data.status === "completed") {
+                clearInterval(interval);
+                if (progressDiv) progressDiv.innerHTML += `<b>✅ Hoàn tất!</b><br/>`;
+                
+                if (resultsDiv) resultsDiv.style.display = "block";
+                markAllStepsComplete();
+                
+                ;(window as any).showSdlcTab('ba-result');
+                const baResult = document.getElementById('ba-result');
+                const saResult = document.getElementById('sa-result');
+                const qaResult = document.getElementById('qa-result');
+                
+                if (baResult) baResult.textContent = JSON.stringify(data.result.ba_document_json, null, 2);
+                if (saResult) saResult.textContent = JSON.stringify(data.result.sa_document_json, null, 2);
+                if (qaResult) qaResult.textContent = JSON.stringify(data.result.qa_document_json, null, 2);
+
+            } else if (data.status === "failed") {
+                clearInterval(interval);
+                if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">❌ Lỗi: ${data.error}</span>`;
+            } else {
+                // Đang xử lý
+                if (progressDiv && attempts % 5 === 0) {
+                    progressDiv.innerHTML += `... vẫn đang phân tích (${attempts}s)<br/>`;
+                    progressDiv.scrollTop = progressDiv.scrollHeight;
+                }
+                
+                // Giả lập cập nhật cards dựa trên thời gian
+                if (attempts === 5) addStepCard("Business Analysis Agent", "Đang soạn thảo BA...");
+                if (attempts === 15) addStepCard("System Architect Agent", "Đang thiết kế kiến trúc...", "Business Analysis Agent");
+                if (attempts === 25) addStepCard("Quality Assurance Agent", "Đang lập kế hoạch kiểm thử...", "System Architect Agent");
+            }
+        } catch (e) {
+            console.error("Polling error:", e);
         }
-    } catch (error) {
-        const progressDiv = document.getElementById('sdlc-progress');
-        if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">Lỗi tải dữ liệu JSON: ${error}</span>`;
-    }
+    }, 1000);
 }

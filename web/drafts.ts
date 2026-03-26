@@ -11,6 +11,7 @@ export class DraftsModule {
     private currentDraft: Draft | null = null;
     private editorInstance: AIEditor | null = null;
     private isEventsBound = false;
+    private pollingInterval: any = null;
 
     constructor() {
         document.addEventListener('kp-refresh-drafts', () => {
@@ -32,6 +33,7 @@ export class DraftsModule {
             if (!response.ok) throw new Error('Failed to load drafts');
             const data = await response.json() as { drafts: Draft[] };
             this.drafts = data.drafts || [];
+            this.checkPolling();
         } catch (err) {
             console.error(err);
             showToast('Không tải được danh sách drafts', 'error');
@@ -202,6 +204,23 @@ export class DraftsModule {
                     });
                 }
             }
+        }
+    }
+
+    private checkPolling() {
+        const hasProcessing = this.drafts.some(d => d.status === 'processing');
+        if (hasProcessing && !this.pollingInterval) {
+            console.log('Starting drafts polling...');
+            this.pollingInterval = setInterval(() => {
+                // Only poll if we are NOT in the editor
+                if (!this.currentDraftId) {
+                    this.loadDraftsPage(true);
+                }
+            }, 5000);
+        } else if (!hasProcessing && this.pollingInterval) {
+            console.log('Stopping drafts polling.');
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
         }
     }
 }

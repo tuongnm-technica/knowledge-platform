@@ -112,6 +112,19 @@ async def proxy_generate_sdlc(request: Request):
         response = await client.post(f"{RAG_SERVICE_URL}/generate-sdlc", json=req_data)
         return response.json()
 
+@app.post("/api/sdlc/async")
+async def proxy_generate_sdlc_async(request: Request):
+    req_data = await request.json()
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(f"{RAG_SERVICE_URL}/sdlc/async", json=req_data)
+        return response.json()
+
+@app.get("/api/sdlc/jobs/{job_id}")
+async def proxy_get_sdlc_job(job_id: str):
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.get(f"{RAG_SERVICE_URL}/sdlc/jobs/{job_id}")
+        return response.json()
+
 if WEB_DIR.exists():
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 

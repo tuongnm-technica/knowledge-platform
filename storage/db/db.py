@@ -342,6 +342,21 @@ class SkillPromptORM(Base):
     updated_by = Column(String(255), nullable=False, default="system")
 
 
+class SDLCJobORM(Base):
+    __tablename__ = "sdlc_jobs"
+    __table_args__ = {"comment": "Tracks Multi-Agent SDLC pipeline jobs"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(255), index=True)
+    request = Column(Text, nullable=False)
+    context = Column(Text)
+    status = Column(String(20), nullable=False, default="processing")  # processing, completed, failed
+    result = Column(JSON)  # stores the final SDLCState
+    error = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
@@ -674,6 +689,26 @@ async def create_tables():
         """))
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_workflow_nodes_workflow_id ON ai_workflow_nodes (workflow_id)"
+        ))
+
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sdlc_jobs (
+                id UUID PRIMARY KEY,
+                user_id VARCHAR(255),
+                request TEXT NOT NULL,
+                context TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'processing',
+                result JSON,
+                error TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_sdlc_jobs_user_id ON sdlc_jobs (user_id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_sdlc_jobs_status ON sdlc_jobs (status)"
         ))
 
     # Seed default prompts (only inserts rows that don't exist yet)

@@ -143,8 +143,9 @@ def ba_agent_node(state: SDLCState) -> dict:
     
     # Layer 1: Prompt
     system_prompt = """You are GPT-4 Document Writer in the MyGPT BA Suite pipeline.
-Your job: produce enterprise-grade BA documents.
+Your job: produce enterprise-grade BA documents in VIETNAMESE.
 GOLDEN RULE: Every document must be complete enough that a developer can implement without asking questions.
+TOÀN BỘ nội dung mô tả, ghi chú kỹ thuật phải được viết bằng TIẾNG VIỆT chuyên nghiệp.
 Only output valid JSON matching the schema."""
 
     prompt = ChatPromptTemplate.from_messages([
@@ -172,7 +173,8 @@ def sa_agent_node(state: SDLCState) -> dict:
     
     structured_llm = llm.with_structured_output(SADocumentOutput)
     system_prompt = """You are GPT-3 Solution Designer in the MyGPT BA Suite. 
-Read the BA JSON Document (Use Cases, Validation rules) and produce a high-level technical design and API Contracts."""
+Read the BA JSON Document (Use Cases, Validation rules) and produce a high-level technical design and API Contracts.
+Mọi nội dung diễn giải, kiến trúc tổng quan phải được viết bằng TIẾNG VIỆT."""
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -246,11 +248,13 @@ async def run_sdlc_pipeline(user_request: str, user_id: str, session: AsyncSessi
     final_state = await sdlc_app.ainvoke(initial_state)
     return final_state
 
-async def stream_sdlc_pipeline(user_request: str, context: str = "") -> AsyncGenerator[str, None]:
+async def stream_sdlc_pipeline(user_request: str, user_id: str, session: AsyncSession, context: str = "") -> AsyncGenerator[str, None]:
     """Hàm streaming phát sự kiện Server-Sent Events (SSE) cho Frontend"""
     initial_state = {
         "user_request": user_request,
         "context_documents": context,
+        "user_id": user_id,
+        "session": session,
         "current_status": "Started"
     }
     

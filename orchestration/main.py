@@ -6,13 +6,18 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
-from storage.db.db import get_db
+from storage.db.db import get_db, SDLCJobORM
 from permissions.filter import PermissionFilter
 from graph.knowledge_graph import KnowledgeGraph
 from retrieval.hybrid.hybrid_search import HybridSearch
 from persistence.document_repository import DocumentRepository
 from ranking.scorer import RankingScorer
 from orchestration.agent_workflow import run_sdlc_pipeline, stream_sdlc_pipeline
+from arq import create_pool
+from arq.connections import RedisSettings
+from config.settings import settings
+import uuid
+from datetime import datetime
 
 log = structlog.get_logger(__name__)
 
@@ -223,3 +228,59 @@ async def stream_sdlc_documents(req: SDLCGenerateRequest, session: AsyncSession 
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
     )
+
+@app.post("/sdlc/async")
+async def generate_sdlc_async(req: SDLCGenerateRequest, session: AsyncSession = Depends(get_db)):
+    """
+    Khởi tạo một job SDLC chạy ngầm và trả về ID.
+    """
+    job_id = uuid.uuid4()
+    log.info("rag_service.sdlc_async.start", job_id=str(job_id), user_id=req.user_id)
+    
+    # 1. Lưu job vào DB
+    new_job = SDLCJobORM(
+        id=job_id,
+        user_id=req.user_id,
+        request=req.request,
+        context=req.context,
+        status="processing"
+    )
+    session.add(new_job)
+    await session.commit()
+    
+    # 2. Enqueue vào Arq
+    redis_settings = RedisSettings.from_dsn(getattr(settings, "REDIS_URL", "redis://redis:6379/0"))
+    redis_pool = await create_pool(redis_settings)
+    await redis_pool.enqueue_job(
+        "run_sdlc_generation_job",
+        job_id=str(job_id),
+        user_request=req.request,
+        user_id=req.user_id,
+        context=req.context,
+        _queue_name="arq:ai"
+    )
+    
+    return {
+        "status": "success",
+        "job_id": str(job_id)
+    }
+
+@app.get("/sdlc/jobs/{job_id}")
+async def get_sdlc_job_status(job_id: str, session: AsyncSession = Depends(get_db)):
+    """
+    Lấy trạng thái và kết quả của một SDLC job.
+    """
+    from sqlalchemy import select
+    result = await session.execute(select(SDLCJobORM).where(SDLCJobORM.id == uuid.UUID(job_id)))
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    return {
+        "id": str(job.id),
+        "status": job.status,
+        "result": job.result,
+        "error": job.error,
+        "updated_at": job.updated_at
+    }
