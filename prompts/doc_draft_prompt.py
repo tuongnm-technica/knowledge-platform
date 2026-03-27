@@ -174,15 +174,15 @@ SKILL_SYSTEM_PROMPTS: dict[str, str] = {
 
 # Map doc_type → agent label for display in UI
 SKILL_DOC_TYPE_GROUPS: dict[str, list[str]] = {
-    "📋 Step 1: Requirement Analyst": ["requirements_intake"],
-    "🔍 Step 2: Architect Reviewer": ["requirement_review"],
-    "🏗️ Step 3: Solution Designer": ["solution_design", "api_spec"],
-    "📄 Step 4: Document Writer": ["srs", "brd", "use_cases", "validation_rules"],
-    "🎯 Step 5: User Story Writer": ["user_stories"],
-    "🖥️ Step 6: FE Technical Spec": ["fe_spec"],
-    "🧪 Step 7: QA Reviewer": ["qa_test_spec"],
-    "🚀 Step 8: Deployment Spec": ["deployment_spec"],
-    "📝 Step 9: Change & Release Mgr": ["change_request", "release_notes", "function_list", "risk_log"],
+    "Phân tích yêu cầu": ["requirements_intake"],
+    "Kiến trúc & Review": ["requirement_review"],
+    "Giải pháp kỹ thuật": ["solution_design", "api_spec"],
+    "Tài liệu đặc tả": ["srs", "brd", "use_cases", "validation_rules"],
+    "User Story & Task": ["user_stories"],
+    "Phát triển FE": ["fe_spec"],
+    "Kiểm thử & QA": ["qa_test_spec"],
+    "Triển khai & Vận hành": ["deployment_spec"],
+    "Thay đổi & Phát hành": ["change_request", "release_notes", "function_list", "risk_log"],
 }
 
 PROMPT_EXTENSIONS: dict[str, str] = {

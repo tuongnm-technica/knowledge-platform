@@ -24,11 +24,11 @@ services:
       - "8000:8000"
     environment:
       # Trỏ kết nối vào các container khác trong mạng nội bộ docker
-      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
-      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://172.18.0.1:11434
       - PYTHONPATH=/app
       - RAG_SERVICE_URL=http://rag_service:8001
       - RUN_WORKER=False
@@ -46,10 +46,10 @@ services:
     image: knowledge-platform-core:latest
     container_name: kp_rag_service
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://172.18.0.1:11434
       - PYTHONPATH=/app
     volumes:
       - .:/app
@@ -62,11 +62,11 @@ services:
     image: knowledge-platform-core:latest
     container_name: kp_worker_ingestion
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
-      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://172.18.0.1:11434
       - PYTHONPATH=/app
       - RAG_SERVICE_URL=http://rag_service:8001
       - RUN_WORKER=True
@@ -86,11 +86,11 @@ services:
     image: knowledge-platform-core:latest
     container_name: kp_worker_default
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
-      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://172.18.0.1:11434
       - PYTHONPATH=/app
       - RAG_SERVICE_URL=http://rag_service:8001
       - RUN_WORKER=True
@@ -110,11 +110,11 @@ services:
     image: knowledge-platform-core:latest
     container_name: kp_worker_ai
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
-      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@host.docker.internal:5432/knowledge_platform
+      - DATABASE_URL=postgresql+asyncpg://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
+      - DATABASE_SYNC_URL=postgresql://postgres:Abcd%401234%21@172.18.0.1:5432/knowledge_platform
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://172.18.0.1:11434
       - PYTHONPATH=/app
       - RAG_SERVICE_URL=http://rag_service:8001
       - RUN_WORKER=True

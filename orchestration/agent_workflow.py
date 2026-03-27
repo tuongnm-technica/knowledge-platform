@@ -142,7 +142,7 @@ def ba_agent_node(state: SDLCState) -> dict:
     structured_llm = llm.with_structured_output(BADocumentOutput)
     
     # Layer 1: Prompt
-    system_prompt = """You are GPT-4 Document Writer in the MyGPT BA Suite pipeline.
+    system_prompt = """You are Step 1: Requirement Analyst in the MyGPT BA Suite pipeline.
 Your job: produce enterprise-grade BA documents in VIETNAMESE.
 GOLDEN RULE: Every document must be complete enough that a developer can implement without asking questions.
 Phân tích sâu, chi tiết từng Use Case, Validation Rule và Business Rule. 
@@ -173,7 +173,7 @@ def sa_agent_node(state: SDLCState) -> dict:
     ba_json = state.get("ba_document_json", {})
     
     structured_llm = llm.with_structured_output(SADocumentOutput)
-    system_prompt = """You are GPT-3 Solution Designer in the MyGPT BA Suite. 
+    system_prompt = """You are Step 3: Solution Designer in the MyGPT BA Suite. 
 Read the BA JSON Document (Use Cases, Validation rules) and produce a high-level technical design and API Contracts.
 Thiết kế hệ thống chi tiết, bao hàm kiến trúc, data model và các API contract đầy đủ.
 Mọi nội dung diễn giải, kiến trúc tổng quan phải được viết bằng TIẾNG VIỆT chuyên nghiệp."""
