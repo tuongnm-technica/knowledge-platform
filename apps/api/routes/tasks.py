@@ -160,14 +160,14 @@ async def delete_task(
     db: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_task_manager)
 ) -> dict[str, Any]:
-    """Xóa vĩnh viễn một task bị reject khỏi hệ thống."""
+    """Soft-delete một task draft (chuyển sang trạng thái 'deleted')."""
     repo = TaskDraftRepository(db)
     task = await repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     
     await repo.delete(task_id)
-    return {"message": "Task deleted successfully"}
+    return {"message": "Task soft-deleted successfully"}
 
 @router.post("/scan")
 async def trigger_task_scan(

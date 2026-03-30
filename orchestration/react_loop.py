@@ -258,29 +258,47 @@ class ReActLoop:
         # ─────────────────────────────
 
         try:
-
             compressed_context = compress_context(sources)
-
-            log.info(
-                "context.compressed",
-                sources=len(sources),
-                context_chars=len(compressed_context),
-            )
-
+            log.info("context.compressed", sources=len(sources), context_chars=len(compressed_context))
         except Exception as e:
-
             log.warning("context_compressor.failed", error=str(e))
             compressed_context = ""
+
+        # ─────────────────────────────────────────────────────────────
+        # LAYER 1 — No-Answer Gate
+        # Nếu tất cả sources đều có score thấp → không hỏi LLM
+        # Tránh LLM "sáng tạo" câu trả lời khi không có dữ liệu tốt.
+        # ─────────────────────────────────────────────────────────────
+        no_answer_threshold = float(getattr(settings, "AGENT_NO_ANSWER_THRESHOLD", 0.35))
+        final_scores = [float(s.get("agent_score") or s.get("score") or 0) for s in cast(List[dict], sources)[:6]]
+        best_final = max(final_scores) if final_scores else 0.0
+
+        if best_final < no_answer_threshold and not sources:
+            log.info("agent.no_answer_gate", best_score=best_final, threshold=no_answer_threshold)
+            vni_chars_gate = re.compile(r'[àáảãạăầấẩẫậắẳẵặêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]', re.IGNORECASE)
+            no_ans = (
+                "Không tìm thấy thông tin liên quan trong kho tài liệu cho câu hỏi này."
+                if bool(vni_chars_gate.search(question))
+                else "No relevant information found in the knowledge base for this question."
+            )
+            return ReActResult(
+                answer=no_ans,
+                plan=plan,
+                steps=[],
+                sources=[],
+                used_tools=list(set(used_tools)),
+                rewritten_query=retry_query or question,
+            )
 
         # ─────────────────────────────
         # LLM Summarize with Language Detection
         # ─────────────────────────────
-        
+
         # Simple language detection (Vietnamese vs English)
         vni_chars = re.compile(r'[àáảãạăầấẩẫậắẳẵặêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]', re.IGNORECASE)
         is_vietnamese = bool(vni_chars.search(question))
         target_lang = "Vietnamese" if is_vietnamese else "English"
-        
+
         log.info("agent.language_detected", language=target_lang)
 
         if on_thought:
@@ -291,24 +309,59 @@ class ReActLoop:
                 })
             except Exception:
                 pass
-        
-        # Use compressed context if available, fallback to raw sources if compression failed
-        final_context = compressed_context if compressed_context else "\n\n".join([f"SOURCE: {s['title']}\nCONTENT:\n{s['content']}" for s in sources])
-        
-        if graph_rels:
-            graph_context = "\n### KNOWLEDGE GRAPH\n" + "\n".join([f"- {rel}" for rel in sorted(graph_rels)])
-            final_context = (final_context or "") + "\n" + graph_context
 
-        answer = await self._summarize(question, final_context, target_language=target_lang, on_token=on_token)
+        # ─────────────────────────────────────────────────────────────
+        # LAYER 2 — Citation Enforcement
+        # Inject [SRC-N] markers vào context, instruct LLM cite chúng.
+        # Sau khi LLM trả lời, parse cited IDs → verify → filter sources.
+        # ─────────────────────────────────────────────────────────────
+        cited_context, src_index = self._build_cited_context(
+            sources=sources,
+            compressed=compressed_context,
+            graph_rels=graph_rels,
+        )
+
+        answer = await self._summarize(question, cited_context, target_language=target_lang, on_token=on_token)
+
+        # Parse citations khỏi answer: [SRC-1], [SRC-2]...
+        cited_ids: set[int] = set()
+        for m in re.finditer(r'\[SRC-(\d+)\]', answer or ""):
+            try:
+                cited_ids.add(int(m.group(1)))
+            except ValueError:
+                pass
+
+        # Nếu LLM có dùng SRC markers, chỉ giữ lại sources được cite
+        if cited_ids and src_index:
+            cited_sources = [src_index[i] for i in sorted(cited_ids) if i in src_index]
+            if cited_sources:  # fallback: nếu filter quá aggressive, giữ nguyên
+                sources = cited_sources
+            log.info("agent.citations.parsed", cited=len(cited_ids), total_sources=len(src_index))
+
+        # ─────────────────────────────────────────────────────────────
+        # LAYER 3 — Coverage Check (không cần LLM call thêm)
+        # Kiểm tra overlap giữa answer và top source content.
+        # Nếu answer không có bất kỳ phrase nào từ sources → low_grounding.
+        # ─────────────────────────────────────────────────────────────
+        grounding_ok = self._check_coverage(answer, sources)
+        if not grounding_ok:
+            log.warning("agent.grounding.low", question=question[:80])
+            # Append disclaimer thay vì block — không làm gián đoạn UX
+            disclaimer = (
+                "\n\n> ⚠️ *Lưu ý: Câu trả lời này có thể không hoàn toàn dựa trên tài liệu. Vui lòng kiểm tra nguồn.*"
+                if is_vietnamese
+                else "\n\n> ⚠️ *Note: This answer may not be fully grounded in the retrieved documents. Please verify the sources.*"
+            )
+            answer = (answer or "").rstrip() + disclaimer
 
         # ─────────────────────────────
-        # Logic Agent: contradiction check (best-effort)
+        # Logic Agent: contradiction check (off by default — tốn latency)
+        # Bật bằng AGENT_LOGIC_CHECK_ENABLED=true trong .env nếu cần
         # ─────────────────────────────
         try:
-            # Skip logic check for simple questions or if we already exited early
             should_logic = (
-                getattr(settings, "AGENT_LOGIC_CHECK_ENABLED", True) 
-                and best_initial <= 2.5 
+                getattr(settings, "AGENT_LOGIC_CHECK_ENABLED", False)  # default OFF
+                and best_initial <= 2.5
                 and len(sources) >= 3
                 and len(question.strip()) > 30
             )
@@ -317,15 +370,16 @@ class ReActLoop:
                 contradictions = logic.get("contradictions") or []
                 confidence = logic.get("confidence")
                 if contradictions:
-                    lines = ["\n\n### Luu y (mau thuan/khac biet giua nguon)"]
+                    lines = ["\n\n### Lưu ý (mâu thuẫn/khác biệt giữa nguồn)"]
                     for c in cast(List[dict], contradictions)[:4]:
                         point = str(c.get("point") or "").strip()
                         srcs = c.get("sources") or []
                         srcs_txt = ", ".join([str(s) for s in srcs if s]) if isinstance(srcs, list) else ""
                         if point:
                             lines.append(f"- {point}" + (f" (Sources: {srcs_txt})" if srcs_txt else ""))
-                    if isinstance(confidence, (int, float)):
-                        answer = (answer or "").rstrip() + f"\n\nDo tin cay uoc tinh: {float(confidence or 0):.2f}"
+                    answer = (answer or "").rstrip() + "\n".join(lines)
+                if isinstance(confidence, (int, float)):
+                    answer = (answer or "").rstrip() + f"\n\nĐộ tin cậy ước tính: {float(confidence or 0):.2f}"
         except Exception as e:
             log.warning("agent.logic_check.failed", error=str(e))
 
@@ -560,6 +614,73 @@ class ReActLoop:
             )
 
             return "Tool execution error"
+
+    def _build_cited_context(
+        self, 
+        sources: list[dict], 
+        compressed: str = "", 
+        graph_rels: set[str] | None = None
+    ) -> tuple[str, dict[int, dict]]:
+        """
+        LAYER 2: Build context with [SRC-N] markers.
+        Returns (context_string, source_index_map).
+        """
+        src_index = {}
+        lines = []
+        
+        # Nếu có compressed context, ta vẫn dùng nó nhưng bọc trong markers nếu có thể.
+        # Ở đây đơn giản nhất là dùng raw sources (hoặc top N sources) để đảm bảo citation chính xác.
+        # Nếu dùng compressed, ta coi đó là [SRC-1..N] gộp lại.
+        
+        for i, s in enumerate(sources[:15], 1):  # Limit to top 15 for context window
+            src_index[i] = s
+            title = s.get("title") or "Untitled"
+            content = s.get("content") or ""
+            lines.append(f"### [SRC-{i}] SOURCE: {title}\n{content}\n")
+            
+        context_txt = "\n".join(lines)
+        
+        if graph_rels:
+            graph_context = "\n### KNOWLEDGE GRAPH (Use for relationships)\n" + "\n".join([f"- {rel}" for rel in sorted(graph_rels)])
+            context_txt += graph_context
+            
+        return context_txt, src_index
+
+    def _check_coverage(self, answer: str | None, sources: list[dict]) -> bool:
+        """
+        LAYER 3: Simple word-level overlap check.
+        Checks if the answer contains at least some unique keywords/phrases from top sources.
+        """
+        if not answer or not sources:
+            return True # Cannot check
+            
+        # Normalize and tokenize answer
+        def tokenize(text: str):
+            # Very simple tokenizer: lowercase and split by non-alphanumeric
+            return set(re.findall(r'\w{4,}', text.lower())) # Only 4+ char words
+            
+        answer_tokens = tokenize(answer)
+        if len(answer_tokens) < 5: # Too short to check reliably
+            return True
+            
+        source_text = " ".join([s.get("content", "") for s in sources[:3]])
+        source_tokens = tokenize(source_text)
+        
+        if not source_tokens:
+            return True
+            
+        # Check intersection
+        overlap = answer_tokens.intersection(source_tokens)
+        
+        # If less than 10% of answer words match source (and it's not a "no info" answer)
+        # we flag it.
+        no_info_phrases = ["không tìm thấy", "không đề cập", "không có thông tin", "no info", "does not mention"]
+        answer_lower = answer.lower()
+        if any(p in answer_lower for p in no_info_phrases):
+            return True
+            
+        coverage_ratio = len(overlap) / len(answer_tokens)
+        return coverage_ratio > 0.15 # 15% threshold for basic grounding
 
     async def _summarize_history(self, history_text: str) -> str:
         """Point 3: History Summarization to save tokens."""

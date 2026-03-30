@@ -98,6 +98,14 @@ class SlackScanner(BaseScanner):
                     if not content or len(content.strip()) < 50:
                         continue
 
+                    # Anti-spam guard: skip thread nếu đã được xử lý trong 7 ngày.
+                    # Dùng thread_ts làm key để nhất quán với scan_thread().
+                    source_ref_key = f"#{channel_name} thread:{thread_ts}"
+                    already_processed = await self.repo.has_recent_tasks(source_ref_key, minutes=10080)  # 7 days
+                    if already_processed:
+                        log.info("scanner.slack.scan.skipped_already_processed", channel=channel_name, thread_ts=thread_ts)
+                        continue
+
                     # Layer 3: Signal Detection
                     has_action = await detect_action_signal(content, self.llm_client)
                     if not has_action:
@@ -107,8 +115,8 @@ class SlackScanner(BaseScanner):
                     first_ts = next((str(m.get("ts") or "").strip() for m in block_msgs if m.get("subtype") not in ("bot_message", "channel_join", "channel_leave", "channel_archive", "channel_unarchive") and (str(m.get("text") or "").strip() or m.get("attachments"))), None)
                     base_url = self._slack_deep_link(channel_id, first_ts) if first_ts else self._slack_deep_link(channel_id, "")
 
-                    # Layer 4: Task Extraction
-                    tasks = await extract_tasks_from_content(content=content, source_type="slack", llm_client=self.llm_client, source_ref=f"#{channel_name} | {date_key}")
+                    # Layer 4: Task Extraction - dùng source_ref_key nhất quán với has_recent_tasks
+                    tasks = await extract_tasks_from_content(content=content, source_type="slack", llm_client=self.llm_client, source_ref=source_ref_key)
 
                     async def _save_task(t, parent_id=None) -> list[str]:
                         suggested_assignee = await self._resolve_slack_users(t.suggested_assignee, headers) if t.suggested_assignee else await self.repo.suggest_assignee_from_history(labels=t.labels or [])
@@ -124,7 +132,7 @@ class SlackScanner(BaseScanner):
                             title=t.title,
                             description=t.description,
                             source_type="slack",
-                            source_ref=f"#{channel_name} | {date_key}",
+                            source_ref=source_ref_key,  # dùng source_ref_key nhất quán để dedup
                             source_summary=content[:300],
                             source_url=source_url,
                             scope_group_id=f"group_slack_channel_{str(channel_id or '').strip().lower()}",
@@ -166,6 +174,7 @@ class SlackScanner(BaseScanner):
                             total += len(t_ids)
                             saved_task_titles.append(task.title)
 
+                    # Chỉ reply nếu thực sự tạo được draft mới (không reply nếu bị dedup bởi create_draft)
                     if saved_task_titles and thread_ts:
                         titles_str = "\n".join(f"• *{tt}*" for tt in saved_task_titles)
                         msg = f"🤖 *[Knowledge Platform]*\nTớ đã quét luồng thảo luận này và bóc tách thành các Draft Task:\n{titles_str}\n\n👉 Mọi người vào hệ thống duyệt để tớ đồng bộ sang Jira nhé!"
@@ -215,7 +224,8 @@ class SlackScanner(BaseScanner):
             return 0
             
         base_url = self._slack_deep_link(channel_id, thread_ts)
-        tasks = await extract_tasks_from_content(content=content, source_type="slack", llm_client=self.llm_client, source_ref=f"#{channel_name} thread:{thread_ts}")
+        # Layer 4: Task Extraction - dùng source_ref_key nhất quán (#channel thread:ts)
+        tasks = await extract_tasks_from_content(content=content, source_type="slack", llm_client=self.llm_client, source_ref=source_ref_key)
         
         headers = {"Authorization": f"Bearer {settings.SLACK_BOT_TOKEN}"}
         
@@ -233,7 +243,7 @@ class SlackScanner(BaseScanner):
                 title=t.title,
                 description=t.description,
                 source_type="slack",
-                source_ref=f"#{channel_name} thread:{thread_ts}",
+                source_ref=source_ref_key,  # Dùng biến đã định nghĩa ở trên để nhất quán
                 source_summary=content[:300],
                 source_url=source_url,
                 scope_group_id=f"group_slack_channel_{str(channel_id or '').strip().lower()}",

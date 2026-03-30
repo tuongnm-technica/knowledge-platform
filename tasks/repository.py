@@ -182,13 +182,17 @@ class TaskDraftRepository:
         return [dict(r) for r in result.mappings().all()]
 
     async def has_recent_tasks(self, source_ref: str, minutes: int = 10) -> bool:
-        """Check if any tasks were created for this source_ref in the last N minutes."""
+        """
+        Check if any tasks were created for this source_ref in the last N minutes.
+        Uses normalization (lower, trim) to avoid mismatch across different scan triggers.
+        """
+        ref = str(source_ref or "").strip().lower()
         result = await self._session.execute(text("""
             SELECT id FROM ai_task_drafts
-            WHERE source_ref = :source_ref
+            WHERE LOWER(TRIM(source_ref)) = :source_ref
               AND created_at > NOW() - (INTERVAL '1 minute' * :minutes)
             LIMIT 1
-        """), {"source_ref": source_ref, "minutes": minutes})
+        """), {"source_ref": ref, "minutes": minutes})
         return result.fetchone() is not None
 
     async def get_by_id(self, draft_id: str) -> dict | None:
@@ -199,9 +203,9 @@ class TaskDraftRepository:
         return dict(row._mapping) if row else None
 
     async def delete(self, draft_id: str) -> bool:
-        """Xóa vĩnh viễn một task draft."""
+        """Soft delete: chuyển sang trạng thái 'deleted' thay vì xóa vĩnh viễn khỏi DB."""
         result = await self._session.execute(
-            text("DELETE FROM ai_task_drafts WHERE id = :id"),
+            text("UPDATE ai_task_drafts SET status = 'deleted' WHERE id = :id"),
             {"id": draft_id}
         )
         try:

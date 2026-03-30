@@ -6,6 +6,7 @@
 import './css/main.css';
 import Navigo from 'navigo';
 import { AuthModule } from './auth';
+import { isAllowed } from './permissions';
 import { ChatModule } from './chat';
 import { SearchModule } from './search';
 import { DocumentsModule } from './documents';
@@ -178,24 +179,19 @@ async function renderPage(target: string, initFn?: () => void) {
     // RBAC Check
     try {
         const user = await AuthModule.getCurrentUser();
-        const PERMISSIONS: Record<string, string[]> = {
-            'knowledge_architect': ['chat', 'search', 'documents', 'graph', 'prompts', 'memory'],
-            'pm_po': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'memory', 'ba-suite', 'workflows'],
-            'ba_sa': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'ba-suite', 'workflows'],
-            'dev_qa': ['chat', 'search', 'documents', 'graph', 'tasks'],
-            'standard': ['chat', 'search', 'documents', 'graph'],
-        };
-        
-        const isSystemAdmin = user.is_admin || user.role === 'system_admin';
-        const allowedTargets = PERMISSIONS[user.role] || PERMISSIONS['standard'];
-
-        if (!isSystemAdmin && !allowedTargets.includes(target)) {
-            console.warn(`Unauthorized access attempt to ${target} by role ${user.role}`);
+        if (!isAllowed(user, target)) {
+            console.warn(`Unauthorized access attempt to ${target} by role ${user?.role}`);
             router.navigate('/chat');
             return;
         }
     } catch (e) {
-        // Fallback for non-auth or error
+        console.error('RBAC Check failed', e);
+        // If not authenticated or error, redirect to login is handled by client.ts (401)
+        // or we can fallback to chat if just a data error
+        if (!AuthModule.isAuthenticated()) {
+            router.navigate('/login');
+            return;
+        }
     }
 
     // Hide all pages and remove active class

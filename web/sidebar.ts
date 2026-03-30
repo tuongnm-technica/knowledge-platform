@@ -1,4 +1,5 @@
 import { AuthModule } from './auth';
+import { isAllowed, ADMIN_ONLY_TARGETS } from './permissions';
 
 export class SidebarModule {
     constructor() {
@@ -40,39 +41,34 @@ export class SidebarModule {
     }
 
     private applyPermissions(user: any) {
-        if (user.is_admin || user.role === 'system_admin') return;
+        // 1. If admin, EVERYTHING is visible (early return)
+        if (user.is_admin || user.role === 'system_admin' || user.role === 'admin') {
+            console.log('Sidebar: Admin mode enabled, skipping filters');
+            return;
+        }
 
-        // Role-based visibility mapping (allowed data-target values)
-        const PERMISSIONS: Record<string, string[]> = {
-            'knowledge_architect': ['chat', 'search', 'documents', 'graph', 'prompts', 'memory'],
-            'pm_po': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'memory', 'ba-suite', 'workflows'],
-            'ba_sa': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'ba-suite', 'workflows'],
-            'dev_qa': ['chat', 'search', 'documents', 'graph', 'tasks'],
-            'standard': ['chat', 'search', 'documents', 'graph'],
-        };
-
-        const allowedTargets = PERMISSIONS[user.role] || PERMISSIONS['standard'];
-        
-        // Hide/Show items
+        // 2. Filter all nav items with data-target
         document.querySelectorAll('.nav-item').forEach(item => {
             const target = item.getAttribute('data-target');
-            if (target && !allowedTargets.includes(target)) {
-                (item as HTMLElement).style.display = 'none';
+            
+            // Special cases: always show chat and search
+            if (target === 'chat' || target === 'search') return;
+
+            if (target && !isAllowed(user, target)) {
+                (item as HTMLElement).style.setProperty('display', 'none', 'important');
             }
         });
 
-        // Hide special nav items without data-target but with IDs
-        if (!allowedTargets.includes('prompts')) document.getElementById('nav-prompts')?.style.setProperty('display', 'none');
-        if (!allowedTargets.includes('tasks')) document.getElementById('nav-tasks')?.style.setProperty('display', 'none');
-        if (!allowedTargets.includes('drafts')) document.getElementById('nav-drafts')?.style.setProperty('display', 'none');
-        if (!allowedTargets.includes('ba-suite')) document.getElementById('nav-ba-suite')?.style.setProperty('display', 'none');
-        if (!allowedTargets.includes('workflows')) document.getElementById('nav-workflows')?.style.setProperty('display', 'none');
-        
-        // Always hide admin-only items if not admin
-        document.getElementById('nav-connectors')?.style.setProperty('display', 'none');
-        document.getElementById('nav-users')?.style.setProperty('display', 'none');
+        // 3. Strict enforcement for Admin-only modules (Connectors, Users)
+        // This is a safety layer in case data-target is missing or being overridden
+        ADMIN_ONLY_TARGETS.forEach(target => {
+            const el = document.getElementById(`nav-${target}`);
+            if (el) {
+                el.style.setProperty('display', 'none', 'important');
+            }
+        });
 
-        // Optional: Hide sections if no visible items (simplified approach)
+        // 4. Cleanup UI (hide empty sections)
         this.refineSections();
     }
 
