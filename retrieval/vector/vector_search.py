@@ -82,6 +82,7 @@ class VectorSearch:
                         "content": payload.get("content"),
                         "source": payload.get("source"),
                         "title": payload.get("title"),
+                        "url": payload.get("url"),
                         "score": float(r.score or 0.0),
                     }
                 )

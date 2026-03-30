@@ -93,7 +93,15 @@ class ReActLoop:
         if hasattr(self._llm, "_client") and self._llm._managed_client:
             await self._llm._client.aclose()
 
-    async def run(self, question: str, user_id: str = "", history: List[Dict] = None, on_thought: Any | None = None, on_token: Any | None = None) -> ReActResult:
+    async def run(
+        self,
+        question: str,
+        user_id: str = "",
+        history: List[Dict] = None,
+        on_thought: Any | None = None,
+        on_token: Any | None = None,
+        on_sources: Any | None = None,
+    ) -> ReActResult:
         # 0. Checkpoint Initialization
         history = history or []
         log.info("agent.run", question=question[:100], history_len=len(history))
@@ -715,7 +723,7 @@ If the question is in Vietnamese, you MUST answer in Vietnamese even if the cont
             result = await self._llm.chat(
                 SUMMARIZE_SYSTEM,
                 prompt,
-                max_tokens=400,
+                max_tokens=4096,
                 on_token=on_token,
             )
 

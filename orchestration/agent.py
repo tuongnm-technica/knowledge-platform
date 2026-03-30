@@ -115,7 +115,7 @@ class Agent:
             user_id=user_id,
         )
 
-    async def ask(self, question: str, on_thought: Any | None = None, on_token: Any | None = None) -> dict:
+    async def ask(self, question: str, on_thought: Any | None = None, on_token: Any | None = None, on_sources: Any | None = None) -> dict:
         """
         Process a question through the ReAct agent pipeline.
         
@@ -123,6 +123,7 @@ class Agent:
             question: User's question
             on_thought: Optional callback for each agent thought
             on_token: Optional callback for each answer token
+            on_sources: Optional callback for formatted sources
             
         Returns:
             Dictionary with answer, sources, and metadata
@@ -135,9 +136,20 @@ class Agent:
         tools = build_tool_registry(self._session, user_id=self._user_id)
         loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS)
         
+        async def _on_loop_sources(raw_sources: list[dict]):
+            if on_sources:
+                formatted = self._format_sources(raw_sources)
+                await on_sources(formatted)
+
         try:
             # Note: user_id is already in self, no need to pass again
-            result: ReActResult = await loop.run(question, user_id=self._user_id, on_thought=on_thought, on_token=on_token)
+            result: ReActResult = await loop.run(
+                question, 
+                user_id=self._user_id, 
+                on_thought=on_thought, 
+                on_token=on_token,
+                on_sources=_on_loop_sources
+            )
         except asyncio.TimeoutError:
             # Re-raise to be caught by API endpoint
             raise
@@ -275,7 +287,8 @@ class Agent:
         seen: dict[str, dict] = {}
         for source in raw_sources:
             url = source.get("url") or source.get("document_id", "")
-            if url and url not in seen:
+            title = source.get("title")
+            if (url or title) and url not in seen:
                 seen[url] = {
                     "title": source.get("title", "Untitled"),
                     "url": source.get("url", ""),

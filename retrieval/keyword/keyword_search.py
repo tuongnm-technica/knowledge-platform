@@ -32,6 +32,7 @@ class KeywordSearch:
                 c.chunk_index,
                 d.source       AS source,
                 d.title        AS title,
+                d.url          AS url,
                 ts_rank_cd(
                     to_tsvector('simple', c.content),
                     {tsquery_expr}
@@ -105,6 +106,7 @@ class KeywordSearch:
                 c.chunk_index,
                 d.source       AS source,
                 d.title        AS title,
+                d.url          AS url,
                 0.1            AS score
             FROM chunks c
             JOIN documents d ON d.id = c.document_id

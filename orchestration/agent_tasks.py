@@ -91,8 +91,21 @@ async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question
                         )
                         await session_inner.commit()
 
+            async def on_sources(sources: list[dict]):
+                async with AsyncSessionLocal() as session_inner:
+                    await session_inner.execute(
+                        text("""
+                            UPDATE chat_jobs 
+                            SET result = jsonb_set(COALESCE(result, '{}'::jsonb), '{sources}', :s::jsonb),
+                                updated_at = NOW()
+                            WHERE id = :id
+                        """),
+                        {"id": job_id, "s": json.dumps(sources)}
+                    )
+                    await session_inner.commit()
+
             agent = Agent(session, user_id)
-            result = await agent.ask(question, on_thought=on_thought, on_token=on_token)
+            result = await agent.ask(question, on_thought=on_thought, on_token=on_token, on_sources=on_sources)
             
             # 4. Save the result
             answer = result.get("answer", "")

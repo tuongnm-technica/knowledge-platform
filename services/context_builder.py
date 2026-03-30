@@ -2,7 +2,7 @@ from typing import List, Dict, Any
 
 class ContextBuilder:
     @staticmethod
-    def build(hits: List[Dict[str, Any]], max_tokens_per_group=2000, min_score=0.4) -> List[Dict[str, Any]]:
+    def build(hits: List[Dict[str, Any]], max_tokens_per_group=2000, min_score=0.3) -> List[Dict[str, Any]]:
         """
         Nhóm các chunks (hits) theo document_id VÀ section_title để lọc noise (1 doc có thể nhiều topics).
         Có áp dụng Threshold điểm từ score và Token budget để không làm "nổ" token của LLM.
