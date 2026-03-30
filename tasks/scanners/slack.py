@@ -9,7 +9,7 @@ import structlog
 from config.settings import settings
 from connectors.slack.slack_client import SlackClient
 from connectors.slack.slack_parser import SlackParser
-from tasks.extractor import extract_tasks_from_content
+from tasks.extractor import extract_tasks_from_content, detect_action_signal
 from .base import BaseScanner
 
 log = structlog.get_logger()
@@ -84,55 +84,201 @@ class SlackScanner(BaseScanner):
                 if ts: by_date[datetime.fromtimestamp(ts).strftime("%Y-%m-%d")].append(msg)
 
             for date_key, msgs in sorted(by_date.items(), key=lambda x: x[0], reverse=True):
-                msgs.sort(key=lambda m: float(m.get("ts", 0) or 0))
-                content = parser.extract_thread_content(msgs, user_cache=user_cache, channel_name=channel_name, date_str=date_key)
-                
-                if not content or len(content.strip()) < 50:
-                    continue
+                # Layer 2: Context Builder - Group by thread_ts to create meaningful Context Blocks
+                blocks = defaultdict(list)
+                for msg in msgs:
+                    thread_ts = str(msg.get("thread_ts") or msg.get("ts") or "").strip()
+                    if thread_ts:
+                        blocks[thread_ts].append(msg)
 
-                first_ts = next((str(m.get("ts") or "").strip() for m in msgs if m.get("subtype") not in ("bot_message", "channel_join", "channel_leave", "channel_archive", "channel_unarchive") and (str(m.get("text") or "").strip() or m.get("attachments"))), None)
-                base_url = self._slack_deep_link(channel_id, first_ts) if first_ts else self._slack_deep_link(channel_id, "")
+                for thread_ts, block_msgs in blocks.items():
+                    block_msgs.sort(key=lambda m: float(m.get("ts", 0) or 0))
+                    content = parser.extract_thread_content(block_msgs, user_cache=user_cache, channel_name=channel_name, date_str=date_key)
+                    
+                    if not content or len(content.strip()) < 50:
+                        continue
 
-                tasks = await extract_tasks_from_content(content=content, source_type="slack", llm_client=self.llm_client, source_ref=f"#{channel_name} | {date_key}")
+                    # Layer 3: Signal Detection
+                    has_action = await detect_action_signal(content, self.llm_client)
+                    if not has_action:
+                        log.debug("scanner.slack.signal_drop", channel=channel_name, thread_ts=thread_ts)
+                        continue
 
-                for task in tasks:
-                    suggested_assignee = await self._resolve_slack_users(task.suggested_assignee, headers) if task.suggested_assignee else await self.repo.suggest_assignee_from_history(labels=task.labels or [])
-                    evidence_ts = (task.evidence_ts or "").strip()
-                    source_url = self._slack_deep_link(channel_id, evidence_ts) if evidence_ts else base_url
+                    first_ts = next((str(m.get("ts") or "").strip() for m in block_msgs if m.get("subtype") not in ("bot_message", "channel_join", "channel_leave", "channel_archive", "channel_unarchive") and (str(m.get("text") or "").strip() or m.get("attachments"))), None)
+                    base_url = self._slack_deep_link(channel_id, first_ts) if first_ts else self._slack_deep_link(channel_id, "")
 
-                    quote = (task.evidence or "").strip()
-                    if not quote and evidence_ts and content:
-                        needle = f"|{evidence_ts}]"
-                        quote = next((line.strip() for line in content.splitlines() if needle in line), "")
+                    # Layer 4: Task Extraction
+                    tasks = await extract_tasks_from_content(content=content, source_type="slack", llm_client=self.llm_client, source_ref=f"#{channel_name} | {date_key}")
 
-                    draft_id = await self.repo.create_draft(
-                        title=task.title,
-                        description=task.description,
-                        source_type="slack",
-                        source_ref=f"#{channel_name} | {date_key}",
-                        source_summary=content[:300],
-                        source_url=source_url,
-                        scope_group_id=f"group_slack_channel_{str(channel_id or '').strip().lower()}",
-                        source_meta={
-                            "channel_id": channel_id,
-                            "channel_name": channel_name,
-                            "date": date_key,
-                            "evidence_ts": evidence_ts,
-                            "evidence": quote,
-                        },
-                        evidence=[{
-                            "source": "slack",
-                            "url": source_url,
-                            "quote": quote or content[:300],
-                            "ref": {"channel_id": channel_id, "ts": evidence_ts},
-                        }],
-                        issue_type=self._suggest_issue_type_from_labels(task.labels),
-                        epic_key=self._detect_epic_key(f"{task.title}\n{task.description}"),
-                        suggested_assignee=suggested_assignee,
-                        priority=task.priority,
-                        labels=task.labels,
-                        triggered_by=triggered_by,
-                        created_by=created_by,
-                    )
-                    if draft_id: total += 1
+                    async def _save_task(t, parent_id=None) -> list[str]:
+                        suggested_assignee = await self._resolve_slack_users(t.suggested_assignee, headers) if t.suggested_assignee else await self.repo.suggest_assignee_from_history(labels=t.labels or [])
+                        evidence_ts = (t.evidence_ts or "").strip()
+                        source_url = self._slack_deep_link(channel_id, evidence_ts) if evidence_ts else base_url
+
+                        quote = (t.evidence or "").strip()
+                        if not quote and evidence_ts and content:
+                            needle = f"|{evidence_ts}]"
+                            quote = next((line.strip() for line in content.splitlines() if needle in line), "")
+
+                        draft_id = await self.repo.create_draft(
+                            title=t.title,
+                            description=t.description,
+                            source_type="slack",
+                            source_ref=f"#{channel_name} | {date_key}",
+                            source_summary=content[:300],
+                            source_url=source_url,
+                            scope_group_id=f"group_slack_channel_{str(channel_id or '').strip().lower()}",
+                            parent_draft_id=parent_id,
+                            source_meta={
+                                "channel_id": channel_id,
+                                "channel_name": channel_name,
+                                "date": date_key,
+                                "evidence_ts": evidence_ts,
+                                "evidence": quote,
+                                "thread_ts": thread_ts,
+                            },
+                            evidence=[{
+                                "source": "slack",
+                                "url": source_url,
+                                "quote": quote or content[:300],
+                                "ref": {"channel_id": channel_id, "ts": evidence_ts, "thread_ts": thread_ts},
+                            }],
+                            issue_type=self._suggest_issue_type_from_labels(t.labels),
+                            epic_key=self._detect_epic_key(f"{t.title}\n{t.description}"),
+                            suggested_assignee=suggested_assignee,
+                            priority=t.priority,
+                            labels=t.labels,
+                            triggered_by=triggered_by,
+                            created_by=created_by,
+                        )
+                        saved_ids = []
+                        if draft_id:
+                            saved_ids.append(draft_id)
+                            for st in (t.subtasks or []):
+                                st_ids = await _save_task(st, draft_id)
+                                saved_ids.extend(st_ids)
+                        return saved_ids
+
+                    saved_task_titles = []
+                    for task in tasks:
+                        t_ids = await _save_task(task)
+                        if t_ids:
+                            total += len(t_ids)
+                            saved_task_titles.append(task.title)
+
+                    if saved_task_titles and thread_ts:
+                        titles_str = "\n".join(f"• *{tt}*" for tt in saved_task_titles)
+                        msg = f"🤖 *[Knowledge Platform]*\nTớ đã quét luồng thảo luận này và bóc tách thành các Draft Task:\n{titles_str}\n\n👉 Mọi người vào hệ thống duyệt để tớ đồng bộ sang Jira nhé!"
+                        await client.reply_to_thread(channel_id, thread_ts, msg)
+                        
+        return total
+
+    async def scan_thread(self, channel_id: str, thread_ts: str, triggered_by: str = "slack_event", created_by: str | None = None) -> int:
+        """Thực thi quét chủ động cho 1 thread Slack cụ thể do Event API kích hoạt."""
+        if not settings.SLACK_BOT_TOKEN:
+            log.warning("scanner.slack.no_token")
+            return 0
+            
+        client = SlackClient()
+        parser = SlackParser()
+        user_cache = client.get_user_cache()
+
+        msgs = await client.get_thread_replies(channel_id, thread_ts)
+        if not msgs:
+            return 0
+            
+        channel_name = channel_id
+        try:
+            chan_info = await client._client.conversations_info(channel=channel_id)
+            if chan_info.get("ok"):
+                channel_name = chan_info.get("channel", {}).get("name", channel_id)
+        except Exception:
+            pass
+
+        date_key = datetime.now().strftime("%Y-%m-%d")
+        content = parser.extract_thread_content(msgs, user_cache=user_cache, channel_name=channel_name, date_str=date_key)
+        
+        if not content or len(content.strip()) < 50:
+            return 0
+            
+        # Anti-spam guard: skip if we already created tasks for this exact thread in the last 7 days.
+        # This works even if the task was rejected/dismissed (soft-delete).
+        source_ref_key = f"#{channel_name} thread:{thread_ts}"
+        already_processed = await self.repo.has_recent_tasks(source_ref_key, minutes=10080)
+        if already_processed:
+            log.info("scanner.slack.scan_thread.skipped_already_processed", channel=channel_name, thread_ts=thread_ts)
+            return 0
+
+        has_action = await detect_action_signal(content, self.llm_client)
+        if not has_action:
+            log.debug("scanner.slack.scan_thread.no_action", channel=channel_name, thread_ts=thread_ts)
+            return 0
+            
+        base_url = self._slack_deep_link(channel_id, thread_ts)
+        tasks = await extract_tasks_from_content(content=content, source_type="slack", llm_client=self.llm_client, source_ref=f"#{channel_name} thread:{thread_ts}")
+        
+        headers = {"Authorization": f"Bearer {settings.SLACK_BOT_TOKEN}"}
+        
+        async def _save_task(t, parent_id=None) -> list[str]:
+            suggested_assignee = await self._resolve_slack_users(t.suggested_assignee, headers) if t.suggested_assignee else await self.repo.suggest_assignee_from_history(labels=t.labels or [])
+            evidence_ts = (t.evidence_ts or "").strip()
+            source_url = self._slack_deep_link(channel_id, evidence_ts) if evidence_ts else base_url
+
+            quote = (t.evidence or "").strip()
+            if not quote and evidence_ts and content:
+                needle = f"|{evidence_ts}]"
+                quote = next((line.strip() for line in content.splitlines() if needle in line), "")
+
+            draft_id = await self.repo.create_draft(
+                title=t.title,
+                description=t.description,
+                source_type="slack",
+                source_ref=f"#{channel_name} thread:{thread_ts}",
+                source_summary=content[:300],
+                source_url=source_url,
+                scope_group_id=f"group_slack_channel_{str(channel_id or '').strip().lower()}",
+                parent_draft_id=parent_id,
+                source_meta={
+                    "channel_id": channel_id,
+                    "channel_name": channel_name,
+                    "date": date_key,
+                    "evidence_ts": evidence_ts,
+                    "evidence": quote,
+                    "thread_ts": thread_ts,
+                },
+                evidence=[{
+                    "source": "slack",
+                    "url": source_url,
+                    "quote": quote or content[:300],
+                    "ref": {"channel_id": channel_id, "ts": evidence_ts, "thread_ts": thread_ts},
+                }],
+                issue_type=self._suggest_issue_type_from_labels(t.labels),
+                epic_key=self._detect_epic_key(f"{t.title}\n{t.description}"),
+                suggested_assignee=suggested_assignee,
+                priority=t.priority,
+                labels=t.labels,
+                triggered_by=triggered_by,
+                created_by=created_by,
+            )
+            saved_ids = []
+            if draft_id:
+                saved_ids.append(draft_id)
+                for st in (t.subtasks or []):
+                    st_ids = await _save_task(st, draft_id)
+                    saved_ids.extend(st_ids)
+            return saved_ids
+
+        saved_task_titles = []
+        total = 0
+        for task in tasks:
+            t_ids = await _save_task(task)
+            if t_ids:
+                total += len(t_ids)
+                saved_task_titles.append(task.title)
+
+        if saved_task_titles and thread_ts:
+            titles_str = "\n".join(f"• *{tt}*" for tt in saved_task_titles)
+            msg = f"🤖 *[Knowledge Platform]*\nTớ vừa bóc tách nhanh Thread này theo yêu cầu (Webhook) và tạo các Draft Task:\n{titles_str}\n\n👉 Mọi người vào hệ thống duyệt để tớ đồng bộ sang Jira nhé!"
+            await client.reply_to_thread(channel_id, thread_ts, msg)
+            
         return total

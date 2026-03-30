@@ -63,6 +63,9 @@ class VectorIndex:
                 "document_id": c.document_id,
                 "content": c.content,
                 "chunk_index": c.chunk_index,
+                "parent_chunk_id": c.parent_chunk_id,
+                "section_title": c.section_title,
+                "level": c.level,
             }
             for c in chunks
         ]
@@ -70,11 +73,14 @@ class VectorIndex:
         try:
             await self._session.execute(
                 text("""
-                    INSERT INTO chunks (id, document_id, content, chunk_index)
-                    VALUES (:id, :document_id, :content, :chunk_index)
+                    INSERT INTO chunks (id, document_id, content, chunk_index, parent_chunk_id, section_title, level)
+                    VALUES (:id, :document_id, :content, :chunk_index, :parent_chunk_id, :section_title, :level)
                     ON CONFLICT (id) DO UPDATE
                       SET content = EXCLUDED.content,
-                          chunk_index = EXCLUDED.chunk_index
+                          chunk_index = EXCLUDED.chunk_index,
+                          parent_chunk_id = EXCLUDED.parent_chunk_id,
+                          section_title = EXCLUDED.section_title,
+                          level = EXCLUDED.level
                 """),
                 chunk_dicts
             )

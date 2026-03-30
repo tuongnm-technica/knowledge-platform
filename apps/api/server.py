@@ -16,7 +16,7 @@ from fastapi import Request
 from contextlib import asynccontextmanager
 from pathlib import Path
 from storage.db.db import create_tables
-from apps.api.routes import search, ask, ingest, health, connectors, auth, users, groups, graph, docs, documents, assets, prompts, tasks, history, memory, workflows
+from apps.api.routes import search, ask, ingest, health, connectors, auth, users, groups, graph, docs, documents, assets, prompts, tasks, history, memory, workflows, slack
 from config.settings import settings
 import httpx
 from utils.logging import configure_logging
@@ -86,6 +86,7 @@ app.include_router(tasks.router, prefix="/api")
 app.include_router(memory.router, prefix="/api")
 app.include_router(history.router, prefix="/api")
 app.include_router(workflows.router, prefix="/api")
+app.include_router(slack.router, prefix="/api")
 
 # ==========================================
 # SDLC MULTI-AGENT PROXY ROUTES

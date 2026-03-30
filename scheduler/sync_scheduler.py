@@ -10,8 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 
 from config.settings import settings
-from tasks.scanner import scan_and_create_drafts
-from tasks.jira_sync import sync_submitted_drafts
+from utils.queue_client import get_redis_pool
 
 try:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -26,85 +25,51 @@ scheduler = AsyncIOScheduler(timezone="Asia/Ho_Chi_Minh") if AsyncIOScheduler el
 
 
 async def _run_task_scan() -> None:
-    log.info("scheduler.task_scan.start")
-    engine = create_async_engine(settings.DATABASE_URL)
-    session_local = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
+    log.info("scheduler.task_scan.enqueue")
     try:
-        async with session_local() as session:
-            stats = await scan_and_create_drafts(
-                session=session,
-                triggered_by="scheduler",
-                slack_days=1,
-                confluence_days=1,
-            )
-            log.info("scheduler.task_scan.done", **stats)
+        redis = await get_redis_pool()
+        queue_name = settings.ARQ_INGESTION_QUEUE_NAME
+        await redis.enqueue_job(
+            "scan_sources_job",
+            slack_days=1,
+            confluence_days=1,
+            triggered_by="scheduler",
+            created_by=None,
+            _queue_name=queue_name
+        )
+        log.info("scheduler.task_scan.enqueued", queue=queue_name)
     except Exception as e:
-        log.error("scheduler.task_scan.error", error=str(e))
-    finally:
-        await engine.dispose()
+        log.error("scheduler.task_scan.enqueue_failed", error=str(e))
 
 
 async def _run_jira_task_sync() -> None:
-    if not settings.JIRA_URL or not settings.JIRA_API_TOKEN:
-        return
-    log.info("scheduler.jira_sync.start")
-    engine = create_async_engine(settings.DATABASE_URL)
-    session_local = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    try:
-        async with session_local() as session:
-            stats = await sync_submitted_drafts(session, limit=60)
-            log.info("scheduler.jira_sync.done", **stats)
-    except Exception as e:
-        log.error("scheduler.jira_sync.error", error=str(e))
-    finally:
-        await engine.dispose()
-
-
-async def _run_sync_key(connector_key: str) -> None:
-    log.info("scheduler.sync.start", connector=connector_key)
-
-    engine = create_async_engine(settings.DATABASE_URL)
-    session_local = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    try:
-        async with session_local() as session:
-            # Ensure env-backed instances and their connector_configs exist.
-            from apps.api.services.connectors_service import build_connector_for_instance, build_connectors_dashboard
-            from ingestion.pipeline import IngestionPipeline
-
-            await build_connectors_dashboard(session, can_manage=False)
-
-            selection: dict = {}
-            try:
-                result = await session.execute(
-                    text("SELECT selection FROM connector_configs WHERE connector = :c"),
-                    {"c": connector_key},
-                )
-                raw_selection = result.scalar()
-                if isinstance(raw_selection, str):
-                    selection = json.loads(raw_selection) if raw_selection else {}
-                elif isinstance(raw_selection, dict):
-                    selection = raw_selection
-            except Exception:
-                selection = {}
-
-            if ":" not in str(connector_key or ""):
-                return
-            connector_type, instance_id = str(connector_key).split(":", 1)
-            connector = await build_connector_for_instance(session, connector_type, instance_id, selection)
-
-            pipeline = IngestionPipeline(session)
-            stats = await pipeline.run(connector, incremental=True, connector_key=connector_key)
-            log.info("scheduler.sync.done", connector=connector_key, **stats)
-    except Exception as e:
-        log.error("scheduler.sync.failed", connector=connector_key, error=str(e))
-    finally:
-        await engine.dispose()
+    # Reserved for future Jira sync enqueuing if needed. 
+    # For now, keeping it consistent.
+    log.info("scheduler.jira_sync.skipped", reason="Not yet refactored to worker")
 
 
 async def sync_connector_key_job(connector_key: str) -> None:
-    await _run_sync_key(connector_key)
+    log.info("scheduler.sync.enqueue", connector=connector_key)
+    if ":" not in str(connector_key or ""):
+        return
+    connector_type, instance_id = str(connector_key).split(":", 1)
+    
+    try:
+        redis = await get_redis_pool()
+        queue_name = settings.ARQ_INGESTION_QUEUE_NAME
+        # We also create a 'running' entry in DB for UI visibility before enqueuing
+        # (similar to connectors_service.py pattern)
+        # Note: Ideally we'd reuse service logic, but for simplicity we'll just enqueue here.
+        await redis.enqueue_job(
+            "sync_connector_job",
+            connector_type,
+            instance_id,
+            True, # incremental
+            _queue_name=queue_name
+        )
+        log.info("scheduler.sync.enqueued", connector=connector_key, queue=queue_name)
+    except Exception as e:
+        log.error("scheduler.sync.enqueue_failed", connector=connector_key, error=str(e))
 
 
 async def refresh_scheduler_jobs() -> None:
@@ -195,9 +160,9 @@ def start_scheduler() -> None:
 
     scheduler.add_job(
         _run_task_scan,
-        trigger=CronTrigger(hour=23, minute=0, timezone="Asia/Ho_Chi_Minh"),
-        id="task_scan_nightly",
-        name="Nightly task scan",
+        trigger=CronTrigger(hour="8-18", minute=0, timezone="Asia/Ho_Chi_Minh"),
+        id="task_scan_hourly",
+        name="Hourly task scan during work hours",
     )
     scheduler.add_job(
         _run_jira_task_sync,
@@ -211,7 +176,7 @@ def start_scheduler() -> None:
     log.info(
         "scheduler.started",
         jobs=[
-            "task_scan @ 11:00 PM",
+            "task_scan @ Hourly 8-18 (ICT)",
         ],
     )
 

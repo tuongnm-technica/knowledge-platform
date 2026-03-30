@@ -15,6 +15,17 @@ from prompts.extractor_prompt import EXTRACT_SYSTEM
 log = structlog.get_logger()
 
 
+async def detect_action_signal(content: str, llm_client: ILLMClient) -> bool:
+    """Layer 3: Fast check if the content contains any actionable tasks/requests to save tokens."""
+    sys_prompt = "Bạn là AI classifier. Phân tích đoạn giao tiếp và quyết định xem có chứa yêu cầu công việc, task, bug report cần theo dõi không. Trả về JSON chuẩn xác: {\"has_action\": true/false, \"confidence\": 0.9}. CHỈ JSON."
+    try:
+        raw = await llm_client.chat(system=sys_prompt, user=f"Nội dung:\n{content[:2000]}", max_tokens=40)
+        return '"has_action": true' in raw.lower() or '"has_action":true' in raw.lower()
+    except Exception as e:
+        log.warning("extractor.signal.error", error=str(e))
+        return True  # Fallback to extraction if signal check fails
+
+
 async def extract_tasks_from_content(
     content: str,
     source_type: str,
@@ -56,12 +67,39 @@ async def extract_tasks_from_content(
                 return []
 
 
+def _parse_item(item: dict) -> ExtractedTask | None:
+    if not item.get("title"):
+        return None
+    try:
+        subtasks_raw = item.get("subtasks", [])
+        parsed_subtasks = []
+        if isinstance(subtasks_raw, list):
+            for st in subtasks_raw:
+                if isinstance(st, dict):
+                    pst = _parse_item(st)
+                    if pst:
+                        parsed_subtasks.append(pst)
+        
+        return ExtractedTask(
+            title=item["title"].strip(),
+            description=item.get("description", "").strip(),
+            suggested_assignee=item.get("suggested_assignee") or None,
+            priority=item.get("priority", "Medium"),
+            labels=item.get("labels", []),
+            evidence_ts=str(item.get("evidence_ts") or "").strip() or None,
+            evidence=str(item.get("evidence") or "").strip() or None,
+            evidence_list=[str(x).strip() for x in item.get("evidence_list", []) if str(x).strip()],
+            confidence=float(item.get("confidence", 0.0)),
+            subtasks=parsed_subtasks
+        )
+    except Exception as e:
+        log.debug("extractor.parse_item_failed", error=str(e), item=item)
+        return None
+
 def _parse_tasks(raw: str) -> list[ExtractedTask]:
     """Parse JSON output từ LLM — robust với các format LLM hay sinh ra."""
-    # Strip markdown code blocks
     raw = re.sub(r"```(?:json)?|```", "", raw).strip()
 
-    # Tìm JSON object
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if not m:
         log.debug("extractor.parse_failed.no_json_found", raw=raw[:200])
@@ -71,21 +109,9 @@ def _parse_tasks(raw: str) -> list[ExtractedTask]:
         data = json.loads(m.group(0))
         tasks = []
         for item in data.get("tasks", []):
-            if not item.get("title"):
-                continue
-            try:
-                tasks.append(ExtractedTask(
-                    title=item["title"].strip(),
-                    description=item.get("description", "").strip(),
-                    suggested_assignee=item.get("suggested_assignee") or None,
-                    priority=item.get("priority", "Medium"),
-                    labels=item.get("labels", []),
-                    evidence_ts=str(item.get("evidence_ts") or "").strip() or None,
-                    evidence=str(item.get("evidence") or "").strip() or None,
-                ))
-            except Exception as e:
-                log.debug("extractor.parse_item_failed", error=str(e), item=item)
-                continue
+            task = _parse_item(item)
+            if task:
+                tasks.append(task)
         return tasks
     except (json.JSONDecodeError, KeyError) as e:
         log.error("extractor.parse_failed.invalid_json", error=str(e))

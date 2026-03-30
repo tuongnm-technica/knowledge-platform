@@ -252,12 +252,16 @@ async def create_doc_draft_from_answer(
     memory_grouped = await ProjectMemoryRepository(session).get_all_grouped()
     system += _build_memory_prompt(memory_grouped)
 
+    draft_repo = DocDraftRepository(session)
+    recent_drafts = await draft_repo.list_recent(created_by=current_user.user_id, limit=5)
+
     user = build_doc_user_prompt(
         doc_type=doc_type,
         question=req.question or "",
         answer=req.answer or "",
         sources=[dict(s) for s in (req.sources or [])[:12]],
         documents=docs,
+        previous_drafts=recent_drafts,
     )
 
     content = ""
@@ -342,12 +346,16 @@ async def create_doc_draft_from_documents(
     memory_grouped = await ProjectMemoryRepository(session).get_all_grouped()
     system += _build_memory_prompt(memory_grouped)
 
+    draft_repo = DocDraftRepository(session)
+    recent_drafts = await draft_repo.list_recent(created_by=current_user.user_id, limit=5)
+
     user = build_doc_user_prompt(
         doc_type=doc_type,
         question=req.goal or "",
         answer="",
         sources=sources[:12],
         documents=docs[:12],
+        previous_drafts=recent_drafts,
     )
 
     # Create drafting job in background

@@ -46,23 +46,23 @@ class TaskDraftRepository:
         created_by: str | None = None,
         jira_project: str | None = None,
         scope_group_id: str | None = None,
+        parent_draft_id: str | None = None,
     ) -> str | None:
         """Tạo 1 draft task. Trả về id."""
         normalized = "|".join(
             [
                 (source_type or "").strip().lower(),
                 (source_ref or "").strip().lower(),
+                (issue_type or "Task").strip().lower(),
                 (title or "").strip().lower(),
-                (description or "").strip().lower()[:220],
             ]
         )
         dedup_key = hashlib.sha1(normalized.encode("utf-8")).hexdigest()
 
-        # Dedup: skip nếu giống hệt nội dung từ cùng nguồn trong 7 ngày gần nhất (pending/confirmed).
+        # Dedup: skip nếu giống hệt nội dung từ cùng nguồn trong 7 ngày gần nhất (bất kể status).
         existing = await self._session.execute(text("""
             SELECT id FROM ai_task_drafts
             WHERE dedup_key = :dedup_key
-              AND status IN ('pending', 'confirmed')
               AND created_at > NOW() - INTERVAL '7 days'
             LIMIT 1
         """), {"dedup_key": dedup_key})
@@ -74,12 +74,12 @@ class TaskDraftRepository:
         await self._session.execute(text("""
             INSERT INTO ai_task_drafts
                 (id, title, description, source_type, source_ref, source_summary, source_url, source_meta, evidence, suggested_fields, dedup_key,
-                 issue_type, epic_key,
+                 issue_type, epic_key, parent_draft_id,
                  suggested_assignee, priority, labels, components, due_date, status, triggered_by,
                  created_by, jira_project, scope_group_id, created_at)
             VALUES
                 (:id, :title, :description, :source_type, :source_ref, :source_summary, :source_url, CAST(:source_meta AS JSON), CAST(:evidence AS JSON), CAST(:suggested_fields AS JSON), :dedup_key,
-                 :issue_type, :epic_key,
+                 :issue_type, :epic_key, :parent_draft_id,
                  :suggested_assignee, :priority, :labels, :components, :due_date, 'pending', :triggered_by,
                  :created_by, :jira_project, :scope_group_id, NOW())
         """), {
@@ -93,6 +93,7 @@ class TaskDraftRepository:
             "dedup_key": dedup_key,
             "issue_type": (issue_type or "Task").strip() or "Task",
             "epic_key": (epic_key or "").strip() or None,
+            "parent_draft_id": parent_draft_id,
             "suggested_assignee": suggested_assignee,
             "priority": priority,
             "labels": labels or [],
@@ -179,6 +180,16 @@ class TaskDraftRepository:
             params
         )
         return [dict(r) for r in result.mappings().all()]
+
+    async def has_recent_tasks(self, source_ref: str, minutes: int = 10) -> bool:
+        """Check if any tasks were created for this source_ref in the last N minutes."""
+        result = await self._session.execute(text("""
+            SELECT id FROM ai_task_drafts
+            WHERE source_ref = :source_ref
+              AND created_at > NOW() - (INTERVAL '1 minute' * :minutes)
+            LIMIT 1
+        """), {"source_ref": source_ref, "minutes": minutes})
+        return result.fetchone() is not None
 
     async def get_by_id(self, draft_id: str) -> dict | None:
         result = await self._session.execute(text("""

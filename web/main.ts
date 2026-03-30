@@ -174,7 +174,30 @@ const PAGE_TITLES: Record<string, string> = {
     workflows: 'AI Workflows',
 };
 
-function renderPage(target: string, initFn?: () => void) {
+async function renderPage(target: string, initFn?: () => void) {
+    // RBAC Check
+    try {
+        const user = await AuthModule.getCurrentUser();
+        const PERMISSIONS: Record<string, string[]> = {
+            'knowledge_architect': ['chat', 'search', 'documents', 'graph', 'prompts', 'memory'],
+            'pm_po': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'memory', 'ba-suite', 'workflows'],
+            'ba_sa': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'ba-suite', 'workflows'],
+            'dev_qa': ['chat', 'search', 'documents', 'graph', 'tasks'],
+            'standard': ['chat', 'search', 'documents', 'graph'],
+        };
+        
+        const isSystemAdmin = user.is_admin || user.role === 'system_admin';
+        const allowedTargets = PERMISSIONS[user.role] || PERMISSIONS['standard'];
+
+        if (!isSystemAdmin && !allowedTargets.includes(target)) {
+            console.warn(`Unauthorized access attempt to ${target} by role ${user.role}`);
+            router.navigate('/chat');
+            return;
+        }
+    } catch (e) {
+        // Fallback for non-auth or error
+    }
+
     // Hide all pages and remove active class
     document.querySelectorAll('.page').forEach(p => {
         (p as HTMLElement).style.display = 'none';

@@ -13,6 +13,7 @@ from permissions.filter import PermissionFilter
 from graph.knowledge_graph import KnowledgeGraph
 from ranking.scorer import RankingScorer
 from persistence.document_repository import DocumentRepository
+from services.context_builder import ContextBuilder
 
 from retrieval.query_expansion import expand_query
 from retrieval.reranker import rerank
@@ -188,9 +189,25 @@ class RAGService:
             content = h.get("content", "")
             if include_context and chunk_id:
                 try:
-                    neighbors = await self._repo.get_neighbor_chunks(chunk_id, window=context_window)
-                    if neighbors:
-                        content = "\n".join([c["content"] for c in neighbors])
+                    # RAG + Reasoning: Kéo trọn Parent Section Context thay vì chỉ Neighbor
+                    parent_id = h.get("parent_chunk_id") # Cần DB hit trả về parent_chunk_id
+                    if parent_id:
+                        section_chunks = await self._repo.get_section_chunks(parent_id)
+                        if section_chunks:
+                            # Context Overload Protection: Kiểm soát Token Explosion
+                            total_chars = sum(len(c["content"]) for c in section_chunks)
+                            if total_chars < 8000: # Ngưỡng ~2000 tokens, Expand full section an toàn
+                                content = "\n".join([c["content"] for c in section_chunks])
+                            else:
+                                # Section quá to -> Selective expand quanh chunk hiện tại
+                                neighbors = await self._repo.get_neighbor_chunks(chunk_id, window=context_window)
+                                if neighbors:
+                                    content = "[(Cảnh báo: Section quá dài, đã truncate)]\n" + "\n".join([c["content"] for c in neighbors])
+                    else:
+                        # Fallback về neighbor nếu file chưa có cấu trúc
+                        neighbors = await self._repo.get_neighbor_chunks(chunk_id, window=context_window)
+                        if neighbors:
+                            content = "\n".join([c["content"] for c in neighbors])
                 except Exception:
                     pass
             
@@ -220,8 +237,11 @@ class RAGService:
                 ]
             })
 
+        # Multi-source Reasoning: Group by document source via ContextBuilder
+        grouped_results = ContextBuilder.build(results)
+
         return {
-            "hits": results,
+            "hits": grouped_results,
             "relationships": list(set(neighbor_relationships))
         }
 

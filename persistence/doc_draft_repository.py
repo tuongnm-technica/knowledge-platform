@@ -179,6 +179,7 @@ class DocDraftRepository:
                       id::text AS id,
                       doc_type,
                       title,
+                      content,
                       created_by,
                       status,
                       created_at,

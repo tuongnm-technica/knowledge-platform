@@ -114,14 +114,18 @@ export class TasksModule {
 
     public async deleteTask(id: string) {
         if (!await kpConfirm({
-            title: 'Xóa Task',
-            message: 'Bạn có chắc chắn muốn xóa task này?',
+            title: 'Hủy bỏ Task',
+            message: 'Khi hủy bỏ, task này sẽ không xuất hiện lại trong các lần quét sau. Bạn chắc chắn muốn hủy?',
             danger: true
         })) return;
         try {
-            const res = await authFetch(`${API}/tasks/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Xóa thất bại');
-            showToast('Đã xóa task', 'success');
+            const res = await authFetch(`${API}/tasks/${id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'rejected' })
+            });
+            if (!res.ok) throw new Error('Hủy bỏ thất bại');
+            showToast('Đã hủy bỏ task (sẽ không bị quét trùng)', 'success');
             await this.loadTasks();
             await this.loadTasksCount();
         } catch (err) {
@@ -149,17 +153,23 @@ export class TasksModule {
     private async bulkRejectTasks() {
         if (this.selectedIds.length === 0) return;
         if (!await kpConfirm({
-            title: 'Xóa hàng loạt',
-            message: `Bạn có chắc muốn xóa ${this.selectedIds.length} tasks đã chọn?`,
+            title: 'Hủy bỏ hàng loạt',
+            message: `Bạn có chắc muốn hủy bỏ ${this.selectedIds.length} tasks đã chọn? Khi hủy bỏ, chúng sẽ không bị quét trùng lại.`,
             danger: true
         })) return;
 
-        showToast(`Đang xóa ${this.selectedIds.length} tasks...`, 'info');
+        showToast(`Đang hủy bỏ ${this.selectedIds.length} tasks...`, 'info');
         for (const id of this.selectedIds) {
-            try { await authFetch(`${API}/tasks/${id}`, { method: 'DELETE' }); } catch (e) {}
+            try { 
+                await authFetch(`${API}/tasks/${id}/status`, { 
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'rejected' })
+                }); 
+            } catch (e) {}
         }
         this.selectedIds = [];
-        showToast('Đã xóa xong hàng loạt', 'success');
+        showToast('Đã hủy bỏ xong hàng loạt', 'success');
         await this.loadTasks();
         await this.loadTasksCount();
     }

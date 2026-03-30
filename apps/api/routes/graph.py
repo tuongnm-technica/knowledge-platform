@@ -370,14 +370,7 @@ async def graph_gaps(
     """GET /graph/gaps — Gap insights and recommendations"""
     try:
         builder = GraphViewBuilder(session)
-        gaps = await builder.gap_insights(since_days=since_days, per_source=per_source)
-        
-        return {
-            "staleSources": gaps.get("staleSources", []),
-            "orphanEntities": gaps.get("orphanEntities", []),
-            "missingRelationships": gaps.get("missingRelationships", []),
-            "isolatedDocuments": gaps.get("isolatedDocuments", []),
-        }
+        return await builder.gap_insights(since_days=since_days, per_source=per_source)
     except Exception as e:
         log.exception("graph.gaps.error", user_id=current_user.user_id, error=str(e))
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch gaps")
@@ -498,8 +491,8 @@ async def graph_node_detail(
             related_docs_query = """
                 SELECT DISTINCT d.id::text, d.title, COUNT(*) AS connection_strength
                 FROM document_links dl
-                JOIN documents d ON (d.id::text = dl.target_id::text OR d.id::text = dl.source_id::text)
-                WHERE (dl.source_id::text = :doc_id OR dl.target_id::text = :doc_id)
+                JOIN documents d ON (d.id::text = dl.target_document_id::text OR d.id::text = dl.source_document_id::text)
+                WHERE (dl.source_document_id::text = :doc_id OR dl.target_document_id::text = :doc_id)
                   AND d.id::text != :doc_id
                 GROUP BY d.id, d.title
                 ORDER BY connection_strength DESC

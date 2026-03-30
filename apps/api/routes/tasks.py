@@ -19,7 +19,8 @@ class TaskUpdatePayload(BaseModel):
     suggested_assignee: str | None = None
     jira_project: str | None = None
     issue_type: str | None = None
-    meta: dict | None = None
+    source_meta: dict | None = None
+    suggested_fields: dict | None = None
 
 class ScanRequest(BaseModel):
     slack_days: int = 1
@@ -72,13 +73,14 @@ async def update_task_details(
         "suggested_assignee": req.suggested_assignee,
         "jira_project": req.jira_project,
         "issue_type": req.issue_type,
-        "meta": req.meta
+        "source_meta": req.source_meta,
+        "suggested_fields": req.suggested_fields,
     }
     
     import json
     for col, val in fields.items():
         if val is not None:
-            if col == "meta":
+            if col in ("source_meta", "suggested_fields"):
                 updates.append(f"{col} = CAST(:{col} AS JSON)")
                 params[col] = json.dumps(val)
             else:
@@ -106,6 +108,50 @@ async def update_task_status(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     
     await repo.update_status(task_id, req.status)
+    
+    # [NEW] Auto-submit to Jira upon approval
+    if req.status == "approved":
+        from tasks.jira_creator import submit_to_jira
+        from config.settings import settings
+        
+        jira_project = task.get("jira_project") or settings.DEFAULT_JIRA_PROJECT or "ECOS2025"
+        issue_type = (task.get("issue_type") or "Task").strip() or "Task"
+        epic_key = (task.get("epic_key") or "").strip() or None
+        
+        desc = task.get("description") or task.get("title")
+        if task.get("source_url"):
+            desc += f"\n\nSource: {task['source_url']}"
+            
+        # Pass both source_meta and suggested_fields as extra_fields for Jira
+        extra = {}
+        if task.get("source_meta"):
+            extra.update(task["source_meta"])
+        if task.get("suggested_fields"):
+            extra.update(task["suggested_fields"])
+
+        jira_result = await submit_to_jira(
+            project=jira_project,
+            title=task["title"],
+            description=desc,
+            assignee=task.get("suggested_assignee"),
+            priority=task.get("priority") or "Medium",
+            labels=task.get("labels") or [],
+            components=task.get("components") or [],
+            due_date=(task.get("due_date") or None),
+            issue_type=issue_type,
+            epic_key=epic_key,
+            extra_fields=extra,
+        )
+        if jira_result:
+            jira_key = str(jira_result.get("key") or "").strip()
+            if jira_key:
+                jira_meta = {
+                    "jira_assignee_account_id": jira_result.get("assignee_account_id"),
+                    "jira_issue_type": jira_result.get("issue_type"),
+                }
+                await repo.mark_submitted(task_id, jira_key, jira_meta=jira_meta)
+                req.status = "submitted"
+                
     return {"message": "Status updated successfully", "task_id": task_id, "status": req.status}
 
 @router.delete("/{task_id}")

@@ -8,7 +8,7 @@ import structlog
 from config.settings import settings
 from connectors.confluence.confluence_client import ConfluenceClient
 from connectors.confluence.confluence_parser import ConfluenceParser
-from tasks.extractor import extract_tasks_from_content
+from tasks.extractor import extract_tasks_from_content, detect_action_signal
 from utils.vision import describe_images_batch
 from .base import BaseScanner
 
@@ -50,6 +50,11 @@ class ConfluenceScanner(BaseScanner):
                 if not clean or len(clean.strip()) < 120:
                     continue
 
+                has_action = await detect_action_signal(clean, self.llm_client)
+                if not has_action:
+                    log.debug("scanner.confluence.signal_drop", page_id=page_id, title=page_title)
+                    continue
+
                 if settings.VISION_ENABLED and str(settings.OLLAMA_VISION_MODEL or "").strip():
                     try:
                         wanted = list(dict.fromkeys([str(x).strip() for x in re.findall(r"\[\[IMAGE:([^\]]+)\]\]", clean or "") if str(x).strip()]))[:2]
@@ -82,8 +87,8 @@ class ConfluenceScanner(BaseScanner):
                         source_summary=f"[{page_title}] {clean[:300]}",
                         source_url=stable_url or None,
                         scope_group_id=f"group_confluence_space_{str(space_key or '').strip().lower()}",
-                        source_meta={"space_key": space_key, "page_id": page_id, "title": page_title, "stable_url": stable_url, "evidence": (task.evidence or "").strip() or clean[:260]},
-                        evidence=[{"source": "confluence", "url": stable_url, "quote": (task.evidence or "").strip() or clean[:360], "ref": {"space_key": space_key, "page_id": page_id}}],
+                        source_meta={"space_key": space_key, "page_id": page_id, "title": page_title, "stable_url": stable_url, "evidence": (task.evidence or "").strip() or clean[:260], "evidence_list": task.evidence_list, "confidence": task.confidence},
+                        evidence=[{"source": "confluence", "url": stable_url, "quote": ev} for ev in (task.evidence_list or [(task.evidence or "").strip() or clean[:360]])],
                         issue_type=self._suggest_issue_type_from_labels(task.labels),
                         epic_key=self._detect_epic_key(f"{task.title}\n{task.description}\n{page_title}"),
                         suggested_assignee=suggested_assignee,

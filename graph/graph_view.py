@@ -140,6 +140,9 @@ class GraphViewBuilder:
         elif node_id.startswith("chunk:"):
             # Focus on a chunk: get its document and neighbors
             doc_ids = await self._doc_id_for_chunk(node_id.split(":", 1)[1])
+        elif node_id.startswith("entity:"):
+            # Focus on an entity
+            doc_ids = await self._docs_for_super_node(node_id, limit=max_docs)
         else:
             doc_ids = await self._docs_for_super_node(node_id, limit=max_docs)
 
@@ -230,6 +233,8 @@ class GraphViewBuilder:
         depth: int = 4,
     ) -> dict:
         start_doc_id = _safe_str(doc_id)
+        if start_doc_id.startswith("doc:"):
+            start_doc_id = start_doc_id.split(":", 1)[1]
         if not start_doc_id and jira_key:
             start_doc_id = await self._jira_doc_id_for_key(_safe_str(jira_key).upper()) or ""
         if not start_doc_id:
@@ -260,6 +265,8 @@ class GraphViewBuilder:
 
     async def impact_analysis(self, *, doc_id: str, depth: int = 3) -> dict:
         start_doc_id = _safe_str(doc_id)
+        if start_doc_id.startswith("doc:"):
+            start_doc_id = start_doc_id.split(":", 1)[1]
         if not start_doc_id:
             return {"error": "Missing doc_id"}
         docs = await self._fetch_recent_docs(
@@ -299,7 +306,12 @@ class GraphViewBuilder:
             include_sources=["jira", "confluence", "slack", "file_server"],
         )
         detail = await self._build_detail_graph(docs, semantic_k=4, semantic_min_weight=3.0)
-        return {"generated_at": _now_utc().isoformat(), "insights": self._gap_insights(detail)}
+        return {
+            "generated_at": _now_utc().isoformat(),
+            "detail": detail,
+            "super": self._build_super_graph(detail),
+            "insights": self._gap_insights(detail)
+        }
 
     async def _fetch_recent_docs(
         self,
@@ -465,6 +477,22 @@ class GraphViewBuilder:
 
     async def _docs_for_super_node(self, node_id: str, *, limit: int) -> list[str]:
         node_id = _safe_str(node_id)
+        if node_id.startswith("entity:"):
+            eid = node_id.split(":", 1)[1]
+            rows = (
+                await self._session.execute(
+                    text(
+                        """
+                        SELECT de.document_id::text
+                        FROM document_entities de
+                        WHERE de.entity_id::text = :eid
+                        LIMIT :limit
+                        """
+                    ),
+                    {"eid": eid, "limit": int(limit)},
+                )
+            ).scalars().all()
+            return [str(r) for r in rows if r]
         if node_id.startswith("slack_channel:"):
             cid = node_id.split(":", 1)[1]
             rows = (

@@ -34,6 +34,22 @@ async def fast_background_job(ctx, task_data: str):
     log.info("worker.fast_job.running", data=task_data)
     return True
 
+async def scan_slack_thread_job(ctx, channel_id: str, thread_ts: str, triggered_by: str = "slack_event"):
+    """ARQ job để quét 1 thread Slack cụ thể (do webhook gọi)."""
+    log.info("worker.scan_slack_thread_job.started", channel_id=channel_id, thread_ts=thread_ts)
+    try:
+        from tasks.scanners.slack import SlackScanner
+        async with ctx["db_session_factory"]() as session:
+            from apps.api.services.connectors_service import get_llm_client
+            llm_client = await get_llm_client()
+            scanner = SlackScanner(session, llm_client)
+            await scanner.scan_thread(channel_id, thread_ts, triggered_by=triggered_by)
+            log.info("worker.scan_slack_thread_job.completed")
+    except Exception as e:
+        log.error("worker.scan_slack_thread_job.failed", error=str(e))
+        raise
+
+
 
 async def scan_sources_job(ctx, slack_days: int, confluence_days: int, triggered_by: str, created_by: str | None):
     """ARQ job để quét tất cả các nguồn dữ liệu và tạo task drafts."""
@@ -90,7 +106,7 @@ class IngestionWorkerSettings(BaseWorkerSettings):
 class DefaultWorkerSettings(BaseWorkerSettings):
     """Worker xử lý các task nhẹ, ưu tiên cao (gửi thông báo, update db, cache)."""
     queue_name = settings.ARQ_DEFAULT_QUEUE_NAME
-    functions = [fast_background_job]
+    functions = [fast_background_job, scan_slack_thread_job]
     job_timeout = settings.ARQ_DEFAULT_JOB_TIMEOUT  # Timeout ngắn (2 phút)
     max_jobs = settings.ARQ_DEFAULT_MAX_JOBS      # Cho phép xử lý đồng thời nhiều task nhẹ
 

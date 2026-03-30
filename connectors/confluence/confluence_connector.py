@@ -187,9 +187,9 @@ class ConfluenceConnector(BaseConnector):
             else:
                 img_urls.append({"url": raw.strip(), "alt": ""})
 
-        author_info = page.get("history", {}).get("createdBy", {})
+        author_info = (page.get("history") or {}).get("createdBy") or {}
         author = author_info.get("displayName", "unknown")
-        web_ui = page.get("_links", {}).get("webui", "")
+        web_ui = (page.get("_links") or {}).get("webui", "")
 
         # Use Confluence's own `webui` link to match the instance routing in real deployments.
         # Example (self-hosted): /spaces/AIK/pages/55607532/Some+Title
@@ -215,8 +215,8 @@ class ConfluenceConnector(BaseConnector):
             content=content,
             url=ui_url,
             author=author,
-            created_at=self._parse_dt(page.get("history", {}).get("createdDate", "")),
-            updated_at=self._parse_dt(page.get("version", {}).get("when", "")),
+            created_at=self._parse_dt((page.get("history") or {}).get("createdDate", "")),
+            updated_at=self._parse_dt((page.get("version") or {}).get("when", "")),
             metadata={
                 "space_key": space_key,
                 "space_name": space_name,

@@ -53,3 +53,6 @@ class Chunk:
     content: str
     chunk_index: int
     embedding: Optional[list[float]] = None
+    parent_chunk_id: Optional[str] = None
+    section_title: Optional[str] = None
+    level: int = 0

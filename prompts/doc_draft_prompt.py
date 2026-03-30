@@ -188,7 +188,7 @@ SKILL_DOC_TYPE_GROUPS: dict[str, list[str]] = {
 PROMPT_EXTENSIONS: dict[str, str] = {
     "api_spec": "Tạo API Specification: endpoints, params, request/response JSON examples, error model (RFC 7807), status codes.\n",
     "requirements_intake": "Tạo Requirements Intake: danh sách BR/FR/NFR atomic & testable + assumptions/constraints + open questions.\n",
-    "requirement_review": "Review requirement: tìm gaps, conflicts BR/FR/UC/VR, edge cases, permission model, risks; nêu verdict (BLOCK/WARN/OK).\n",
+    "requirement_review": "Review requirement: tìm gaps/conflicts. Nếu dữ liệu thiếu, hãy SUY LUẬN và đưa ra các câu hỏi trọng tâm (Proactive Questioning) để giúp stakeholder hoàn thiện nghiệp vụ. Nêu verdict (BLOCK/WARN/OK).\n",
     "solution_design": "Tạo Solution Design: architecture overview, ADRs (decision + rationale), data model high-level, integration points, non-functional considerations.\n",
     "fe_spec": "Tạo FE Technical Spec: component tree, component contracts, UI state matrix, validation UX behavior, error boundary, a11y (WCAG 2.1 AA), performance budget.\n",
     "qa_test_spec": "Tạo QA Test Spec: consistency checks (BLOCK/WARN), test cases theo level (Unit/Integration/E2E/UAT) + owner + test data; security tests map OWASP Top 10 (2021); UAT exit criteria.\n",
@@ -237,7 +237,7 @@ OUTPUT_STRUCTURES: dict[str, str] = {
     "requirement_review": (
         "- Verdict: BLOCK/WARN/OK\n"
         "- Issues table: conflict/gap/edge case/permission risk + fix recommendation\n"
-        "- Missing info / questions\n"
+        "- Proactive Questions (Câu hỏi gợi mở): Suy luận từ ngữ cảnh để hỏi các câu hỏi giúp lấp đầy khoảng trống nghiệp vụ.\n"
     ),
     "solution_design": (
         "- Context + goals\n"
@@ -329,8 +329,31 @@ def get_expert_knowledge(doc_type: str) -> str:
     if not knowledge_blocks:
         return ""
         
-    return "\n\n## TRI THỨC NỀN TẢNG (EXPERT KNOWLEDGE)\nSử dụng các tiêu chuẩn và tri thức sau đây làm kim chỉ nam để thực hiện Skill này:\n\n" + "\n\n".join(knowledge_blocks)
+    return (
+        "\n\n## <STANDARDS_GUIDELINES>\n"
+        "### [DÀNH CHO BA: TIÊU CHUẨN ĐỊNH DẠNG & CHẤT LƯỢNG - KHÔNG DÙNG LÀM INPUT NGHIỆP VỤ]\n"
+        "Sử dụng các tiêu chuẩn sau đây CHỈ để định hướng cấu trúc, văn phong và kiểm soát chất lượng.\n"
+        "CẢNH BÁO: TUYỆT ĐỐI KHÔNG lấy các tên module, ví dụ hoặc quy tắc trong phần này (ví dụ: RAG, ATRS, AI Workflows) "
+        "để áp dụng vào nội dung yêu cầu của khách hàng trừ khi chúng có sẵn trong dữ liệu đầu vào.\n\n"
+        + "\n\n".join(knowledge_blocks)
+        + "\n</STANDARDS_GUIDELINES>\n"
+    )
 
+
+STRICT_ISOLATION_RULES = """
+STRICT CONTEXT ISOLATION & MULTI-SOURCE REASONING RULES:
+1. NEVER invent business rules out of thin air. If info is missing, write 'TBD' and proactively suggest 2-3 targeted questions to the stakeholder.
+2. DO NOT copy or hallucinate content from the 'STANDARDS_GUIDELINES' section. Those are for formatting and quality only.
+3. MULTI-SOURCE SYNTHESIS: You will receive grouped Context Blocks from multiple sources. You MUST synthesize, cross-reference, and reconstruct the exact workflow and facts by aggregating these disparate sources.
+4. STRUCTURED REASONING MANDATE: When processing the sources, you must logically trace:
+   - Source A Analysis: [Key facts from Source A]
+   - Source B Analysis: [Key facts from Source B]
+   - Cross-Analysis: [Identify conflicts, gaps, or complementary facts]
+   - Reconstructed Truth: [The logically deduced final state/workflow]
+   You must establish this chain of reasoning to avoid bias towards a single source before outputting the final requirement sections.
+5. Your role is strictly to analyze the <USER_REQUEST> and <SELECTED_SOURCES>.
+6. IF THE INPUT IS EMPTY OR UNCLEAR: Do not fail. Instead, provide a skeletal framework of the document with 'TBD' placeholders and a dedicated 'CÂU HỎI LÀM RÕ'.
+"""
 
 def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> str:
     doc_type = (doc_type or "srs").strip().lower()
@@ -338,6 +361,7 @@ def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> s
     # Highest priority: user-customized prompt stored in DB
     if db_prompt and db_prompt.strip():
         base = (
+            f"{STRICT_ISOLATION_RULES}\n"
             "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT chuyên nghiệp, giàu thông tin, không trình bày chung chung.\n"
             "ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần xuyên suốt).\n"
             "Output phải là Markdown đầy đủ, phân tích sâu các khía cạnh nghiệp vụ và kỹ thuật.\n\n"
@@ -347,6 +371,7 @@ def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> s
     # Second priority: hardcoded mygpt-ba skill prompt
     if doc_type in SKILL_SYSTEM_PROMPTS:
         base = (
+            f"{STRICT_ISOLATION_RULES}\n"
             "Yêu cầu quan trọng nhất: TOÀN BỘ nội dung tài liệu phải được viết bằng TIẾNG VIỆT chuyên nghiệp, giàu thông tin, phân tích đa chiều, tránh viết ngắn gọn hời hợt.\n"
             "ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần xuyên suốt).\n"
             "Output phải là Markdown đầy đủ, chi tiết đến từng flow xử lý và điều kiện ràng buộc.\n\n"
@@ -356,8 +381,8 @@ def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> s
     # Fallback: generic prompt for any unrecognised doc_type
     base = (
         "You are a senior Business Analyst producing enterprise-grade documentation in Vietnamese.\n"
+        f"{STRICT_ISOLATION_RULES}\n"
         "Golden rules:\n"
-        "- Không bịa business rule. Thiếu thông tin thì ghi 'TBD' và liệt kê câu hỏi cần làm rõ.\n"
         "- Viết rõ ràng, chi tiết, chuyên nghiệp: dùng 'must/shall', tránh 'có thể/should'.\n"
         "- ID nhất quán: BR-01, FR-01, NFR-01, UC-01, VR-01, US-01 (tăng dần).\n"
         "- Output là Markdown, trình bày đầy đủ các phần được yêu cầu.\n"
@@ -375,6 +400,7 @@ def build_doc_user_prompt(
     answer: str,
     sources: list[dict[str, Any]],
     documents: list[dict[str, Any]],
+    previous_drafts: list[dict[str, Any]] | None = None,
 ) -> str:
     doc_type = (doc_type or "srs").strip().lower()
     label = SUPPORTED_DOC_TYPES.get(doc_type, doc_type)
@@ -383,12 +409,14 @@ def build_doc_user_prompt(
     lines.append(f"Hãy tạo tài liệu dạng **{label}** dựa trên thông tin sau.")
     lines.append("")
     if question:
-        lines.append("## User request")
+        lines.append("<USER_REQUEST>")
         lines.append(str(question).strip())
+        lines.append("</USER_REQUEST>")
         lines.append("")
     if answer:
-        lines.append("## Current AI answer (high-level)")
+        lines.append("<CURRENT_AI_INSIGHT>")
         lines.append(str(answer).strip())
+        lines.append("</CURRENT_AI_INSIGHT>")
         lines.append("")
 
     lines.append("## Selected sources (top)")
@@ -420,7 +448,7 @@ def build_doc_user_prompt(
     else:
         char_limit = 1200
 
-    lines.append(f"Dưới đây là nội dung chi tiết của tối đa 8 tài liệu (giới hạn {char_limit} ký tự/file để tránh quá tải):")
+    lines.append(f"<SELECTED_SOURCES count={doc_count} limit={char_limit}chars_per_doc>")
     
     for d in doc_list[:8]:
         title = str(d.get("title") or "").strip() or "Untitled"
@@ -432,23 +460,29 @@ def build_doc_user_prompt(
         # Apply dynamic truncation
         content = content[:char_limit]
         
-        lines.append(f"### [{source}] {title}")
+        lines.append(f"### [Source: {source}] {title}")
         if url:
             lines.append(f"- url: {url}")
-        if updated:
-            lines.append(f"- updated_at: {updated}")
         if content:
-            lines.append("<document>")
+            lines.append("<content>")
             lines.append(content)
-            lines.append("</document>")
-        if url:
-            lines.append(f"- url: {url}")
-        if updated:
-            lines.append(f"- updated_at: {updated}")
-        if content:
-            lines.append("<document>")
-            lines.append(content)
-            lines.append("</document>\n")
+            lines.append("</content>\n")
+
+    lines.append("</SELECTED_SOURCES>")
+
+    # Add Previous Drafts (Internal Context)
+    if previous_drafts:
+        lines.append(f"\n<INTERNAL_WORKING_DRAFTS count={len(previous_drafts)}>")
+        lines.append("These are recent drafts related to this project. Use them to maintain consistency and context.")
+        for d in previous_drafts[:5]:
+            d_title = str(d.get("title") or "Untitled").strip()
+            d_type = str(d.get("doc_type") or "unknown").strip()
+            d_content = str(d.get("content") or "").strip()
+            lines.append(f"### [DRAFT: {d_type}] {d_title}")
+            lines.append("<content>")
+            lines.append(d_content[:4000]) # Protect context window
+            lines.append("</content>\n")
+        lines.append("</INTERNAL_WORKING_DRAFTS>\n")
 
     # Load the specific output structure from the dictionary
     structure_hint = OUTPUT_STRUCTURES.get(doc_type)

@@ -11,7 +11,9 @@ from config.settings import settings
 from retrieval.hybrid.hybrid_search import HybridSearch
 from graph.knowledge_graph import KnowledgeGraph
 from persistence.document_repository import DocumentRepository
+from persistence.doc_draft_repository import DocDraftRepository
 from permissions.filter import PermissionFilter
+from prompts.doc_draft_prompt import build_doc_system_prompt, build_doc_user_prompt
 
 log = structlog.get_logger(__name__)
 
@@ -119,15 +121,26 @@ async def search_agent_node(state: SDLCState) -> dict:
         all_doc_ids = list({r["document_id"] for r in results} | set(graph_ids))
         docs = await repo.get_by_ids(all_doc_ids)
         
+        # 7. Fetch Recent Drafts for Context
+        draft_repo = DocDraftRepository(session)
+        recent_drafts = await draft_repo.list_recent(created_by=state["user_id"], limit=5)
+        
         context_str = "\n\n".join([
             f"--- Document: {d.get('title')} ---\n{d.get('content', '')[:6000]}"
             for d in docs
         ])
         
-        log.info("agent.search_agent.done", found_docs=len(docs))
+        if recent_drafts:
+            draft_str = "\n\n".join([
+                f"--- INTERNAL DRAFT [{d.get('doc_type')}]: {d.get('title')} ---\n{d.get('content', '')[:4000]}"
+                for d in recent_drafts
+            ])
+            context_str = f"## RECENT DRAFTS (Internal Context):\n{draft_str}\n\n## KNOWLEDGE BASE DOCUMENTS:\n{context_str}"
+
+        log.info("agent.search_agent.done", found_docs=len(docs), found_drafts=len(recent_drafts))
         return {
             "context_documents": context_str,
-            "current_status": f"Found {len(docs)} relevant knowledge units."
+            "current_status": f"Found {len(docs)} knowledge units and {len(recent_drafts)} recent drafts."
         }
     except Exception as e:
         log.error("agent.search_agent.error", error=str(e))
@@ -142,16 +155,20 @@ def ba_agent_node(state: SDLCState) -> dict:
     structured_llm = llm.with_structured_output(BADocumentOutput)
     
     # Layer 1: Prompt
-    system_prompt = """You are Step 1: Requirement Analyst in the MyGPT BA Suite pipeline.
-Your job: produce enterprise-grade BA documents in VIETNAMESE.
-GOLDEN RULE: Every document must be complete enough that a developer can implement without asking questions.
-Phân tích sâu, chi tiết từng Use Case, Validation Rule và Business Rule. 
-TOÀN BỘ nội dung mô tả, ghi chú kỹ thuật phải được viết bằng TIẾNG VIỆT chuyên nghiệp, giàu thông tin.
-Only output valid JSON matching the schema."""
+    system_prompt = build_doc_system_prompt(doc_type="requirements_intake")
+    
+    # Layer 2: Human Prompt (User context)
+    human_prompt = build_doc_user_prompt(
+        doc_type="requirements_intake",
+        question=state["user_request"],
+        answer=state.get("current_status", ""),
+        sources=[], # Handled by context_documents below
+        documents=[]
+    )
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
-        ("human", "Yêu cầu nghiệp vụ: {request}\n\nNgữ cảnh đính kèm: {context}")
+        ("human", f"{human_prompt}\n\nNgữ cảnh đính kèm:\n{state.get('context_documents', 'Không có')}")
     ])
     
     chain = prompt | structured_llm
@@ -173,10 +190,7 @@ def sa_agent_node(state: SDLCState) -> dict:
     ba_json = state.get("ba_document_json", {})
     
     structured_llm = llm.with_structured_output(SADocumentOutput)
-    system_prompt = """You are Step 3: Solution Designer in the MyGPT BA Suite. 
-Read the BA JSON Document (Use Cases, Validation rules) and produce a high-level technical design and API Contracts.
-Thiết kế hệ thống chi tiết, bao hàm kiến trúc, data model và các API contract đầy đủ.
-Mọi nội dung diễn giải, kiến trúc tổng quan phải được viết bằng TIẾNG VIỆT chuyên nghiệp."""
+    system_prompt = build_doc_system_prompt(doc_type="solution_design")
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -198,10 +212,7 @@ def qa_agent_node(state: SDLCState) -> dict:
     
     structured_llm = llm.with_structured_output(QADocumentOutput)
     # Sử dụng đúng mẫu QA-01 trong SDLC_Prompt_Library_v1.md của bạn
-    system_prompt = """Bạn là QA Engineer có kinh nghiệm theo chuẩn ISTQB. 
-Sinh test cases chi tiết từ các Use Cases và Validation Rules trong tài liệu BA.
-Mỗi AC scenario -> >=3 test cases (1 positive + 1 negative + 1 boundary).
-Mô tả các steps và expected result rõ ràng, chi tiết bằng TIẾNG VIỆT."""
+    system_prompt = build_doc_system_prompt(doc_type="qa_test_spec")
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),

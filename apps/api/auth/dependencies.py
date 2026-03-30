@@ -105,10 +105,10 @@ def require_task_manager(current_user: CurrentUser = Depends(get_current_user)) 
     if current_user.is_admin:
         return current_user
     role = normalize_role(current_user.role, is_admin=current_user.is_admin)
-    if role not in {ROLE_PM_PO}:
+    if role not in {ROLE_PM_PO, ROLE_BA_SA}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Ban khong co quyen thuc hien thao tac nay (PM/PO required)",
+            detail="Ban khong co quyen thuc hien thao tac nay (PM/PO or BA/SA required)",
         )
     return current_user
 

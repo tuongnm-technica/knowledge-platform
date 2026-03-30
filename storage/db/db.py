@@ -476,6 +476,7 @@ async def create_tables():
                 confirmed_by VARCHAR(255),
                 jira_key VARCHAR(50),
                 jira_project VARCHAR(50) NOT NULL DEFAULT 'ECOS2025',
+                parent_draft_id UUID REFERENCES ai_task_drafts(id) ON DELETE CASCADE,
                 scope_group_id VARCHAR(255),
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 confirmed_at TIMESTAMP,
@@ -513,10 +514,16 @@ async def create_tables():
             "ALTER TABLE ai_task_drafts ADD COLUMN IF NOT EXISTS scope_group_id VARCHAR(255)"
         ))
         await conn.execute(text(
+            "ALTER TABLE ai_task_drafts ADD COLUMN IF NOT EXISTS parent_draft_id UUID REFERENCES ai_task_drafts(id) ON DELETE CASCADE"
+        ))
+        await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_ai_task_drafts_dedup_key ON ai_task_drafts (dedup_key)"
         ))
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_ai_task_drafts_scope_group_id ON ai_task_drafts (scope_group_id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_ai_task_drafts_parent_draft_id ON ai_task_drafts (parent_draft_id)"
         ))
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS connector_configs (

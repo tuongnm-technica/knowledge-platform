@@ -1,9 +1,12 @@
 import structlog
+
 from services.llm_service import LLMService
+from prompts.doc_draft_prompt import STRICT_ISOLATION_RULES
 
 log = structlog.get_logger()
 
-REVIEWER_SYSTEM_PROMPT = """You are an expert Senior Business Analyst Reviewer.
+REVIEWER_SYSTEM_PROMPT = f"""{STRICT_ISOLATION_RULES}
+You are an expert Senior Business Analyst Reviewer.
 Your task is to review the drafted document against the provided User Request and Context.
 Look for:
 1. Missing critical information.

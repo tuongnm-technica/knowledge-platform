@@ -3,7 +3,7 @@ tasks/models.py
 ORM + Pydantic models cho ai_task_drafts.
 Thêm vào storage/db/db.py hoặc import riêng.
 """
-from sqlalchemy import Column, String, Text, DateTime, ARRAY, func
+from sqlalchemy import Column, String, Text, DateTime, ARRAY, func, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase
 from pydantic import BaseModel
@@ -33,6 +33,7 @@ class AITaskDraftORM:
     confirmed_by       = Column(String(255))
     jira_key           = Column(String(50))
     jira_project       = Column(String(50))
+    parent_draft_id    = Column(UUID(as_uuid=True), ForeignKey("ai_task_drafts.id", ondelete="CASCADE"))
     created_at         = Column(DateTime, nullable=False, server_default=func.now())
     confirmed_at       = Column(DateTime)
     submitted_at       = Column(DateTime)
@@ -54,6 +55,7 @@ class TaskDraftOut(BaseModel):
     triggered_by:       str
     jira_key:           Optional[str] = None
     jira_project:       Optional[str] = None
+    parent_draft_id:    Optional[str] = None
     created_at:         datetime
 
     class Config:
@@ -79,3 +81,8 @@ class ExtractedTask(BaseModel):
     # Optional evidence fields (best-effort). For Slack, evidence_ts should be the message ts (e.g. 1710561234.567890).
     evidence_ts:        Optional[str] = None
     evidence:           Optional[str] = None
+    evidence_list:      list[str] = []
+    confidence:         float = 0.0
+    subtasks:           list["ExtractedTask"] = []
+
+ExtractedTask.model_rebuild()

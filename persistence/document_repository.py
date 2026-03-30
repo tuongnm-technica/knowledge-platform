@@ -237,3 +237,17 @@ class DocumentRepository:
             },
         )
         return result.mappings().all()
+
+    async def get_section_chunks(self, parent_chunk_id: str) -> list[dict]:
+        """Kéo toàn vẹn không sót chữ nào thuộc về Parent Section dựa trên parent_chunk_id."""
+        # Note: If parent_chunk_id is None, this will return empty.
+        result = await self._session.execute(
+            text("""
+                SELECT content, chunk_index, section_title, level
+                FROM chunks
+                WHERE parent_chunk_id = :parent_id
+                ORDER BY chunk_index
+            """),
+            {"parent_id": parent_chunk_id},
+        )
+        return result.mappings().all()

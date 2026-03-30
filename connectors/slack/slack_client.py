@@ -131,3 +131,16 @@ class SlackClient:
 
     def get_user_cache(self) -> dict[str, dict]:
         return self._user_cache
+
+    async def reply_to_thread(self, channel_id: str, thread_ts: str, text: str) -> bool:
+        """Gửi tin nhắn phản hồi vào một thread cụ thể."""
+        try:
+            await self._client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=thread_ts,
+                text=text
+            )
+            return True
+        except SlackApiError as e:
+            log.error("slack.reply.failed", channel=channel_id, thread_ts=thread_ts, error=str(e))
+            return False
