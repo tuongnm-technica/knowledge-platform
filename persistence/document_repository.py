@@ -53,10 +53,10 @@ class DocumentRepository:
                 """
                 INSERT INTO documents
                 (id, source, source_id, title, content, url, author,
-                 created_at, updated_at, metadata, permissions, entities, workspace_id)
+                 created_at, updated_at, metadata, permissions, entities, workspace_id, summary)
                 VALUES
                 (:id, :source, :source_id, :title, :content, :url, :author,
-                 :created_at, :updated_at, CAST(:metadata AS JSON), :permissions, :entities, :workspace_id)
+                 :created_at, :updated_at, CAST(:metadata AS JSON), :permissions, :entities, :workspace_id, :summary)
                 ON CONFLICT (source, source_id)
                 DO UPDATE SET
                     title        = EXCLUDED.title,
@@ -67,7 +67,8 @@ class DocumentRepository:
                     metadata     = EXCLUDED.metadata,
                     permissions  = EXCLUDED.permissions,
                     entities     = EXCLUDED.entities,
-                    workspace_id = EXCLUDED.workspace_id
+                    workspace_id = EXCLUDED.workspace_id,
+                    summary      = EXCLUDED.summary
                 RETURNING id::text
                 """
             ),
@@ -85,6 +86,7 @@ class DocumentRepository:
                 "permissions": permissions,
                 "entities": doc.entities,
                 "workspace_id": doc.workspace_id,
+                "summary": doc.summary,
             },
         )
         doc_id = result.scalar()
@@ -141,7 +143,8 @@ class DocumentRepository:
                     source,
                     metadata,
                     permissions,
-                    workspace_id
+                    workspace_id,
+                    summary
                 FROM documents
                 WHERE id::text = ANY(:ids)
             """),

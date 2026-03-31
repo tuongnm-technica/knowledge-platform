@@ -18,6 +18,7 @@ from models.document import Document, SourceType
 from persistence.document_repository import DocumentRepository
 from persistence.asset_repository import AssetRepository
 from persistence.sync_repository import SyncRepository
+from services.summarization_service import SummarizationService
 
 
 log = structlog.get_logger()
@@ -46,6 +47,7 @@ class IngestionPipeline:
         self._linker = DocumentLinker(session)
         self._repo = DocumentRepository(session)
         self._sync_repo = SyncRepository(session)
+        self._summarizer = SummarizationService()
 
     async def run(self, connector: BaseConnector, incremental: bool = True, connector_key: str | None = None) -> dict:
         stats = {"fetched": 0, "indexed": 0, "skipped": 0, "errors": 0}
@@ -156,6 +158,19 @@ class IngestionPipeline:
                 log.info("ingestion.sections", doc_id=doc.id, count=len(sections))
 
         doc.content = self._cleaner.clean(doc.content)
+        
+        # AI Summarization: Zoom/Meet (always) or Confluence (if content length >= 500 words)
+        words = doc.content.split()
+        if doc.source in (SourceType.ZOOM, SourceType.GOOGLE_MEET) or (doc.source == SourceType.CONFLUENCE and len(words) >= 500):
+            try:
+                summary = await self._summarizer.summarize(doc.content, doc.source, doc.title)
+                if summary:
+                    doc.summary = summary
+                    # Prepend summary to content for better search priority
+                    doc.content = f"[SUMMARY]\n{summary}\n[/SUMMARY]\n\n{doc.content}"
+            except Exception as e:
+                log.error("ingestion.summary.failed", doc_id=doc.id, error=str(e))
+
         if not doc.content:
             log.debug("ingestion.skip.empty", doc_id=doc.id)
             return

@@ -10,6 +10,8 @@ class SourceType(str, Enum):
     JIRA = "jira"
     GOOGLE_DRIVE = "google_drive"
     FILE_SERVER  = "file_server"
+    ZOOM = "zoom"
+    GOOGLE_MEET = "google_meet"
 
 
 @dataclass
@@ -27,6 +29,7 @@ class Document:
     permissions: list[str] = field(default_factory=list)
     entities: list[str] = field(default_factory=list)
     workspace_id: Optional[str] = None 
+    summary: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -43,6 +46,7 @@ class Document:
             "permissions": self.permissions,
             "entities": self.entities,
             "workspace_id": self.workspace_id,
+            "summary": self.summary,
         }
 
 

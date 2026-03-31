@@ -23,6 +23,9 @@ from connectors.jira.jira_client import JiraClient
 from connectors.jira.jira_connector import JiraConnector
 from connectors.slack.slack_client import SlackClient
 from connectors.slack.slack_connector import SlackConnector
+from connectors.zoom.zoom_client import ZoomClient
+from connectors.zoom.zoom_connector import ZoomConnector
+from connectors.google.google_meet_connector import GoogleMeetConnector
 from ingestion.pipeline import IngestionPipeline
 from storage.db.db import AsyncSessionLocal
 from services.rag_service import RAGService
@@ -99,6 +102,32 @@ CONNECTOR_DEFINITIONS: tuple[ConnectorDefinition, ...] = (
         auth_label="Username + password",
         schedule_label="Manual only",
     ),
+    ConnectorDefinition(
+        key="zoom",
+        label="Zoom",
+        source="zoom",
+        description="Meeting recordings and transcripts for indexed knowledge.",
+        kind="meetings",
+        icon="zoom",
+        accent="zoom",
+        target_label="Account ID",
+        scope_label="Recordings",
+        auth_label="Client Secret (+ Client ID in extra)",
+        schedule_label="Daily at 04:00",
+    ),
+    ConnectorDefinition(
+        key="google_meet",
+        label="Google Meet",
+        source="google_meet",
+        description="Meeting records and transcripts from Google Drive.",
+        kind="meetings",
+        icon="google",
+        accent="google",
+        target_label="Target Folder",
+        scope_label="Sub-folders",
+        auth_label="Service Account JSON",
+        schedule_label="Daily at 04:30",
+    ),
 )
 
 CONNECTOR_BY_KEY = {definition.key: definition for definition in CONNECTOR_DEFINITIONS}
@@ -108,6 +137,8 @@ DEFAULT_SCHEDULES: dict[str, dict[str, Any]] = {
     "jira": {"auto_sync": True, "hour": 2, "minute": 30, "tz": "Asia/Ho_Chi_Minh"},
     "slack": {"auto_sync": True, "hour": 3, "minute": 0, "tz": "Asia/Ho_Chi_Minh"},
     "file_server": {"auto_sync": False, "hour": None, "minute": None, "tz": "Asia/Ho_Chi_Minh"},
+    "zoom": {"auto_sync": True, "hour": 4, "minute": 0, "tz": "Asia/Ho_Chi_Minh"},
+    "google_meet": {"auto_sync": True, "hour": 4, "minute": 30, "tz": "Asia/Ho_Chi_Minh"},
 }
 
 
@@ -173,6 +204,12 @@ def _selection_summary(connector_type: str, selection: dict[str, Any]) -> str:
     if connector_type == "file_server":
         folders = selection.get("folders") or []
         return ", ".join(folders) if folders else "All folders"
+    if connector_type == "zoom":
+        recording_ids = selection.get("recording_ids") or []
+        return f"{len(recording_ids)} recordings selected" if recording_ids else "All recordings"
+    if connector_type == "google_meet":
+        folders = selection.get("folders") or []
+        return f"{len(folders)} folders selected" if folders else "Default Recordings folder"
     return "Configured"
 
 
@@ -396,6 +433,8 @@ async def _ensure_connector_config(session: AsyncSession, connector_key: str) ->
         selection = {"channels": []}
     elif connector_type == "file_server":
         selection = {"folders": []}
+    elif connector_type == "zoom":
+        selection = {"recording_ids": []}
 
     await session.execute(
         text(
@@ -629,6 +668,20 @@ def _instance_missing_fields(connector_type: str, inst: dict[str, Any]) -> list[
             missing.append("share")
         return missing
 
+    if connector_type == "zoom":
+        if not username: # We use username field for account_id
+            missing.append("account_id")
+        if not secret: # We use secret field for client_secret
+            missing.append("client_secret")
+        if not str(extra.get("client_id") or "").strip():
+            missing.append("client_id")
+        return missing
+    
+    if connector_type == "google_meet":
+        if not secret: # Service account JSON stored in secret
+            missing.append("service_account_json")
+        return missing
+
     return ["unknown_connector"]
 
 
@@ -699,6 +752,20 @@ def _build_connector(connector_type: str, inst: dict[str, Any], selection: dict[
             username=username or settings.SMB_USERNAME,
             password=secret or settings.SMB_PASSWORD,
             base_path=base_path,
+        )
+    if connector_type == "zoom":
+        recording_ids = set((selection or {}).get("recording_ids") or []) or None
+        return ZoomConnector(
+            account_id=username,
+            client_id=str(extra.get("client_id") or "").strip(),
+            client_secret=secret,
+            recording_ids=recording_ids
+        )
+    if connector_type == "google_meet":
+        folders = set((selection or {}).get("folders") or []) or None
+        return GoogleMeetConnector(
+            service_account_json=secret,
+            folder_name=str(extra.get("folder_name") or "").strip() or "Meeting Recordings"
         )
     raise HTTPException(status_code=400, detail=f"Unsupported connector type: {connector_type}")
 

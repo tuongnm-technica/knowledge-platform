@@ -259,6 +259,8 @@ export class ConnectorsModule {
         else if (type === 'jira') icon = '🎫';
         else if (type === 'slack') icon = '💬';
         else if (type === 'file_server') icon = '📁';
+        else if (type === 'zoom') icon = '📹';
+        else if (type === 'google_meet') icon = '📅';
 
         let desc = inst.base_url || type;
         if (type === 'file_server' && inst.config.extra) {
@@ -485,7 +487,9 @@ export class ConnectorsModule {
                 { value: 'confluence', label: 'Confluence' },
                 { value: 'jira', label: 'Jira' },
                 { value: 'slack', label: 'Slack' },
-                { value: 'file_server', label: 'File Server (SMB)' }
+                { value: 'file_server', label: 'File Server (SMB)' },
+                { value: 'zoom', label: 'Zoom' },
+                { value: 'google_meet', label: 'Google Meet' }
             ]
         });
         const { wrap: nameWrap, input: nameInput } = _kpBuildModalField({
@@ -506,38 +510,44 @@ export class ConnectorsModule {
                 const { wrap: shareWrap } = _kpBuildModalField({ id: 'connShare', label: 'Share Name', placeholder: 'Documents' });
                 const { wrap: pathWrap } = _kpBuildModalField({ id: 'connPath', label: 'Base Path (optional)', placeholder: '\\Folder' });
                 dynamicContainer.append(hostWrap, shareWrap, pathWrap);
+            } else if (type === 'zoom') {
+                const { wrap: userWrap } = _kpBuildModalField({ id: 'connUser', label: 'Account ID', placeholder: 'Zoom Account ID', required: true });
+                const { wrap: clientIdWrap } = _kpBuildModalField({ id: 'connClientId', label: 'Client ID', placeholder: 'Zoom OAuth Client ID', required: true });
+                const { wrap: secretWrap } = _kpBuildModalField({ id: 'connSecret', label: 'Client Secret', type: 'password', placeholder: '••••••••', required: true });
+                dynamicContainer.append(userWrap, clientIdWrap, secretWrap);
             } else if (type !== 'slack') {
                 const { wrap: urlWrap } = _kpBuildModalField({ id: 'connUrl', label: 'Base URL', placeholder: 'https://domain.atlassian.net' });
                 dynamicContainer.append(urlWrap);
             }
 
-            const { wrap: authWrap, input: authInput } = _kpBuildModalField({
-                id: 'connAuth', label: 'Auth Type', type: 'select', value: 'token',
-                options: [
-                    { value: 'token', label: 'Token / API Key' },
-                    { value: 'basic', label: 'Username + Password/Token' }
-                ]
-            });
-            dynamicContainer.append(authWrap);
+            if (type !== 'zoom') {
+                const { wrap: authWrap, input: authInput } = _kpBuildModalField({
+                    id: 'connAuth', label: 'Auth Type', type: 'select', value: 'token',
+                    options: [
+                        { value: 'token', label: 'Token / API Key' },
+                        { value: 'basic', label: 'Username + Password/Token' }
+                    ]
+                });
+                dynamicContainer.append(authWrap);
 
-            const userRow = document.createElement('div');
-            userRow.id = 'userRow';
-            userRow.style.display = 'none';
-            const { wrap: userWrap } = _kpBuildModalField({ id: 'connUser', label: 'Username', placeholder: 'email@domain.com' });
-            userRow.append(userWrap);
-            dynamicContainer.append(userRow);
+                const userRow = document.createElement('div');
+                userRow.id = 'userRow';
+                userRow.style.display = 'none';
+                const { wrap: userWrap } = _kpBuildModalField({ id: 'connUser', label: 'Username', placeholder: 'email@domain.com' });
+                userRow.append(userWrap);
+                dynamicContainer.append(userRow);
 
-            const secretLabel = type === 'slack' ? 'Bot Token' : 'Password / Token';
-            const { wrap: secretWrap } = _kpBuildModalField({ 
-                id: 'connSecret', label: secretLabel, type: 'password', placeholder: '••••••••' 
-            });
-            dynamicContainer.append(secretWrap);
+                const secretLabel = type === 'slack' ? 'Bot Token' : 'Password / Token';
+                const { wrap: secretWrap } = _kpBuildModalField({ 
+                    id: 'connSecret', label: secretLabel, type: 'password', placeholder: '••••••••' 
+                });
+                dynamicContainer.append(secretWrap);
 
-            authInput.addEventListener('change', () => {
+                authInput.addEventListener('change', () => {
+                    userRow.style.display = (authInput as HTMLSelectElement).value === 'basic' ? 'block' : 'none';
+                });
                 userRow.style.display = (authInput as HTMLSelectElement).value === 'basic' ? 'block' : 'none';
-            });
-            // Trigger initial state
-            userRow.style.display = (authInput as HTMLSelectElement).value === 'basic' ? 'block' : 'none';
+            }
         };
 
         typeInput.addEventListener('change', updateFields);
@@ -554,21 +564,35 @@ export class ConnectorsModule {
                 const name = (nameInput as HTMLInputElement).value.trim();
                 if (!name) return { error: 'Vui lòng nhập tên kết nối' };
 
-                const auth_type = (body.querySelector('#connAuth') as HTMLSelectElement).value;
-                const username = (body.querySelector('#connUser') as HTMLInputElement).value.trim();
-                const secret = (body.querySelector('#connSecret') as HTMLInputElement).value.trim();
-                
-                let base_url = '';
+                let auth_type = 'token';
+                let username = '';
+                let secret = '';
                 let extra: any = {};
+                let base_url = '';
 
-                if (type === 'file_server') {
-                    const host = (body.querySelector('#connHost') as HTMLInputElement).value.trim();
-                    const share = (body.querySelector('#connShare') as HTMLInputElement).value.trim();
-                    const path = (body.querySelector('#connPath') as HTMLInputElement).value.trim();
-                    base_url = `\\\\${host}\\${share}`;
-                    extra = { host, share, base_path: path };
-                } else if (type !== 'slack') {
-                    base_url = (body.querySelector('#connUrl') as HTMLInputElement)?.value.trim() || '';
+                if (type === 'zoom') {
+                    username = (body.querySelector('#connUser') as HTMLInputElement).value.trim();
+                    secret = (body.querySelector('#connSecret') as HTMLInputElement).value.trim();
+                    const client_id = (body.querySelector('#connClientId') as HTMLInputElement).value.trim();
+                    extra = { client_id };
+                } else {
+                    auth_type = (body.querySelector('#connAuth') as HTMLSelectElement).value;
+                    username = (body.querySelector('#connUser') as HTMLInputElement).value.trim();
+                    secret = (body.querySelector('#connSecret') as HTMLInputElement).value.trim();
+                    
+                    if (type === 'file_server') {
+                        const host = (body.querySelector('#connHost') as HTMLInputElement).value.trim();
+                        const share = (body.querySelector('#connShare') as HTMLInputElement).value.trim();
+                        const path = (body.querySelector('#connPath') as HTMLInputElement).value.trim();
+                        base_url = `\\\\${host}\\${share}`;
+                        extra = { host, share, base_path: path };
+                    } else if (type === 'google_meet') {
+                        // We use the secret field for Service Account JSON
+                        const folder = (body.querySelector('#connUrl') as HTMLInputElement)?.value.trim() || 'Meeting Recordings';
+                        extra = { folder_name: folder };
+                    } else if (type !== 'slack') {
+                        base_url = (body.querySelector('#connUrl') as HTMLInputElement)?.value.trim() || '';
+                    }
                 }
 
                 try {
@@ -608,6 +632,10 @@ export class ConnectorsModule {
             const { wrap: shareWrap } = _kpBuildModalField({ id: 'editShare', label: 'Share Name', value: ex.share || '' });
             const { wrap: pathWrap } = _kpBuildModalField({ id: 'editPath', label: 'Base Path', value: ex.base_path || '' });
             body.append(hostWrap, shareWrap, pathWrap);
+        } else if (type === 'google_meet') {
+            const ex = inst.config.extra || {};
+            const { wrap: folderWrap } = _kpBuildModalField({ id: 'editUrl', label: 'Target Folder', value: ex.folder_name || 'Meeting Recordings' });
+            body.append(folderWrap);
         } else if (type !== 'slack') {
             const { wrap: urlWrap } = _kpBuildModalField({ id: 'editUrl', label: 'Base URL', value: inst.base_url || '' });
             body.append(urlWrap);
@@ -653,6 +681,9 @@ export class ConnectorsModule {
                     const path = (body.querySelector('#editPath') as HTMLInputElement).value.trim();
                     base_url = `\\\\${host}\\${share}`;
                     extra = { ...extra, host, share, base_path: path };
+                } else if (type === 'google_meet') {
+                    const folder = (body.querySelector('#editUrl') as HTMLInputElement)?.value.trim() || 'Meeting Recordings';
+                    extra = { ...extra, folder_name: folder };
                 } else if (type !== 'slack') {
                     base_url = (body.querySelector('#editUrl') as HTMLInputElement)?.value.trim() || '';
                 }
@@ -737,7 +768,7 @@ export class ConnectorsModule {
 
         const scopeLabel = inst.config.scope_label || 'Items';
         const currentSelection = inst.state.selection || {};
-        const currentScope: string[] = currentSelection.spaces || currentSelection.projects || currentSelection.channels || currentSelection.folders || [];
+        const currentScope: string[] = currentSelection.spaces || currentSelection.projects || currentSelection.channels || currentSelection.folders || currentSelection.recording_ids || currentSelection.google_meet_ids || [];
 
         showToast(`Đang tải danh sách ${scopeLabel}...`, 'info');
         
@@ -762,6 +793,8 @@ export class ConnectorsModule {
             else if (type === 'jira') selection.projects = list;
             else if (type === 'slack') selection.channels = list;
             else if (type === 'file_server') selection.folders = list;
+            else if (type === 'zoom') selection.recording_ids = list;
+            else if (type === 'google_meet') selection.google_meet_ids = list;
 
             try {
                 const res = await authFetch(`${API}/connectors/${type}/instances/${id}/config`, {

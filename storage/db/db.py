@@ -55,6 +55,7 @@ class DocumentORM(Base):
     permissions = Column(ARRAY(String), default=[])
     entities = Column(ARRAY(String), default=[])
     workspace_id = Column(String(255), index=True)
+    summary = Column(Text)
 
 
 class ChunkORM(Base):
@@ -378,6 +379,9 @@ async def create_tables():
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text(
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(255)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS summary TEXT"
         ))
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)"
