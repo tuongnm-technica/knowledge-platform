@@ -12,17 +12,19 @@ export class SearchModule {
     private searchInput: HTMLInputElement | null;
     private searchBtn: HTMLButtonElement | null;
     private resultsContainer: HTMLElement | null;
+    private initialized: boolean = false;
 
     public init(): void {
-        // Initialization if needed
+        if (!this.initialized) {
+            this.initEvents();
+            this.initialized = true;
+        }
     }
 
     constructor(inputId: string, btnId: string, resultsContainerId: string) {
         this.searchInput = document.getElementById(inputId) as HTMLInputElement | null;
         this.searchBtn = document.getElementById(btnId) as HTMLButtonElement | null;
         this.resultsContainer = document.getElementById(resultsContainerId);
-
-        this.initEvents();
     }
 
     private initEvents(): void {
