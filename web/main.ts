@@ -23,6 +23,7 @@ import { WorkflowsModule } from './workflows';
 import { HistoryModule } from './history';
 import { SidebarModule } from './sidebar';
 import { ThemeModule } from './theme';
+import { ModelsModule } from './models_page';
 
 // --- Initialization ---
 
@@ -45,6 +46,7 @@ const adminModule = new AdminModule();
 const promptsModule = new PromptsModule();
 const memoryModule = new MemoryModule();
 const workflowModule = new WorkflowsModule();
+const modelsModule = new ModelsModule();
 
 async function initApp() {
     if (appInitialized || isInitializing) return;
@@ -55,11 +57,7 @@ async function initApp() {
     // Check Auth
     if (!AuthModule.isAuthenticated()) {
         console.log('Knowledge Platform: Not authenticated, showing login screen');
-        const loginScreen = document.getElementById('login-screen');
-        const appShell = document.getElementById('app-shell');
-        if (loginScreen) loginScreen.style.display = 'flex';
-        if (appShell) appShell.style.display = 'none';
-        AuthModule.setupLoginForm('loginEmail', 'loginPassword', 'loginError');
+        showLoginScreen();
         isInitializing = false;
         return;
     }
@@ -97,6 +95,13 @@ async function initApp() {
     // Routes
     router
         .on({
+            '/login': () => {
+                if (AuthModule.isAuthenticated()) {
+                    router.navigate('/chat');
+                } else {
+                    showLoginScreen();
+                }
+            },
             '/chat': () => renderPage('chat', () => {
                 chatModule.init();
                 historyModule.loadHistoryPage('chatHistoryList');
@@ -113,6 +118,7 @@ async function initApp() {
             '/memory': () => renderPage('memory', () => memoryModule.init()),
             '/ba-suite': () => renderPage('ba-suite'),
             '/workflows': () => renderPage('workflows', () => workflowModule.init()),
+            '/models': () => renderPage('models', () => modelsModule.init()),
         })
         .resolve();
 
@@ -121,6 +127,14 @@ async function initApp() {
         console.log('Knowledge Platform: No route found, navigating to /chat');
         router.navigate('/chat');
     }
+}
+
+function showLoginScreen() {
+    const loginScreen = document.getElementById('login-screen');
+    const appShell = document.getElementById('app-shell');
+    if (loginScreen) loginScreen.style.display = 'flex';
+    if (appShell) appShell.style.display = 'none';
+    AuthModule.setupLoginForm('loginEmail', 'loginPassword', 'loginError');
 }
 
 function addStepCard(agentName: string, statusText: string, prevAgentName?: string) {
@@ -174,6 +188,7 @@ const PAGE_TITLES: Record<string, string> = {
     memory: 'Project Memory',
     'ba-suite': 'Auto Work - Dashboard',
     workflows: 'AI Workflows',
+    models: 'Quản lý AI Models',
 };
 
 async function renderPage(target: string, initFn?: () => void) {

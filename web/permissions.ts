@@ -24,6 +24,7 @@ export type PageTarget =
     | 'workflows' 
     | 'users' 
     | 'connectors' 
+    | 'models' 
     | 'prompts';
 
 /**
@@ -58,4 +59,4 @@ export function isAllowed(user: User | null, target: string): boolean {
  * List of targets that are strictly reserved for admins.
  * Non-admins can NEVER see these even if they are somehow in their role's list.
  */
-export const ADMIN_ONLY_TARGETS: PageTarget[] = ['users', 'connectors'];
+export const ADMIN_ONLY_TARGETS: PageTarget[] = ['users', 'connectors', 'models'];

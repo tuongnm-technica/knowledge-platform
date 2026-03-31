@@ -7,7 +7,7 @@ log = structlog.get_logger()
 
 class SummarizationService:
     def __init__(self, llm_service: Optional[LLMService] = None):
-        self._llm = llm_service or LLMService()
+        self._llm = llm_service or LLMService(task_type="ingestion_llm")
 
     async def summarize(self, content: str, source_type: SourceType, title: str = "") -> str:
         """

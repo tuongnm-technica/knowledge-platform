@@ -267,3 +267,29 @@ export interface AIWorkflow {
     updated_at?: string;
     updated_by?: string;
 }
+
+// --- LLM Model Management ---
+
+export interface LLMModel {
+    id: string;
+    name: string;
+    provider: 'gemini' | 'openai' | 'ollama' | 'vllm';
+    llm_model_name: string;
+    base_url?: string;
+    api_key?: string;
+    is_active: boolean;
+    is_default: boolean;
+    description?: string;
+    config: Record<string, any>;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export type TaskType = 'chat' | 'ingestion_llm' | 'agent' | 'embedding';
+export type ModelBindings = Record<TaskType, string>;
+
+export interface AskRequest {
+    question: string;
+    session_id?: string;
+    llm_model_id?: string;
+}

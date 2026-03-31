@@ -9,18 +9,33 @@ export class ChatModule {
     private container: HTMLElement | null;
     private input: HTMLInputElement | HTMLTextAreaElement | null;
     private sendBtn: HTMLButtonElement | null;
+    private modelSelector: HTMLSelectElement | null = null;
     private currentSessionId: string | null = null;
+    private initialized: boolean = false;
 
     public init(): void {
-        // No async init needed for now, but following the pattern
+        // Re-bind elements in case of page transition (Navigo doesn't destroy the container usually)
+        this.container = document.getElementById('chatMessages');
+        this.input = document.getElementById('chatInput') as HTMLInputElement | HTMLTextAreaElement | null;
+        this.sendBtn = document.getElementById('sendBtn') as HTMLButtonElement | null;
+        this.modelSelector = document.getElementById('modelSelector') as HTMLSelectElement | null;
+
+        if (!this.initialized) {
+            this.initEvents();
+            this.initialized = true;
+        }
+        
+        this.loadModels();
     }
 
     constructor(containerId: string, inputId: string, sendBtnId: string) {
         this.container = document.getElementById(containerId);
         this.input = document.getElementById(inputId) as HTMLInputElement | HTMLTextAreaElement | null;
         this.sendBtn = document.getElementById(sendBtnId) as HTMLButtonElement | null;
+        this.modelSelector = document.getElementById('modelSelector') as HTMLSelectElement | null;
 
-        this.initEvents();
+        // Note: Global initApp will call init() via router immediately if we are on /chat
+        // No need to call initEvents here.
     }
 
     private initEvents(): void {
@@ -99,6 +114,39 @@ export class ChatModule {
         this.sendMessage();
     }
 
+    private async loadModels(): Promise<void> {
+        if (!this.modelSelector) return;
+        
+        try {
+            const res = await authFetch(`${API}/models`);
+            if (!res.ok) throw new Error('Failed to fetch models');
+            const models = await res.json();
+            
+            this.modelSelector.innerHTML = '';
+            
+            // Add a "Auto" option or Default indicator
+            models.forEach((m: any) => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = `${m.name} (${m.provider})`;
+                if (m.is_default) {
+                    opt.selected = true;
+                    opt.textContent += ' - Default';
+                }
+                this.modelSelector!.appendChild(opt);
+            });
+            
+            if (models.length === 0) {
+                this.modelSelector.innerHTML = '<option value="">No models available</option>';
+            }
+        } catch (err) {
+            console.error('Error loading models:', err);
+            if (this.modelSelector) {
+                this.modelSelector.innerHTML = '<option value="">Lỗi tải models</option>';
+            }
+        }
+    }
+
     private startNewChat(): void {
         this.currentSessionId = null;
         if (this.container) {
@@ -141,10 +189,16 @@ export class ChatModule {
         this.appendThinking(thinkId);
 
         try {
+            const modelId = this.modelSelector?.value || undefined;
+            
             let response = await authFetch(`${API}/ask`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: text, session_id: this.currentSessionId })
+                body: JSON.stringify({ 
+                    question: text, 
+                    session_id: this.currentSessionId,
+                    llm_model_id: modelId
+                })
             });
 
             // Tự động retry nếu session_id hết hạn trên backend

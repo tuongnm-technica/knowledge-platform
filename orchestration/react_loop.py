@@ -78,14 +78,14 @@ class ReActResult:
 
 class ReActLoop:
 
-    def __init__(self, tools: dict[str, BaseTool], max_iterations: int = 5, llm_client: ILLMClient = None):
+    def __init__(self, tools: dict[str, BaseTool], max_iterations: int = 5, llm_client: ILLMClient = None, model_id: Optional[str] = None):
 
         self._tools = tools
         self._max_iterations = max_iterations
         self._cache = SemanticCache()
 
         if llm_client is None:
-            self._llm = LLMService()
+            self._llm = LLMService(model_id=model_id, task_type="agent")
         else:
             self._llm = llm_client
 

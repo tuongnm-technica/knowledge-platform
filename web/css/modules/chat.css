@@ -763,12 +763,50 @@
 /* ── INPUT AREA ── */
 .chat-input-area {
   padding: 24px 32px 32px;
-  background: var(--bg);
-  border-top: 1px solid var(--border-strong);
+  margin-bottom: 20px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  flex-shrink: 0;
+}
+
+.input-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.model-select {
+  padding: 6px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-family-title);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  max-width: 220px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 5 3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+.model-select:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background-color: var(--bg3);
+}
+
+.model-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--glow);
 }
 
 

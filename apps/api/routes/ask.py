@@ -26,6 +26,7 @@ router = APIRouter(prefix="/ask", tags=["ask"])
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=1000)
     session_id: str | None = None
+    llm_model_id: str | None = None
 
 
 class AskJobResponse(BaseModel):
@@ -63,6 +64,7 @@ async def ask(
     """
     question = req.question.strip()
     session_id = req.session_id
+    llm_model_id = req.llm_model_id
     
     # 1. Ensure Chat Session
     if not session_id:
@@ -103,9 +105,10 @@ async def ask(
             current_user.user_id, 
             question, 
             session_id,
+            llm_model_id=llm_model_id, # Truyền llm_model_id vào background job
             _queue_name=settings.ARQ_AI_QUEUE_NAME
         )
-        log.info("ask.job_enqueued", job_id=job_id, user_id=current_user.user_id)
+        log.info("ask.job_enqueued", job_id=job_id, user_id=current_user.user_id, llm_model_id=llm_model_id)
     except Exception as e:
         log.error("ask.enqueue_failed", error=str(e))
         # Optional: update job status to failed in DB if enqueue fails

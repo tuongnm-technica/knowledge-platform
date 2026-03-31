@@ -11,12 +11,12 @@ from models.chat import ChatJob, ChatMessage
 
 log = structlog.get_logger(__name__)
 
-async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question: str, session_id: str | None = None):
+async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question: str, session_id: str | None = None, llm_model_id: str | None = None):
     """
     Background worker task to execute the Agent reasoning loop.
     Updates the ChatJob object in the database as it progresses.
     """
-    log.info("worker.run_agent_job.started", job_id=job_id, user_id=user_id)
+    log.info("worker.run_agent_job.started", job_id=job_id, user_id=user_id, llm_model_id=llm_model_id)
     
     async with AsyncSessionLocal() as session:
         # 1. Update status to 'running'
@@ -104,7 +104,7 @@ async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question
                     )
                     await session_inner.commit()
 
-            agent = Agent(session, user_id)
+            agent = Agent(session, user_id, llm_model_id=llm_model_id)
             result = await agent.ask(question, on_thought=on_thought, on_token=on_token, on_sources=on_sources)
             
             # 4. Save the result

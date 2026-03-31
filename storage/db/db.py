@@ -363,6 +363,33 @@ class SDLCJobORM(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class LLMModelORM(Base):
+    __tablename__ = "llm_models"
+    __table_args__ = {"comment": "Registry for managed LLM models and providers"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    provider = Column(String(50), nullable=False) # gemini, openai, ollama, vllm
+    llm_model_name = Column(String(255), nullable=False) # technical name
+    base_url = Column(Text) # for self-hosted providers
+    api_key = Column(Text) # optional, for remote providers
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_default = Column(Boolean, nullable=False, default=False)
+    description = Column(Text) # Purpose/Usage of this model
+    config = Column(JSON, default={}) # temperature, top_p, etc.
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class ModelBindingORM(Base):
+    __tablename__ = "model_bindings"
+    __table_args__ = {"comment": "Maps specific tasks to specific models (e.g. chat, ingestion, embedding)"}
+
+    task_type = Column(String(50), primary_key=True) # chat, ingestion_llm, agent, embedding
+    model_id = Column(UUID(as_uuid=True), ForeignKey("llm_models.id", ondelete="CASCADE"), nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
@@ -740,6 +767,88 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]'::jsonb"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_plan JSONB NOT NULL DEFAULT '[]'::jsonb"))
         await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS rewritten_query TEXT"))
+
+        # ── LLM Models Migration ──────────────
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS llm_models (
+                id UUID PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                provider VARCHAR(50) NOT NULL,
+                llm_model_name VARCHAR(255) NOT NULL,
+                base_url TEXT,
+                api_key TEXT,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                is_default BOOLEAN NOT NULL DEFAULT FALSE,
+                config JSON NOT NULL DEFAULT '{}'::json,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_llm_models_provider ON llm_models (provider)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_llm_models_is_default ON llm_models (is_default)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS description TEXT"
+        ))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS model_bindings (
+                task_type VARCHAR(50) PRIMARY KEY,
+                model_id UUID NOT NULL REFERENCES llm_models(id) ON DELETE CASCADE,
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+
+    # Seed default LLM models if table is empty
+    async with AsyncSessionLocal() as session:
+        from sqlalchemy import select, func
+        from sqlalchemy import insert
+        result = await session.execute(select(func.count()).select_from(LLMModelORM))
+        count = result.scalar()
+        if count == 0:
+            models_to_seed = [
+                {
+                    "id": uuid.uuid4(),
+                    "name": "Gemini 1.5 Flash (Google)",
+                    "provider": "gemini",
+                    "llm_model_name": "gemini-1.5-flash",
+                    "description": "Model chính cho Chat và Agent (Nhanh & Hiệu quả)",
+                    "api_key": "YOUR_GEMINI_API_KEY", # Placeholder
+                    "is_active": True,
+                    "is_default": True
+                },
+                {
+                    "id": uuid.uuid4(),
+                    "name": "Ollama Default (Qwen 2.5)",
+                    "provider": "ollama",
+                    "llm_model_name": settings.OLLAMA_LLM_MODEL,
+                    "description": "Model chạy nội bộ cho Ingestion và Tóm tắt tài liệu",
+                    "base_url": settings.OLLAMA_BASE_URL,
+                    "is_active": True,
+                    "is_default": False
+                }
+            ]
+            for m in models_to_seed:
+                session.add(LLMModelORM(**m))
+            await session.commit()
+
+            # Also seed default task bindings
+            from sqlalchemy import select
+            res = await session.execute(select(LLMModelORM).where(LLMModelORM.is_default == True).limit(1))
+            default_model = res.scalar_one_or_none()
+            if default_model:
+                bindings = [
+                    {"task_type": "chat", "model_id": default_model.id},
+                    {"task_type": "ingestion_llm", "model_id": default_model.id},
+                    {"task_type": "agent", "model_id": default_model.id},
+                ]
+                for b in bindings:
+                    session.add(ModelBindingORM(**b))
+                await session.commit()
+            
+            structlog.get_logger().info("llm_models.seeded", count=len(models_to_seed))
 
     # Seed default prompts (only inserts rows that don't exist yet)
     async with AsyncSessionLocal() as session:

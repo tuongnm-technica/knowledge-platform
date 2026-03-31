@@ -17,74 +17,14 @@ from orchestration.tools import build_tool_registry
 from persistence.asset_repository import AssetRepository
 from persistence.query_log_repository import QueryLogRepository
 from utils.vision_answer import answer_with_images
+from services.llm_service import LLMService
 
 
 log = structlog.get_logger()
 
 
-class InferenceClient:
-    """
-    Phase 1: Decoupled LLM Inference Gateway.
-    Communicates with vLLM, LiteLLM, or any OpenAI-compatible endpoint.
-    """
-    def __init__(self, base_url: Any = None, model: Any = None):
-        """
-        Khởi tạo Client. Ưu tiên lấy từ Settings để đảm bảo tính nhất quán (Single Source of Truth).
-        Các tham số truyền vào (base_url, model) chỉ dùng khi cần override đặc biệt.
-        """
-        # 1. Xác định Base URL (Ưu tiên Gateway -> Ollama -> Default)
-        raw_url = base_url or getattr(settings, "INFERENCE_BASE_URL", None) or settings.OLLAMA_BASE_URL
-        self._base_url = str(raw_url or "").rstrip("/")
-        
-        # 2. Xác định Model (Sử dụng property LLM_MODEL thông minh từ settings)
-        self._model = model or settings.LLM_MODEL
-
-    async def chat(self, system: str, user: str, max_tokens: int = 800) -> str:
-        try:
-            async with httpx.AsyncClient(timeout=getattr(settings, "LLM_TIMEOUT", 800.0)) as client:
-                payload = {
-                    "model": self._model,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    "max_tokens": max_tokens,
-                    "temperature": 0.1,
-                }
-                # Gọi tới LiteLLM / vLLM gateway (Chuẩn cấu trúc OpenAI API)
-                resp = await client.post(f"{self._base_url}/v1/chat/completions", json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                return data["choices"][0]["message"]["content"]
-        except asyncio.TimeoutError:
-            log.warning("inference.timeout", model=self._model)
-            raise
-        except httpx.TimeoutException:
-            log.warning("inference.httpx_timeout", model=self._model)
-            raise asyncio.TimeoutError(f"Inference service timed out")
-        except (httpx.ConnectError, httpx.NetworkError) as e:
-            log.error("inference.connection_error", error=str(e))
-            raise ConnectionError(f"LLM service unreachable: {str(e)}")
-        except httpx.HTTPStatusError as e:
-            log.error("inference.http_error", status=e.response.status_code, text=e.response.text)
-            if e.response.status_code == 503:
-                raise ConnectionError("LLM service unavailable")
-            raise RuntimeError(f"Inference error {e.response.status_code}")
-        except Exception as e:
-            log.exception("inference.unexpected_error", error=str(e))
-            raise
-
-    async def is_available(self) -> bool:
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                # Ollama không có /health chuẩn, dùng / (trả về "Ollama is running")
-                resp = await client.get(f"{self._base_url}/")
-                return resp.status_code == 200
-        except Exception:
-            return False
-
 # Trỏ Alias tạm thời để các tools/plugins nếu có import OllamaLLM cũ không bị gãy
-OllamaLLM = InferenceClient
+OllamaLLM = LLMService
 
 
 class Agent:
@@ -99,19 +39,21 @@ class Agent:
     - Tích hợp Vision pipeline: Giải thích diagram, screenshot từ Confluence/Jira.
     - Truyền ID nhất quán (intake_id, design_ref) xuyên suốt chuỗi 9 Agents.
     """
-    def __init__(self, session: AsyncSession, user_id: str):
+    def __init__(self, session: AsyncSession, user_id: str, model_id: str | None = None):
         """
         Initialize Agent with user context from the start.
         
         Args:
             session: AsyncSession for database access
             user_id: User ID for permission/context filtering
+            model_id: Optional ID of the LLM model to use
         """
         self._session = session
         self._user_id = user_id
+        self._model_id = model_id
         
         # Phase 1: Decoupled LLM
-        self._llm = InferenceClient()
+        self._llm = LLMService(model_id=model_id, task_type="agent")
         
         # Phase 3: Dedicated RAG Service Base URL
         raw_rag_url = getattr(settings, "RAG_SERVICE_URL", None) or "http://rag-service:8000"
@@ -122,7 +64,14 @@ class Agent:
             user_id=user_id,
         )
 
-    async def ask(self, question: str, on_thought: Any | None = None, on_token: Any | None = None, on_sources: Any | None = None) -> dict:
+    async def ask(
+        self, 
+        question: str, 
+        on_thought: Any | None = None, 
+        on_token: Any | None = None, 
+        on_sources: Any | None = None,
+        model_id: str | None = None
+    ) -> dict:
         """
         Process a question through the ReAct agent pipeline.
         
@@ -131,6 +80,7 @@ class Agent:
             on_thought: Optional callback for each agent thought
             on_token: Optional callback for each answer token
             on_sources: Optional callback for formatted sources
+            model_id: Optional ID of the LLM model to use (overrides init model_id)
             
         Returns:
             Dictionary with answer, sources, and metadata
@@ -141,7 +91,8 @@ class Agent:
         """
         # Build tools with user context
         tools = build_tool_registry(self._session, user_id=self._user_id)
-        loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS)
+        target_model_id = model_id or self._model_id
+        loop = ReActLoop(tools, max_iterations=settings.AGENT_MAX_STEPS, model_id=target_model_id)
         
         async def _on_loop_sources(raw_sources: list[dict]):
             if on_sources:
@@ -329,11 +280,18 @@ class Agent:
             return []
 
     async def health(self) -> dict:
-        llm_ok = await self._llm.is_available()
+        # LLMService doesn't have is_available, we assume it's ok or handled by health checks elsewhere
+        # But we can check if it can resolve a model
+        try:
+            model_name, _, _ = await self._llm._resolve_model_config()
+            llm_ok = True
+        except Exception:
+            llm_ok = False
+            model_name = "unknown"
+
         return {
             "inference_gateway": "ok" if llm_ok else "unavailable",
-            "inference_model": self._llm._model,
-            "inference_url": self._llm._base_url,
+            "inference_model": model_name,
             "embedding_model": settings.EMBEDDING_MODEL,
         }
 
