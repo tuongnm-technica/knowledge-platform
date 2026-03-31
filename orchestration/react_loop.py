@@ -28,6 +28,7 @@ from prompts.agent_prompt import (
     PLAN_SYSTEM,
     SUMMARIZE_SYSTEM,
 )
+from prompts.meeting_synthesis_prompt import MEETING_SYNTHESIS_SYSTEM
 
 log = structlog.get_logger()
 
@@ -329,7 +330,7 @@ class ReActLoop:
             graph_rels=graph_rels,
         )
 
-        answer = await self._summarize(question, cited_context, target_language=target_lang, on_token=on_token)
+        answer = await self._summarize(question, cited_context, target_language=target_lang, on_token=on_token, sources=sources)
 
         # Parse citations khỏi answer: [SRC-1], [SRC-2]...
         cited_ids: set[int] = set()
@@ -700,7 +701,7 @@ class ReActLoop:
             log.warning("agent.history_summarize.failed", error=str(e))
             return history_text
 
-    async def _summarize(self, question: str, context: str, target_language: str = "Vietnamese", on_token: Any | None = None) -> str:
+    async def _summarize(self, question: str, context: str, target_language: str = "Vietnamese", on_token: Any | None = None, sources: list[dict] = None) -> str:
  
         if not context.strip():
             return "Không tìm thấy dữ liệu liên quan." if target_language == "Vietnamese" else "No relevant data found."
@@ -719,9 +720,14 @@ If the question is in Vietnamese, you MUST answer in Vietnamese even if the cont
 """
 
         try:
+            # Switch to meeting synthesis prompt if applicable
+            system_prompt = SUMMARIZE_SYSTEM
+            if sources and self._is_meeting_synthesis_query(question, sources):
+                system_prompt = MEETING_SYNTHESIS_SYSTEM
+                log.info("agent.mode.meeting_synthesis")
 
             result = await self._llm.chat(
-                SUMMARIZE_SYSTEM,
+                system_prompt,
                 prompt,
                 max_tokens=4096,
                 on_token=on_token,
@@ -737,6 +743,22 @@ If the question is in Vietnamese, you MUST answer in Vietnamese even if the cont
             log.error("summarizer.failed", error=str(e))
 
             return "Không thể tổng hợp kết quả."
+
+    def _is_meeting_synthesis_query(self, question: str, sources: list[dict]) -> bool:
+        """
+        Detect if the user wants to synthesize information across multiple meetings.
+        Criteria:
+        1. Context has at least 2 meeting sources (Zoom/Google Meet).
+        2. Query contains synthesis keywords.
+        """
+        meeting_keywords = ["tổng hợp", "hợp nhất", "tất cả", "chuỗi", "meeting", "cuộc họp", "buổi họp", "synthesis", "aggregate", "consolidate"]
+        q_lower = question.lower()
+        has_keyword = any(kw in q_lower for kw in meeting_keywords)
+        
+        meeting_sources = [s for s in sources if str(s.get("source") or "").lower() in ("zoom", "google_meet")]
+        has_meetings = len(meeting_sources) >= 1 # Even 1 meeting can benefit from the specialized prompt structure
+        
+        return has_keyword and has_meetings
 
 
 def _group_parallel(plan: list[PlanStep]) -> list[list[PlanStep]]:

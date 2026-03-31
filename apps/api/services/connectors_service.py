@@ -4,7 +4,7 @@ import asyncio
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import perf_counter
 from typing import Any
 
@@ -756,15 +756,15 @@ def _build_connector(connector_type: str, inst: dict[str, Any], selection: dict[
     if connector_type == "zoom":
         recording_ids = set((selection or {}).get("recording_ids") or []) or None
         return ZoomConnector(
-            account_id=username,
-            client_id=str(extra.get("client_id") or "").strip(),
-            client_secret=secret,
+            account_id=username or settings.ZOOM_ACCOUNT_ID,
+            client_id=str(extra.get("client_id") or settings.ZOOM_CLIENT_ID or "").strip(),
+            client_secret=secret or settings.ZOOM_CLIENT_SECRET,
             recording_ids=recording_ids
         )
     if connector_type == "google_meet":
         folders = set((selection or {}).get("folders") or []) or None
         return GoogleMeetConnector(
-            service_account_json=secret,
+            service_account_json=secret or settings.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON,
             folder_name=str(extra.get("folder_name") or "").strip() or "Meeting Recordings"
         )
     raise HTTPException(status_code=400, detail=f"Unsupported connector type: {connector_type}")
@@ -1143,6 +1143,27 @@ async def discover_connector_scopes(session: AsyncSession, connector_type: str, 
         )
         folders = await asyncio.to_thread(client.list_top_folders, base_path)
         items = [{"name": f} for f in folders]
+        return {"connector": connector_type, "items": items}
+
+    if connector_type == "zoom":
+        extra = inst.get("extra") or {}
+        client = ZoomClient(
+            account_id=inst.get("username"),
+            client_id=str(extra.get("client_id") or "").strip(),
+            client_secret=inst.get("secret"),
+        )
+        # List recordings from the last 30 days
+        from_date = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+        
+        meetings = await client.list_recordings(from_date=from_date)
+        items = [
+            {
+                "id": str(m.get("id", "")), 
+                "name": f"{m.get('topic', 'Untitled Meeting')} ({m.get('start_time', '')[:10]})"
+            } 
+            for m in meetings 
+            if m.get("id")
+        ]
         return {"connector": connector_type, "items": items}
 
     return {"connector": connector_type, "items": []}

@@ -515,6 +515,9 @@ export class ConnectorsModule {
                 const { wrap: clientIdWrap } = _kpBuildModalField({ id: 'connClientId', label: 'Client ID', placeholder: 'Zoom OAuth Client ID', required: true });
                 const { wrap: secretWrap } = _kpBuildModalField({ id: 'connSecret', label: 'Client Secret', type: 'password', placeholder: '••••••••', required: true });
                 dynamicContainer.append(userWrap, clientIdWrap, secretWrap);
+            } else if (type === 'google_meet') {
+                const { wrap: urlWrap } = _kpBuildModalField({ id: 'connUrl', label: 'Target Folder', placeholder: 'Meeting Recordings' });
+                dynamicContainer.append(urlWrap);
             } else if (type !== 'slack') {
                 const { wrap: urlWrap } = _kpBuildModalField({ id: 'connUrl', label: 'Base URL', placeholder: 'https://domain.atlassian.net' });
                 dynamicContainer.append(urlWrap);
@@ -632,6 +635,11 @@ export class ConnectorsModule {
             const { wrap: shareWrap } = _kpBuildModalField({ id: 'editShare', label: 'Share Name', value: ex.share || '' });
             const { wrap: pathWrap } = _kpBuildModalField({ id: 'editPath', label: 'Base Path', value: ex.base_path || '' });
             body.append(hostWrap, shareWrap, pathWrap);
+        } else if (type === 'zoom') {
+            const ex = inst.config.extra || {};
+            const { wrap: userWrap } = _kpBuildModalField({ id: 'editUser', label: 'Account ID', value: inst.config.username || '', required: true });
+            const { wrap: clientIdWrap } = _kpBuildModalField({ id: 'editClientId', label: 'Client ID', value: ex.client_id || '', required: true });
+            body.append(userWrap, clientIdWrap);
         } else if (type === 'google_meet') {
             const ex = inst.config.extra || {};
             const { wrap: folderWrap } = _kpBuildModalField({ id: 'editUrl', label: 'Target Folder', value: ex.folder_name || 'Meeting Recordings' });
@@ -645,13 +653,17 @@ export class ConnectorsModule {
             id: 'editAuth', label: 'Auth Type', type: 'select', value: inst.config.auth_type || 'token',
             options: [{ value: 'token', label: 'Token / API Key' }, { value: 'basic', label: 'Username + Password/Token' }]
         });
-        body.append(authWrap);
+        if (type !== 'zoom') {
+            body.append(authWrap);
+        }
 
         const userRow = document.createElement('div');
-        userRow.style.display = inst.config.auth_type === 'basic' ? 'block' : 'none';
+        userRow.style.display = (inst.config.auth_type === 'basic' && type !== 'zoom') ? 'block' : 'none';
         const { wrap: userWrap, input: userInput } = _kpBuildModalField({ id: 'editUser', label: 'Username', value: inst.config.username || '' });
-        userRow.append(userWrap);
-        body.append(userRow);
+        if (type !== 'zoom') {
+            userRow.append(userWrap);
+            body.append(userRow);
+        }
 
         const { wrap: secretWrap } = _kpBuildModalField({
             id: 'editSecret', label: 'Secret Key / Token', type: 'password', placeholder: 'Bỏ trống nếu không đổi'
@@ -669,7 +681,7 @@ export class ConnectorsModule {
             onOk: async () => {
                 const name = (nameInput as HTMLInputElement).value.trim();
                 const auth_type = (authInput as HTMLSelectElement).value;
-                const username = (userInput as HTMLInputElement).value.trim();
+                let username = (userInput as HTMLInputElement).value.trim();
                 const secret = (body.querySelector('#editSecret') as HTMLInputElement).value.trim();
 
                 let base_url = inst.base_url;
@@ -681,6 +693,11 @@ export class ConnectorsModule {
                     const path = (body.querySelector('#editPath') as HTMLInputElement).value.trim();
                     base_url = `\\\\${host}\\${share}`;
                     extra = { ...extra, host, share, base_path: path };
+                } else if (type === 'zoom') {
+                    const account_id = (body.querySelector('#editUser') as HTMLInputElement).value.trim();
+                    const client_id = (body.querySelector('#editClientId') as HTMLInputElement).value.trim();
+                    username = account_id;
+                    extra = { ...extra, client_id };
                 } else if (type === 'google_meet') {
                     const folder = (body.querySelector('#editUrl') as HTMLInputElement)?.value.trim() || 'Meeting Recordings';
                     extra = { ...extra, folder_name: folder };

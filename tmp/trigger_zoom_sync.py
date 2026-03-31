@@ -17,7 +17,8 @@ async def sync():
             print("Error: Zoom instance not found. Please configure it first.")
             return
         
-        instance_id = row[0]
+        # FIX: Chuyển UUID sang string để tránh lỗi asyncpg DataError
+        instance_id = str(row[0])
         print(f"Starting sync for Zoom instance: {instance_id}")
 
         # 2. Build connector

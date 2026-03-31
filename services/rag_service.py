@@ -210,6 +210,17 @@ class RAGService:
                             content = "\n".join([c["content"] for c in neighbors])
                 except Exception:
                     pass
+
+            # NEW: Nếu là cuộc họp, hãy cố gắng lấy thêm SUMMARY nếu chưa có trong content
+            if meta.get("source") in ("zoom", "google_meet") and "[SUMMARY]" not in content:
+                try:
+                    full_doc = doc_meta.get(doc_id, {})
+                    raw_content = full_doc.get("content", "")
+                    m = re.search(r"(\[SUMMARY\].*?\[/SUMMARY\])", raw_content, re.DOTALL)
+                    if m:
+                        content = f"{m.group(1)}\n\n---\n\n{content}"
+                except Exception:
+                    pass
             
             # Formatting (Slack deep link etc)
             url = meta.get("url", "")

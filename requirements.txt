@@ -48,4 +48,3 @@ aiohttp
 
 langgraph
 langchain-ollama
-httpx

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import structlog
 from typing import List, Optional, Set
 
@@ -46,7 +46,7 @@ class ZoomConnector(BaseConnector):
         documents = []
         
         # 1. Lấy danh sách meetings có recordings (mặc định lấy 30 ngày gần nhất)
-        from_date = (datetime.utcnow() - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+        from_date = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
         meetings = await self._client.list_recordings(from_date=from_date)
         
         log.info("zoom.fetch.start", meeting_count=len(meetings))
@@ -59,6 +59,7 @@ class ZoomConnector(BaseConnector):
             
             # Lọc nếu có danh sách ID cụ thể
             if self._recording_ids and str(meeting_id) not in self._recording_ids:
+                log.debug("zoom.skip.filtered", meeting_id=meeting_id, topic=topic)
                 continue
                 
             try:

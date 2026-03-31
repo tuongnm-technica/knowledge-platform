@@ -1,3 +1,4 @@
+import re
 import json
 import structlog
 from datetime import datetime
@@ -48,8 +49,6 @@ async def run_doc_drafting_job(
                     max_tokens=8192
                 )
                 
-                # We need the helper functions from routes/docs.py or recreate them
-                # For simplicity, let's assume we can import them or just do basic parsing
                 content, structured_data = _parse_llm_response_local(raw_content)
                 
                 if structured_data:
@@ -75,33 +74,53 @@ async def run_doc_drafting_job(
         log.info("worker.doc_drafting.completed", draft_id=draft_id)
 
 def _parse_llm_response_local(text: str) -> tuple[str, dict]:
-    import re
-    import json
-    pattern = re.compile(r"<json>(.*?)</json>", re.DOTALL)
-    match = pattern.search(text)
+    text = text or ""
     structured_data = {}
+    
+    match = re.search(r"<json>\s*(.*?)\s*</json>", text, re.DOTALL | re.IGNORECASE)
     if match:
+        json_str = match.group(1)
+        # Clean AI markdown formatting
+        json_str = re.sub(r"^```(?:json)?|```$", "", json_str.strip(), flags=re.MULTILINE).strip()
+        
         try:
-            structured_data = json.loads(match.group(1).strip())
-            text = pattern.sub("", text).strip()
+            structured_data = json.loads(json_str)
         except Exception:
             pass
-    return text.strip(), structured_data
+        
+        content = text[:match.start()] + text[match.end():]
+        content = content.strip()
+    else:
+        content = text.strip()
+        
+    return content, structured_data
 
-async def _extract_and_save_memory_local(data: dict, repo: ProjectMemoryRepository, user_id: str):
-    # Simplified version of the one in docs.py
-    for key in ["features", "requirements", "actors", "rules"]:
-        items = data.get(key, [])
-        if not isinstance(items, list): continue
-        for item in items:
-            name = item.get("name") or item.get("title")
-            desc = item.get("description") or item.get("desc") or str(item)
-            if name:
-                await repo.upsert(
-                    category=key,
-                    key=name,
-                    value=desc,
-                    tags=[key],
-                    metadata={"source": "ai_drafting"},
-                    created_by=user_id
-                )
+async def _extract_and_save_memory_local(structured_data: dict, repo: ProjectMemoryRepository, user_id: str):
+    if not structured_data:
+        return
+        
+    # 1. Glossary
+    for item in structured_data.get("glossary", []):
+        if isinstance(item, dict):
+            k = item.get("term")
+            v = item.get("definition")
+            if k and v:
+                await repo.upsert(memory_type="glossary", key=k[:255], content=v[:1000], created_by=user_id)
+                
+    # 2. Stakeholders / Actors
+    stakeholders = structured_data.get("stakeholders") or structured_data.get("actors") or []
+    for item in stakeholders:
+        if isinstance(item, dict):
+            k = item.get("name") or item.get("actor")
+            v = item.get("role") or item.get("description")
+            if k and v:
+                await repo.upsert(memory_type="actor", key=k[:255], content=v[:1000], created_by=user_id)
+
+    # 3. Business Rules
+    rules = structured_data.get("business_rules") or structured_data.get("rules") or []
+    for item in rules:
+        if isinstance(item, dict):
+            k = item.get("id") or item.get("rule")
+            v = item.get("description") or item.get("desc")
+            if k and v:
+                await repo.upsert(memory_type="rule", key=k[:255], content=v[:1000], created_by=user_id)

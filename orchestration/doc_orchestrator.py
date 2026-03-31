@@ -8,11 +8,11 @@ log = structlog.get_logger()
 REVIEWER_SYSTEM_PROMPT = f"""{STRICT_ISOLATION_RULES}
 You are an expert Senior Business Analyst Reviewer.
 Your task is to review the drafted document against the provided User Request and Context.
-Look for:
-1. Missing critical information.
-2. Logical inconsistencies or contradictions.
-3. Poor formatting or unclear language.
-4. Deviations from the specified Project Memory context.
+
+CRITICAL REVIEW RULES:
+1. NO STANDARDS AS INPUT: Do NOT suggest adding modules, rules, or features found in the <STANDARDS_GUIDELINES> (like Auth, Priority, History) if they are not explicitly mentioned in the User Request or context documents. 
+2. CONSISTENCY: Ensure the draft stays 100% faithful to the source material.
+3. ADHERENCE TO FORMAT: Only check if the format matches the requested doc_type.
 
 Output your review as a concise list of actionable feedback points.
 If the draft is excellent and requires no changes, output exactly: "NO CHANGES NEEDED."
@@ -67,15 +67,17 @@ ORIGINAL DRAFT:
 {draft_content}
 =========================================
 
-SENIOR BA REVIEWER FEEDBACK:
+SENIOR BA REVIEWER FEEDBACK (FOR REFINEMENT ONLY):
 =========================================
 {feedback}
 =========================================
 
 TASK: 
 As the Final Editor, please provide the final, refined document. 
-You MUST satisfy the original prompt and incorporate the REVIEWER FEEDBACK.
-CRITICAL: Do not forget to output the required <json> structured data block at the end of your response, as instructed in your system prompt.
+1. You MUST satisfy the original prompt and incorporate the REVIEWER FEEDBACK to correct errors or missing details.
+2. CRITICAL: Do NOT include any 'Reviewer Feedback', 'Feedback Summary', or meta-comments in the final response.
+3. CRITICAL: Output ONLY the refined document content for the final user.
+4. CRITICAL: You MUST output the required <json> structured data block at the end of your response, as instructed in your system prompt.
 """
         final_content = await self.llm.chat(system=system, user=editor_user_prompt, max_tokens=max_tokens)
 

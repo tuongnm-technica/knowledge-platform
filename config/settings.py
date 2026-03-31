@@ -100,8 +100,17 @@ class Settings(BaseSettings):
     DEFAULT_WORKSPACE: str = "ws_general"
     CONFLUENCE_WORKSPACE_MAP: str = ""
     JIRA_WORKSPACE_MAP: str = ""
-    SLACK_WORKSPACE_MAP: str = ""
     SMB_WORKSPACE_MAP: str = ""
+    SLACK_WORKSPACE_MAP: str = ""
+
+    # ── Zoom Connector ──
+    ZOOM_ACCOUNT_ID: Optional[str] = None
+    ZOOM_CLIENT_ID: Optional[str] = None
+    ZOOM_CLIENT_SECRET: Optional[str] = None
+
+    # ── Google Meet / Drive Connector ──
+    GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: Optional[str] = "config/google_service_account.json"
+    GOOGLE_MEET_FOLDER_ID: Optional[str] = None
 
     JWT_SECRET: str = "change-me-in-production"
     JWT_EXPIRE_MINUTES: int = 60

@@ -187,8 +187,8 @@ SKILL_DOC_TYPE_GROUPS: dict[str, list[str]] = {
 
 PROMPT_EXTENSIONS: dict[str, str] = {
     "api_spec": "Tạo API Specification: endpoints, params, request/response JSON examples, error model (RFC 7807), status codes.\n",
-    "requirements_intake": "Tạo Requirements Intake: danh sách BR/FR/NFR atomic & testable + assumptions/constraints + open questions.\n",
-    "requirement_review": "Review requirement: tìm gaps/conflicts. Nếu dữ liệu thiếu, hãy SUY LUẬN và đưa ra các câu hỏi trọng tâm (Proactive Questioning) để giúp stakeholder hoàn thiện nghiệp vụ. Nêu verdict (BLOCK/WARN/OK).\n",
+    "requirements_intake": "Tạo Requirements Intake: trích xuất danh sách BR/FR/NFR nguyên tử (atomic) từ đầu vào. Nếu dữ liệu thiếu, hãy điền 'TBD' và gợi ý các câu hỏi làm rõ. TUYỆT ĐỐI KHÔNG tự sáng tác nghiệp vụ (No Hallucination).\n",
+    "requirement_review": "Review requirement: Tìm lỗi logic và mâu thuẫn (Gaps/Conflicts/Risks). Trong phần này, bạn ĐƯỢC PHÉP đưa ra nhận xét (Feedback) và đánh giá Vergeict (BLOCK/WARN/OK). Lưu ý: Chỉ thực hiện Review khi doc_type là 'requirement_review'.\n",
     "solution_design": "Tạo Solution Design: architecture overview, ADRs (decision + rationale), data model high-level, integration points, non-functional considerations.\n",
     "fe_spec": "Tạo FE Technical Spec: component tree, component contracts, UI state matrix, validation UX behavior, error boundary, a11y (WCAG 2.1 AA), performance budget.\n",
     "qa_test_spec": "Tạo QA Test Spec: consistency checks (BLOCK/WARN), test cases theo level (Unit/Integration/E2E/UAT) + owner + test data; security tests map OWASP Top 10 (2021); UAT exit criteria.\n",
@@ -330,29 +330,27 @@ def get_expert_knowledge(doc_type: str) -> str:
         return ""
         
     return (
-        "\n\n## <STANDARDS_GUIDELINES>\n"
-        "### [DÀNH CHO BA: TIÊU CHUẨN ĐỊNH DẠNG & CHẤT LƯỢNG - KHÔNG DÙNG LÀM INPUT NGHIỆP VỤ]\n"
+        "\n\n--- BEGIN EXPERT STANDARDS (FOR FORMATTING & QUALITY ONLY) ---\n"
+        "## <STANDARDS_GUIDELINES>\n"
+        "### [QUY ĐỊNH CỦA HỆ THỐNG - KHÔNG PHẢI NGHIỆP VỤ CỦA KHÁCH HÀNG]\n"
         "Sử dụng các tiêu chuẩn sau đây CHỈ để định hướng cấu trúc, văn phong và kiểm soát chất lượng.\n"
-        "CẢNH BÁO: TUYỆT ĐỐI KHÔNG lấy các tên module, ví dụ hoặc quy tắc trong phần này (ví dụ: RAG, ATRS, AI Workflows) "
-        "để áp dụng vào nội dung yêu cầu của khách hàng trừ khi chúng có sẵn trong dữ liệu đầu vào.\n\n"
+        "CẢNH BÁO TỐI CAO: TUYỆT ĐỐI KHÔNG lấy các ví dụ (như ATRS, RAG, AI, Auth) "
+        "để áp dụng vào nội dung yêu cầu của khách hàng. Hãy coi chúng là 'giả định' chỉ dành cho việc minh họa template.\n\n"
         + "\n\n".join(knowledge_blocks)
         + "\n</STANDARDS_GUIDELINES>\n"
+        "--- END EXPERT STANDARDS ---\n\n"
     )
 
 
 STRICT_ISOLATION_RULES = """
-STRICT CONTEXT ISOLATION & MULTI-SOURCE REASONING RULES:
-1. NEVER invent business rules out of thin air. If info is missing, write 'TBD' and proactively suggest 2-3 targeted questions to the stakeholder.
-2. DO NOT copy or hallucinate content from the 'STANDARDS_GUIDELINES' section. Those are for formatting and quality only.
-3. MULTI-SOURCE SYNTHESIS: You will receive grouped Context Blocks from multiple sources. You MUST synthesize, cross-reference, and reconstruct the exact workflow and facts by aggregating these disparate sources.
-4. STRUCTURED REASONING MANDATE: When processing the sources, you must logically trace:
-   - Source A Analysis: [Key facts from Source A]
-   - Source B Analysis: [Key facts from Source B]
-   - Cross-Analysis: [Identify conflicts, gaps, or complementary facts]
-   - Reconstructed Truth: [The logically deduced final state/workflow]
-   You must establish this chain of reasoning to avoid bias towards a single source before outputting the final requirement sections.
-5. Your role is strictly to analyze the <USER_REQUEST> and <SELECTED_SOURCES>.
-6. IF THE INPUT IS EMPTY OR UNCLEAR: Do not fail. Instead, provide a skeletal framework of the document with 'TBD' placeholders and a dedicated 'CÂU HỎI LÀM RÕ'.
+STRICT CONTEXT ISOLATION & PERSONA RULES:
+1. NO FABRICATION: Never invent business rules, functional details, or technical specs. If a field lacks input, write 'TBD' and add a question in 'Clarification Questions'.
+2. STANDARDS ARE NOT INPUTS: Documents in <STANDARDS_GUIDELINES> are ONLY for formatting. If they mention 'ATRS' or 'RAG' and your input does NOT, you must NOT mention them.
+3. PERSONA LOCK: 
+   - If doc_type is NOT 'requirement_review', do NOT provide 'Feedback' or 'Review' comments. Just produce the structured document.
+   - You are a WRITER by default. You only become a REVIEWER when explicitly requested.
+4. MULTI-SOURCE SYNTHESIS: Reconstruct facts only from <USER_REQUEST> and <SELECTED_SOURCES>. If sources conflict, state the conflict clearly using source citations [SRC-N].
+5. IF THE INPUT IS EMPTY: Output only the template structure with all values as 'TBD' + 'Clarification Questions'. Do NOT use template examples to fill the document.
 """
 
 def build_doc_system_prompt(*, doc_type: str, db_prompt: str | None = None) -> str:
