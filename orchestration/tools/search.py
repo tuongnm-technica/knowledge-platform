@@ -33,6 +33,7 @@ class _BaseSearchTool(BaseTool):
         source_filter: str,
         limit: int,
         user_id: str,
+        need_graph: bool = False,
     ) -> ToolResult:
 
         try:
@@ -51,7 +52,8 @@ class _BaseSearchTool(BaseTool):
                 expand=settings.QUERY_EXPANSION_ENABLED,
                 use_rerank=settings.RERANKING_ENABLED,
                 include_context=True,
-                context_window=5
+                context_window=5,
+                need_graph=need_graph
             )
 
             results = response.get("hits", [])
@@ -170,5 +172,5 @@ class GlobalSearchTool(_BaseSearchTool):
         }
     )
 
-    async def run(self, query: str, limit: int = 5, user_id: str = None) -> ToolResult:
-        return await self._do_search(query, "all", limit, user_id)
+    async def run(self, query: str, limit: int = 5, user_id: str = None, need_graph: bool = False) -> ToolResult:
+        return await self._do_search(query, "all", limit, user_id, need_graph=need_graph)

@@ -60,6 +60,7 @@ export interface AskResponse {
     agent_plan: any[];
     used_tools: string[];
     session_id: string | null;
+    query_id?: string | null;
 }
 
 export interface JobStatusResponse {
@@ -79,6 +80,7 @@ export interface ChatMessage {
     agent_plan?: any[];
     sources?: SearchSource[];
     rewritten_query?: string;
+    query_id?: string;
 }
 
 export interface ChatSession {

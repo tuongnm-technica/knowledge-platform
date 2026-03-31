@@ -16,7 +16,7 @@ SOURCE_WEIGHTS = {
 }
 
 class RankingScorer:
-    def score(self, results: list[dict], doc_metadata: dict[str, dict]) -> list[dict]:
+    def score(self, results: list[dict], doc_metadata: dict[str, dict], intent: str = "general") -> list[dict]:
 
         scored = []
 
@@ -38,19 +38,34 @@ class RankingScorer:
             s_rec = max(0.0, min(1.0, s_rec))
             s_pop = popularity_signal(meta.get("click_count", 0))
 
-            final = (
-                (settings.HYBRID_ALPHA or 0.5)      * (s_sem or 0.0) +
-                (settings.BM25_WEIGHT or 0.3)       * (s_kw or 0.0)  +
-                (settings.GRAPH_WEIGHT or 0.2)      * (s_graph or 0.0) +
-                (settings.RECENCY_WEIGHT or 0.1)    * (s_rec or 0.0) +
-                (settings.POPULARITY_WEIGHT or 0.1) * (s_pop or 0.0)
-            )
+            # Hybrid Architecture Fusion Score: 
+            # 0.5 * Vector (Semantic) + 0.3 * Graph + 0.2 * Metadata (Keyword)
+            vector_fusion = float(s_sem or 0.0)
+            graph_fusion = float(s_graph or 0.0)
+            metadata_fusion = float(s_kw or 0.0)
 
-            final *= source_weight
+            # Dynamic Context Scoring based on query intent
+            if intent in ["flow", "dependency", "architecture"]:
+                # High graph dependency
+                w_v, w_g, w_m = 0.4, 0.4, 0.2
+            elif intent == "fact":
+                # Factual lookup
+                w_v, w_g, w_m = 0.7, 0.1, 0.2
+            else:
+                # Default (General)
+                w_v, w_g, w_m = 0.5, 0.3, 0.2
+
+            final = (w_v * vector_fusion) + (w_g * graph_fusion) + (w_m * metadata_fusion)
+            
+            # Add small bumps for recency and popularity
+            final += (0.05 * (s_rec or 0.0)) + (0.05 * (s_pop or 0.0))
+
+            final *= float(source_weight or 1.0)
 
             if query and title:
                 if query.lower() in title.lower():
-                    final *= 1.8
+                    # Additive bonus instead of extreme multiplier (1.8x was too much)
+                    final += 0.15
 
             item["final_score"] = round(final, 4)
 

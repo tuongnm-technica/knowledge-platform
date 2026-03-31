@@ -49,6 +49,7 @@ MANDATORY RULES:
    - Even if the context is in English, translate the information to Vietnamese in your response.
 5. TONE: Professional, clear, and well-structured.
 6. KNOWLEDGE GRAPH: Use the ### KNOWLEDGE GRAPH section to explain dependencies or related entities. Mention these explicitly if they help answer the question.
+7. PROJECT MEMORY (ANTI-OVERTRUST): Nếu có phần ### PROJECT MEMORY, hãy coi đó là cấu hình/định nghĩa mặc định (Reference). Nếu Document Context (do RAG trả về) có thông tin mới hơn hoặc mâu thuẫn với Project Memory, BẮT BUỘC ƯU TIÊN Document Context và nêu rõ sự khác biệt.
 
 The CONTEXT provided contains snippets prefixed with [SRC-N].
 """

@@ -20,7 +20,16 @@ from retrieval.reranker import rerank
 from storage.vector.vector_store import VectorStore, recreate_collection
 from persistence.asset_repository import AssetRepository
 
-log = structlog.get_logger(__name__)
+log = structlog.get_logger()
+
+# Scopes for Graph Relation weights (Lỗi #3: Source Trust Fix)
+RELATION_TYPE_SCORES = {
+    "depends_on": 1.0,
+    "part_of": 0.9,
+    "causes": 0.8,
+    "triggers": 0.8,
+    "implements": 0.9,
+}
 
 class RAGService:
     """
@@ -68,7 +77,9 @@ class RAGService:
         expand: bool = False,
         use_rerank: bool = False,
         include_context: bool = False,
-        context_window: int = 3
+        context_window: int = 3,
+        need_graph: bool = False,
+        intent: str = "general"
     ) -> Dict[str, Any]:
         """ 
         Advanced search for Agent Tools. 
@@ -119,7 +130,7 @@ class RAGService:
         # Discover related documents through graph entities
         graph_doc_ids = []
         neighbor_relationships = []
-        if getattr(settings, "GRAPH_AUGMENTATION_ENABLED", True):
+        if need_graph and getattr(settings, "GRAPH_AUGMENTATION_ENABLED", True):
             try:
                 # Use entities from top results as seeds for graph traversal
                 seed_doc_ids = list({str(h["document_id"]) for h in unique_hits[:10]})
@@ -130,20 +141,47 @@ class RAGService:
                     seed_entities.update(meta.get("entities") or [])
                 
                 if seed_entities:
-                    # Hop 1: Related entities with strong connections (weight >= 2)
-                    tasks = [self._graph.find_related_entities(ent, min_weight=2, limit=5) for ent in list(seed_entities)[:15]]
+                    allowed_relations = list(RELATION_TYPE_SCORES.keys())
+                    # Ngân sách Expansion: Giới hạn tối đa 5 seed entities (Lỗi #4: Expansion Budget)
+                    max_entities = 5
+                    tasks = [self._graph.find_related_entities(ent, min_weight=2, limit=3, allowed_relations=allowed_relations) for ent in list(seed_entities)[:max_entities]]
                     neighbor_results = await asyncio.gather(*tasks)
                     
-                    # Track relationships for prompt construction
-                    for i, seeds in enumerate(list(seed_entities)[:15]):
-                        for neighbor in neighbor_results[i]:
-                            neighbor_relationships.append(f"({seeds}) --[related]--> ({neighbor})")
+                    # Track relationships for prompt construction and store weights for scoring
+                    neighbor_entity_weights = {} # entity_name -> max_calculated_score
+                    used_edges = [] # list[relation_id]
+                    for i, seed in enumerate(list(seed_entities)[:max_entities]):
+                        for name, weight, rel_id in neighbor_results[i]:
+                            # In current Hop 1: hop_distance = 1
+                            # graph_score = weight * relation_type_score / hop_distance
+                            rel_type = "related" # Standard label for context
+                            type_score = 0.5 # Default if unknown
+                            # We don't have rel_type here easily from find_related_entities yet, 
+                            # but we can improve find_related_entities later if needed.
+                            # For now use the weight directly normalized.
+                            score = (weight * type_score) / 1.0
+                            neighbor_entity_weights[name] = max(neighbor_entity_weights.get(name, 0), score)
+                            neighbor_relationships.append(f"({seed}) --[related]--> ({name})")
+                            if rel_id:
+                                used_edges.append(rel_id)
 
-                    neighbor_entities = list(set([ent for sublist in neighbor_results for ent in sublist]))
+                    neighbor_entities = list(neighbor_entity_weights.keys())
                     
                     if neighbor_entities:
-                        # Hop 2: Documents for these neighbor entities
-                        graph_doc_ids = await self._graph.find_related_documents(neighbor_entities, limit=10)
+                        # Hop 2: Documents for these neighbor entities (Budget: max 5 docs)
+                        max_docs = 5
+                        graph_doc_ids = await self._graph.find_related_documents(neighbor_entities, limit=max_docs)
+                        
+                        # Pre-map doc_id to its graph score contribution from entities
+                        # A doc can be related to multiple neighbor entities, take the best one.
+                        self._doc_graph_scores = {}
+                        for ent_name in neighbor_entities:
+                            ent_score = neighbor_entity_weights[ent_name]
+                            # Find all docs connected to this entity
+                            docs = await self._graph.find_related_documents([ent_name], limit=10)
+                            for d_id in docs:
+                                self._doc_graph_scores[str(d_id)] = max(self._doc_graph_scores.get(str(d_id), 0), ent_score)
+
                         log.info("rag_service.graph_augmentation", seed_entities=len(seed_entities), neighbors=len(neighbor_entities), found_docs=len(graph_doc_ids))
             except Exception as e:
                 log.warning("rag_service.graph_augmentation.failed", error=str(e))
@@ -158,13 +196,15 @@ class RAGService:
             supplemented = self._supplement_graph_results(graph_doc_ids, unique_hits, doc_meta, query_text)
             unique_hits.extend(supplemented)
         
+        # 6. Initial Scoring & Fusion (Dynamic Scoring based on Intent)
+        # Apply the granular graph scores to all hits before scoring
         for h in unique_hits:
-            h["query"] = query_text # for scoring
-            if h.get("graph_score") is None:
-                h["graph_score"] = 0.0
+            d_id = str(h.get("document_id"))
+            # Normalizing to 0-1 range (assuming weight 10-20 is very strong)
+            raw_graph_score = getattr(self, "_doc_graph_scores", {}).get(d_id, 0.0)
+            h["graph_score"] = min(1.0, raw_graph_score / 10.0) 
 
-        # 6. Initial Scoring
-        scored = self._scorer.score(unique_hits, doc_meta)
+        scored = self._scorer.score(unique_hits, doc_meta, intent=intent)
         
         # 7. Reranking (Multi-stage)
         if use_rerank and settings.RERANKING_ENABLED:
@@ -253,7 +293,8 @@ class RAGService:
 
         return {
             "hits": grouped_results,
-            "relationships": list(set(neighbor_relationships))
+            "relationships": list(set(neighbor_relationships)),
+            "used_edges": list(set(used_edges)) if 'used_edges' in locals() else []
         }
 
     def _jsonish(self, value):

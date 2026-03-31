@@ -28,6 +28,7 @@ class ChatMessage(Base):
     sources = Column(JSONB, default=list)
     agent_plan = Column(JSONB, default=list)   # Lưu trữ kế hoạch của agent
     rewritten_query = Column(Text, nullable=True) # Lưu trữ query đã được rewrite
+    query_id = Column(String(36), nullable=True)    # Link to QueryLog for feedback reinforcing
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     session = relationship("ChatSession", back_populates="messages")

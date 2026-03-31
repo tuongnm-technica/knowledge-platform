@@ -49,6 +49,47 @@ async def get_session_details(
             "sources": m.sources, 
             "agent_plan": m.agent_plan,
             "rewritten_query": m.rewritten_query,
+            "query_id": m.query_id,
             "created_at": m.created_at.isoformat() if m.created_at else None
         } for m in messages]
     }
+
+@router.put("/sessions/{session_id}")
+async def rename_session(
+    session_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    title = payload.get("title")
+    if not title or not title.strip():
+        raise HTTPException(status_code=400, detail="Tiêu đề không hợp lệ")
+
+    stmt = select(ChatSession).where(ChatSession.id == session_id, ChatSession.user_id == current_user.user_id)
+    session = (await db.execute(stmt)).scalars().first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Phiên chat không tồn tại")
+
+    session.title = title.strip()
+    from datetime import datetime, timezone
+    session.updated_at = datetime.now(timezone.utc)
+    
+    await db.commit()
+    return {"status": "success", "title": session.title}
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    stmt = select(ChatSession).where(ChatSession.id == session_id, ChatSession.user_id == current_user.user_id)
+    session = (await db.execute(stmt)).scalars().first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Phiên chat không tồn tại")
+
+    await db.delete(session)
+    await db.commit()
+    return {"status": "success"}

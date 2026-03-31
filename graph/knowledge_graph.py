@@ -191,27 +191,6 @@ class KnowledgeGraph:
                 doc_entities_to_insert
             )
 
-        # 5. Bulk Insert Entity Relations (tính toán trọng số trong bộ nhớ trước)
-        relation_weights = {}
-        for left_id, right_id in zip(entity_ids, entity_ids[1:]):
-            r_key = (left_id, right_id)
-            relation_weights[r_key] = relation_weights.get(r_key, 0) + 1
-
-        relations_to_upsert = [
-            {"id": str(uuid.uuid4()), "source_id": s, "target_id": t, "weight_inc": w}
-            for (s, t), w in relation_weights.items()
-        ]
-        if relations_to_upsert:
-            await self._session.execute(
-                text("""
-                    INSERT INTO entity_relations (id, source_id, target_id, relation_type, weight)
-                    VALUES (:id, :source_id, :target_id, 'co_occurs', :weight_inc)
-                    ON CONFLICT (source_id, target_id, relation_type) 
-                    DO UPDATE SET weight = entity_relations.weight + EXCLUDED.weight
-                """),
-                relations_to_upsert
-            )
-
         try:
             await self._session.commit()
         except Exception:
@@ -236,6 +215,73 @@ class KnowledgeGraph:
                     "document_id": document_id,
                     "entity_id": entity_id,
                 },
+            )
+
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+
+    async def link_document_semantic_relations(self, document_id: str, relations: list[dict], source: str = "") -> None:
+        """
+        Lưu SPO Triplets từ LLM vào Entity Relations lấy Weight dựa trên Source Trust.
+        """
+        if not relations:
+            return
+
+        source = str(source).lower()
+        trust_factor = 0.3 # Default for slack/chats
+        if source in ("confluence", "srs", "brd"):
+            trust_factor = 1.0
+        elif source in ("jira", "file_server"):
+            trust_factor = 0.7
+        
+        # Base LLM Weight is 5
+        final_weight = max(1, int(5 * trust_factor))
+
+        for rel in relations:
+            subject_name = str(rel.get("subject", "")).strip()
+            predicate = str(rel.get("predicate", "")).strip().lower()
+            object_name = str(rel.get("object", "")).strip()
+
+            if not subject_name or not predicate or not object_name:
+                continue
+
+            # Upsert Subject
+            subject_entity = ExtractedEntity(name=subject_name, entity_type="concept", normalized_name=self._extractor.normalize(subject_name))
+            subject_id = await self.upsert_entity(subject_entity)
+
+            # Upsert Object
+            object_entity = ExtractedEntity(name=object_name, entity_type="concept", normalized_name=self._extractor.normalize(object_name))
+            object_id = await self.upsert_entity(object_entity)
+
+            # Link Document
+            await self._session.execute(
+                text("INSERT INTO document_entities (document_id, entity_id, entity_type) VALUES (:doc_id, :ent_id, 'concept') ON CONFLICT DO NOTHING"),
+                {"doc_id": document_id, "ent_id": subject_id}
+            )
+            await self._session.execute(
+                text("INSERT INTO document_entities (document_id, entity_id, entity_type) VALUES (:doc_id, :ent_id, 'concept') ON CONFLICT DO NOTHING"),
+                {"doc_id": document_id, "ent_id": object_id}
+            )
+
+            # Insert Relation with dynamic weight based on Source Trust
+            rel_id = str(uuid.uuid4())
+            await self._session.execute(
+                text("""
+                    INSERT INTO entity_relations (id, source_id, target_id, relation_type, weight)
+                    VALUES (:id, :source_id, :target_id, :relation_type, :weight)
+                    ON CONFLICT (source_id, target_id, relation_type) 
+                    DO UPDATE SET weight = entity_relations.weight + EXCLUDED.weight
+                """),
+                {
+                    "id": rel_id,
+                    "source_id": subject_id,
+                    "target_id": object_id,
+                    "relation_type": predicate,
+                    "weight": final_weight
+                }
             )
 
         try:
@@ -272,35 +318,41 @@ class KnowledgeGraph:
         )
         return list(result.scalars().all())
 
-    async def find_related_entities(self, entity_name: str, min_weight: int = 1, limit: int = 20) -> list[str]:
+    async def find_related_entities(self, entity_name: str, min_weight: int = 1, limit: int = 20, allowed_relations: list[str] | None = None) -> list[tuple[str, int, str]]:
         normalized_values = self._normalize_candidates([entity_name])
         if not normalized_values:
             return []
 
+        relation_filter = ""
+        params = {"normalized_values": normalized_values, "min_weight": min_weight, "limit": limit}
+        if allowed_relations:
+            relation_filter = "AND relation_type = ANY(:allowed_relations)"
+            params["allowed_relations"] = allowed_relations
+
         # Find entities where this entity is either source or target
         result = await self._session.execute(
-            text("""
+            text(f"""
                 WITH start_nodes AS (
                     SELECT id FROM entities WHERE normalized_name = ANY(:normalized_values)
                     UNION
                     SELECT entity_id FROM entity_aliases WHERE normalized_alias = ANY(:normalized_values)
                 ),
                 peers AS (
-                    SELECT target_id as peer_id, weight FROM entity_relations 
-                    WHERE source_id IN (SELECT id FROM start_nodes) AND weight >= :min_weight
+                    SELECT target_id as peer_id, weight, id as rel_id FROM entity_relations 
+                    WHERE source_id IN (SELECT id FROM start_nodes) AND weight >= :min_weight {relation_filter}
                     UNION
-                    SELECT source_id as peer_id, weight FROM entity_relations 
-                    WHERE target_id IN (SELECT id FROM start_nodes) AND weight >= :min_weight
+                    SELECT source_id as peer_id, weight, id as rel_id FROM entity_relations 
+                    WHERE target_id IN (SELECT id FROM start_nodes) AND weight >= :min_weight {relation_filter}
                 )
-                SELECT DISTINCT e.name, p.weight
+                SELECT DISTINCT e.name, p.weight, p.rel_id::text
                 FROM entities e
                 JOIN peers p ON e.id = p.peer_id
                 ORDER BY p.weight DESC
                 LIMIT :limit
             """),
-            {"normalized_values": normalized_values, "min_weight": min_weight, "limit": limit},
+            params,
         )
-        return [row[0] for row in result.all()]
+        return [(row[0], row[1], row[2]) for row in result.all()]
 
     async def _find_entity_id(self, normalized_name: str, entity_type: str) -> str | None:
         result = await self._session.execute(
@@ -317,6 +369,29 @@ class KnowledgeGraph:
             },
         )
         return result.scalar()
+
+    async def reinforce_relations(self, edge_ids: list[str], factor: int = 1) -> None:
+        """
+        Tăng trọng số các quan hệ đồ thị dựa trên feedback người dùng.
+        (Reinforcement Learning: Positive Feedback -> Weight UP)
+        """
+        if not edge_ids:
+            return
+
+        await self._session.execute(
+            text("""
+                UPDATE entity_relations 
+                SET weight = weight + :factor 
+                WHERE id = ANY(:ids::uuid[])
+            """),
+            {"ids": edge_ids, "factor": factor}
+        )
+        try:
+            await self._session.commit()
+            log.info("graph.reinforce_success", count=len(edge_ids), added=factor)
+        except Exception as e:
+            await self._session.rollback()
+            log.error("graph.reinforce_failed", error=str(e))
 
     async def _find_identity_entity_id(self, identity: ResolvedIdentity) -> str | None:
         alias_values = [alias.normalized_value for alias in identity.aliases]

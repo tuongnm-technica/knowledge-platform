@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     ARQ_AI_JOB_TIMEOUT: int = 1500
     VECTOR_DIM: int = 1024
     
+    @property
+    def LLM_MODEL(self) -> str:
+        """Alias for the current primary LLM model based on provider."""
+        if hasattr(self, "LLM_PROVIDER") and self.LLM_PROVIDER == "ollama":
+            return getattr(self, "OLLAMA_LLM_MODEL", "qwen2.5:14b")
+        return getattr(self, "OLLAMA_LLM_MODEL", "qwen2.5:14b") # Fallback
+    
     # Ingestion batch size: process documents in smaller batches to prevent timeout
     INGESTION_BATCH_SIZE: int = 20  # Tăng kích thước Batch để giảm số lần ghi log Progress vào DB
 

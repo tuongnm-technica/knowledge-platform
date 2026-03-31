@@ -15,6 +15,7 @@ from models.query import SearchQuery, SearchResult
 from orchestration.react_loop import ReActLoop, ReActResult
 from orchestration.tools import build_tool_registry
 from persistence.asset_repository import AssetRepository
+from persistence.query_log_repository import QueryLogRepository
 from utils.vision_answer import answer_with_images
 
 
@@ -26,11 +27,17 @@ class InferenceClient:
     Phase 1: Decoupled LLM Inference Gateway.
     Communicates with vLLM, LiteLLM, or any OpenAI-compatible endpoint.
     """
-    def __init__(self):
-        # Fallback về OLLAMA_BASE_URL để tương thích ngược nếu chưa thiết lập Gateway
-        raw_url = getattr(settings, "INFERENCE_BASE_URL", None) or settings.OLLAMA_BASE_URL
+    def __init__(self, base_url: Any = None, model: Any = None):
+        """
+        Khởi tạo Client. Ưu tiên lấy từ Settings để đảm bảo tính nhất quán (Single Source of Truth).
+        Các tham số truyền vào (base_url, model) chỉ dùng khi cần override đặc biệt.
+        """
+        # 1. Xác định Base URL (Ưu tiên Gateway -> Ollama -> Default)
+        raw_url = base_url or getattr(settings, "INFERENCE_BASE_URL", None) or settings.OLLAMA_BASE_URL
         self._base_url = str(raw_url or "").rstrip("/")
-        self._model = getattr(settings, "INFERENCE_MODEL", getattr(settings, "OLLAMA_LLM_MODEL", "gpt-3.5-turbo"))
+        
+        # 2. Xác định Model (Sử dụng property LLM_MODEL thông minh từ settings)
+        self._model = model or settings.LLM_MODEL
 
     async def chat(self, system: str, user: str, max_tokens: int = 800) -> str:
         try:
@@ -161,6 +168,28 @@ class Agent:
                 error_type=type(e).__name__,
             )
             raise
+        
+        # ── FEEDBACK LOOP: Log Query with Context ──────────────
+        query_id = None
+        try:
+            repo = QueryLogRepository(self._session)
+            # Chúng ta log lại answer và các sources/edges đã dùng để sau này reinforcement
+            query_id = await repo.log_query(
+                user_id=self._user_id,
+                query=question,
+                rewritten_query=result.rewritten_query,
+                answer=result.answer,
+                sources_used=[{
+                    "doc_id": str(s.get("document_id")), 
+                    "chunk_id": str(s.get("chunk_id")),
+                    "score": s.get("score")
+                } for s in result.sources[:10]],
+                edges_used=result.used_edges,
+                result_count=len(result.sources)
+            )
+        except Exception as log_err:
+            log.warning("agent.query_log.failed", error=str(log_err))
+        
         finally:
             try:
                 await loop.close()
@@ -240,6 +269,30 @@ class Agent:
             sources=len(sources),
         )
 
+        # ── SAVE TO DB ──
+        if self._session_id:
+            try:
+                from models.chat import ChatMessage
+                user_msg = ChatMessage(
+                    session_id=self._session_id,
+                    role="user",
+                    content=question,
+                )
+                ai_msg = ChatMessage(
+                    session_id=self._session_id,
+                    role="assistant",
+                    content=result.answer,
+                    sources=result.sources,
+                    agent_plan=[{"step": p.step, "reason": p.reason, "query": p.query} for p in result.plan],
+                    rewritten_query=result.rewritten_query,
+                    query_id=query_id
+                )
+                self._session.add(user_msg)
+                self._session.add(ai_msg)
+                await self._session.commit()
+            except Exception as e:
+                log.warning("agent.save_message.failed", error=str(e))
+
         return {
             "answer": result.answer,
             "sources": sources,
@@ -247,6 +300,7 @@ class Agent:
             "agent_steps": self._format_steps(result.steps),
             "agent_plan": [{"step": p.step, "tool": p.tool, "reason": p.reason} for p in result.plan],
             "used_tools": result.used_tools,
+            "query_id": query_id
         }
 
     async def search(self, query: SearchQuery) -> list[SearchResult]:
@@ -289,17 +343,23 @@ class Agent:
             url = source.get("url") or source.get("document_id", "")
             title = source.get("title")
             if (url or title) and url not in seen:
+                # Use 'final_score' if available from RAG service, else 'score'
+                actual_score = source.get("final_score") or source.get("score") or 0.0
                 seen[url] = {
                     "title": source.get("title", "Untitled"),
                     "url": source.get("url", ""),
                     "source": source.get("source", ""),
-                    "score": round(source.get("score", 0), 3),
+                    "score": round(float(actual_score), 3),
                     "snippet": source.get("content", "")[:150],
                     "document_id": source.get("document_id", ""),
                     "chunk_id": source.get("chunk_id", ""),
                     "assets": source.get("assets") or [],
                 }
-        return list(seen.values())
+        
+        # Sort by score descending to ensure highest matches are shown first
+        final_list = list(seen.values())
+        final_list.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+        return final_list
 
     def _format_steps(self, steps) -> list[dict]:
         return [

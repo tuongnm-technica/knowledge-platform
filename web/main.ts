@@ -9,6 +9,7 @@ import { AuthModule } from './auth';
 import { isAllowed } from './permissions';
 import { ChatModule } from './chat';
 import { SearchModule } from './search';
+import { showToast } from './ui';
 import { DocumentsModule } from './documents';
 import { ConnectorsModule } from './connectors';
 import { GraphModule } from './graph';
@@ -243,7 +244,10 @@ document.addEventListener('click', async (e) => {
         const progressDiv = document.getElementById('sdlc-progress');
         const resultsDiv = document.getElementById('sdlc-results');
         
-        if (!requestText) return alert("Vui lòng nhập yêu cầu nghiệp vụ!");
+        if (!requestText) {
+            showToast("Vui lòng nhập yêu cầu nghiệp vụ!", "warning");
+            return;
+        }
         
         if (progressDiv) progressDiv.innerHTML = "<b>🚀 Đang bắt đầu tác vụ ngầm (Async Work)...</b><br/>";
         if (resultsDiv) resultsDiv.style.display = "none";

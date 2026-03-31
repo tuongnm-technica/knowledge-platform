@@ -72,6 +72,7 @@ class ReActResult:
     steps: list[ReActStep]
     sources: list[dict] = field(default_factory=list)
     used_tools: list[str] = field(default_factory=list)
+    used_edges: list[str] = field(default_factory=list)
     rewritten_query: str = ""
 
 
@@ -141,6 +142,10 @@ class ReActLoop:
             except Exception as e:
                 log.warning("semantic_cache.lookup_failed", error=str(e))
 
+        query_understanding = await self._classify_query(question)
+        need_graph = query_understanding.get("need_graph", False)
+        log.info("agent.query_understanding", intent=query_understanding.get("intent"), need_graph=need_graph)
+
         # ─────────────────────────────
         # Planner (Skip for very simple questions)
         # ─────────────────────────────
@@ -186,6 +191,7 @@ class ReActLoop:
                     source_urls,
                     used_tools,
                     graph_rels,
+                    need_graph=need_graph,
                 )
                 for p in group
             ]
@@ -248,6 +254,7 @@ class ReActLoop:
                     source_urls,
                     used_tools,
                     graph_rels,
+                    need_graph=need_graph,
                 )
                 executed.append(
                     ExecutedStep(
@@ -420,6 +427,7 @@ class ReActLoop:
             steps=react_steps,
             sources=sources,
             used_tools=list(set(used_tools)),
+            used_edges=list(set(graph_rels)),
             rewritten_query=retry_query or question,
         )
 
@@ -532,6 +540,26 @@ class ReActLoop:
         except Exception:
             return {"contradictions": [], "confidence": 0.5}
 
+    async def _classify_query(self, question: str) -> dict:
+        sys_prompt = """
+Bạn là Classifier cho hệ thống AI của doanh nghiệp. Bạn phải phân loại câu hỏi của người dùng để quyết định chiến lược tìm kiếm.
+Trả về định dạng JSON DUY NHẤT: {"intent": "fact | flow | dependency | debugging | general", "entities": ["..."], "need_graph": true/false}
+
+QUY TẮC "need_graph":
+- true KHUYẾN CÁO: NẾU câu hỏi về các quy trình nghiệp vụ (flow), sự phụ thuộc hệ thống (dependency), kiến trúc tổng thể, hoặc luồng đi của dữ liệu.
+- false KHUYẾN CÁO: NẾU câu hỏi tra cứu định nghĩa, fact chung chung, hỏi về nhân sự, dò dẫm lỗi (debugging) một đoạn log/code cụ thể.
+"""
+        import json
+        try:
+            raw = await self._llm.chat(sys_prompt, question, max_tokens=150)
+            import re
+            m = re.search(r"\{.*\}", raw, re.DOTALL)
+            if m:
+                return json.loads(m.group(0))
+            return {"need_graph": False, "intent": "general"}
+        except Exception:
+            return {"need_graph": False, "intent": "general"}
+
     async def _make_plan(self, question: str) -> list[PlanStep]:
 
         try:
@@ -582,6 +610,7 @@ class ReActLoop:
         source_urls: set,
         used_tools: list,
         graph_rels: set,
+        need_graph: bool = False,
     ) -> str:
 
         if tool_name not in self._tools:
@@ -590,9 +619,14 @@ class ReActLoop:
         tool = self._tools[tool_name]
 
         try:
+            import inspect
+            sig = inspect.signature(tool.run)
+            kwargs = {"query": query, "user_id": user_id}
+            if "need_graph" in sig.parameters:
+                kwargs["need_graph"] = need_graph
 
             result: ToolResult = await asyncio.wait_for(
-                tool.run(query=query, user_id=user_id),
+                tool.run(**kwargs),
                 timeout=300,
             )
 

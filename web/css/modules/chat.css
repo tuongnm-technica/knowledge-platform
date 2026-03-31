@@ -393,6 +393,69 @@
   color: var(--accent);
 }
 
+/* ── CHAT FEEDBACK BUTTONS ── */
+.chat-feedback-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    background: var(--bg3);
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    opacity: 0; /* Hidden by default, shown on hover like copy btn */
+}
+
+.chat-message:hover .chat-feedback-group {
+    opacity: 1;
+}
+
+.chat-feedback-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 8px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    color: var(--text-dim);
+}
+
+.chat-feedback-btn:hover {
+    background: var(--bg2);
+    color: var(--text);
+    transform: scale(1.1);
+}
+
+.chat-feedback-btn[data-type="positive"]:hover {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.chat-feedback-btn[data-type="negative"]:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.chat-feedback-btn.active {
+    background: var(--accent);
+    color: white !important;
+    box-shadow: 0 4px 12px var(--glow);
+    pointer-events: none;
+}
+
+.chat-feedback-btn.active[data-type="positive"] {
+    background: #10b981;
+}
+
+.chat-feedback-btn.active[data-type="negative"] {
+    background: #ef4444;
+}
+
 /* ── CONTENT STYLES (Standard Markdown) ── */
 .message-content p, .markdown-body p { margin-bottom: 1em; line-height: 1.6; }
 .message-content p:last-child, .markdown-body p:last-child { margin-bottom: 0; }

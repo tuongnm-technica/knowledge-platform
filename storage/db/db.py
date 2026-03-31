@@ -232,8 +232,13 @@ class QueryLogORM(Base):
     user_id = Column(String(255), index=True)
     query = Column(Text, nullable=False)
     rewritten_query = Column(Text)
+    answer = Column(Text)
+    sources_used = Column(JSON, default=list) # [{doc_id: ..., chunk_id: ..., score: ...}]
+    edges_used = Column(JSON, default=list) # [relation_id_1, relation_id_2, ...]
     result_count = Column(Integer, default=0)
-    created_at = Column(DateTime)
+    feedback = Column(Integer, default=0) # 1: 👍, -1: 👎, 0: none
+    feedback_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class DocumentSummaryORM(Base):
@@ -721,6 +726,20 @@ async def create_tables():
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_sdlc_jobs_status ON sdlc_jobs (status)"
         ))
+        
+        # Query Logs Migration for Feedback Loop
+        await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS answer TEXT"))
+        await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS sources_used JSON NOT NULL DEFAULT '[]'::json"))
+        await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS edges_used JSON NOT NULL DEFAULT '[]'::json"))
+        await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS feedback INTEGER NOT NULL DEFAULT 0"))
+        await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS feedback_at TIMESTAMP"))
+        await conn.execute(text("ALTER TABLE query_logs ALTER COLUMN created_at SET DEFAULT NOW()"))
+        
+        # Chat Messages Migration for Feedback Loop
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS query_id VARCHAR(36)"))
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]'::jsonb"))
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_plan JSONB NOT NULL DEFAULT '[]'::jsonb"))
+        await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS rewritten_query TEXT"))
 
     # Seed default prompts (only inserts rows that don't exist yet)
     async with AsyncSessionLocal() as session:

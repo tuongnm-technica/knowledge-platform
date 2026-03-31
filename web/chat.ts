@@ -35,6 +35,16 @@ export class ChatModule {
             if (target.classList.contains('suggestion-chip')) {
                 this.useSuggestion(target);
             }
+            
+            // Feedback Buttons
+            const feedbackBtn = target.closest('.chat-feedback-btn');
+            if (feedbackBtn) {
+                const queryId = (feedbackBtn as HTMLElement).dataset.queryId;
+                const isPositive = (feedbackBtn as HTMLElement).dataset.type === 'positive';
+                if (queryId) {
+                    this.sendFeedback(feedbackBtn as HTMLElement, queryId, isPositive);
+                }
+            }
         });
 
         if (this.input) {
@@ -328,7 +338,8 @@ export class ChatModule {
             
             const cards = result.sources.map((s: any) => {
                 const sourceName = (s.source || 'document').toLowerCase();
-                const score = s.score ? Math.round(s.score * 100) : 0;
+                let score = s.score ? Math.round(s.score * 100) : 0;
+                if (score > 100) score = 100;
                 return `
                     <a href="${s.url || '#'}" target="_blank" class="source-card">
                         <div class="source-header">
@@ -404,7 +415,8 @@ export class ChatModule {
             if (msg.sources && msg.sources.length > 0) {
                 const cards = msg.sources.map(s => {
                     const sourceName = (s.source || 'document').toLowerCase();
-                    const score = s.score ? Math.round(s.score * 100) : 0;
+                    let score = s.score ? Math.round(s.score * 100) : 0;
+                    if (score > 100) score = 100; // Cap at 100% for cleaner UI
                     
                     return `
                         <a href="${s.url || '#'}" target="_blank" class="source-card">
@@ -440,6 +452,12 @@ export class ChatModule {
                     </div>
                     <div class="chat-msg-footer">
                         <span class="chat-timestamp">${timeStr}</span>
+                        <div class="chat-feedback-group" style="margin-left: auto; display: flex; gap: 4px;">
+                            ${msg.query_id ? `
+                                <button class="chat-feedback-btn" data-query-id="${msg.query_id}" data-type="positive" title="Hữu ích">👍</button>
+                                <button class="chat-feedback-btn" data-query-id="${msg.query_id}" data-type="negative" title="Không hữu ích">👎</button>
+                            ` : ''}
+                        </div>
                         <button class="chat-copy-btn" title="Copy">📋 Copy</button>
                     </div>
                 </div>
@@ -485,5 +503,31 @@ export class ChatModule {
     private setLoading(isLoading: boolean): void {
         if (this.sendBtn) this.sendBtn.disabled = isLoading;
         if (this.input) this.input.disabled = isLoading;
+    }
+    private async sendFeedback(btn: HTMLElement, queryId: string, isPositive: boolean): Promise<void> {
+        // Visual Feedback
+        const group = btn.closest('.chat-feedback-group');
+        if (group) {
+            group.querySelectorAll('.chat-feedback-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            // Disable further clicks for this message
+            (group as HTMLElement).style.pointerEvents = 'none';
+        }
+
+        try {
+            const res = await authFetch(`${API}/feedback/${queryId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_positive: isPositive })
+            });
+            if (!res.ok) throw new Error('Feedback failed');
+            
+            // Show subtle success toast or similar if needed
+            console.log('Feedback submitted successfully');
+        } catch (err) {
+            console.error('Error submitting feedback:', err);
+            btn.classList.remove('active');
+            if (group) (group as HTMLElement).style.pointerEvents = 'auto';
+        }
     }
 }

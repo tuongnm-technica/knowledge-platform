@@ -1,7 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=Syne:wght@700;800&display=swap');
 
-/* --- Component Styles --- */
-@import './components/layout.css';
 @import './components/buttons.css';
 @import './components/forms.css';
 @import './components/login.css';
@@ -110,13 +108,21 @@ body {
   background-color: var(--bg);
   color: var(--text);
   height: 100vh;
-  display: flex;
+  margin: 0;
   overflow: hidden;
-  padding: 16px;
-  gap: 16px;
   background-image: 
     radial-gradient(at 0% 0%, var(--glow) 0px, transparent 50%),
     radial-gradient(at 100% 100%, var(--glow-warm) 0px, transparent 50%);
+}
+
+#app-shell {
+  display: flex !important; /* Force flex when shown */
+  height: 100vh;
+  width: 100vw;
+  padding: 16px;
+  gap: 16px;
+  overflow: hidden;
+  position: relative;
 }
 
 /* ── SIDEBAR ── */

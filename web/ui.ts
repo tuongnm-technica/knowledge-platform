@@ -44,9 +44,16 @@ export function showToast(msg: string, type: 'success' | 'error' | 'warning' | '
     toast.innerHTML = `<span class="toast-icon">${icon}</span> <span class="toast-msg">${msg}</span>`;
     
     container.appendChild(toast);
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0) scale(1)';
+    });
+
     setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transform = 'translateY(-10px) scale(0.95)';
+        toast.style.transform = 'translateY(-20px) scale(0.95)';
         setTimeout(() => toast.remove(), 400);
     }, 4000);
 }
@@ -254,6 +261,14 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
 
     els.overlay.style.display = 'flex';
     document.body.classList.add('kp-modal-open');
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        if (modalEl) {
+            modalEl.style.opacity = '1';
+            modalEl.style.transform = 'translateY(0) scale(1)';
+        }
+    });
 
     setTimeout(() => {
         const first = els.bodyEl.querySelector('input, select, textarea, button') as HTMLElement | null;

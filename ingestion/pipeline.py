@@ -6,6 +6,7 @@ import structlog
 from config.settings import settings
 from connectors.base.base_connector import BaseConnector
 from graph.entity_extractor import EntityExtractor
+from graph.relation_extractor import SemanticRelationExtractor
 from graph.identity_resolver import IdentityResolver
 from graph.document_linker import DocumentLinker
 from graph.knowledge_graph import KnowledgeGraph
@@ -40,6 +41,7 @@ class IngestionPipeline:
         self._cleaner = TextCleaner()
         self._metadata = MetadataExtractor()
         self._entities = EntityExtractor()
+        self._relation_extractor = SemanticRelationExtractor()
         self._identities = IdentityResolver()
         self._vector_index = VectorIndex(session)
         self._keyword_index = KeywordIndex(session)
@@ -240,6 +242,16 @@ class IngestionPipeline:
 
         await self._graph.link_document_identities(doc.id, resolved_identities)
         await self._graph.link_document_entities(doc.id, extracted_entities)
+        
+        # Mới: Sử dụng LLM để trích xuất Semantic Relations và nhét vào DB
+        try:
+            semantic_relations = await self._relation_extractor.extract(f"{doc.title}\n{doc.content}")
+            if semantic_relations:
+                source_val = doc.source.value if hasattr(doc.source, "value") else str(doc.source)
+                await self._graph.link_document_semantic_relations(doc.id, semantic_relations, source=source_val)
+        except Exception as e:
+            log.warning("ingestion.semantic_relations.failed", doc_id=doc.id, error=str(e))
+        
         # Best-effort explicit cross-document links (URLs, Jira keys, SMB paths).
         try:
             await self._linker.upsert_for_document(doc.id, f"{doc.title}\n{doc.content}")
