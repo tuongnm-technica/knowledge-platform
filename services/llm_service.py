@@ -17,9 +17,13 @@ class LLMService:
         self._provider: BaseLLMProvider = get_llm_provider()
         self._model_id = model_id
         self._task_type = task_type
-        # We will resolve the actual model string and config in the chat method 
-        # to ensure we have the latest DB state and handle session properly.
-        self._default_model = settings.OLLAMA_LLM_MODEL
+        # Default model based on task type
+        if task_type == "embedding":
+            self._default_model = settings.OLLAMA_EMBED_MODEL
+        elif task_type == "vision":
+            self._default_model = settings.OLLAMA_VISION_MODEL or "llava-phi3"
+        else:
+            self._default_model = settings.OLLAMA_LLM_MODEL
 
     async def _resolve_model_config(self) -> tuple[str, Dict[str, Any], Optional[str]]:
         """
@@ -56,7 +60,7 @@ class LLMService:
             if model_obj:
                 return model_obj.llm_model_name, model_obj.config or {}, model_obj.api_key
 
-        # 3. Ultimate fallback to settings
+        # 4. Ultimate fallback to settings
         return self._default_model, {}, None
 
     async def chat(self, system: str, user: str, max_tokens: int = 800, on_token: Any = None, **kwargs: Any) -> str:
@@ -100,4 +104,25 @@ class LLMService:
                 raise
             except Exception as e:
                 log.error("llm.error", error=str(e), model=self._model_id or "default")
+                raise
+
+    async def embed(self, input_text: str | List[str], **kwargs: Any) -> List[float] | List[List[float]]:
+        """
+        Gửi request embedding tới LLM Provider hiện tại.
+        """
+        async with self._semaphore:
+            try:
+                # Resolve model name and config dynamically
+                model_name, _, api_key = await self._resolve_model_config()
+                
+                # Override with kwargs if provided
+                target_model = kwargs.get("model") or model_name
+                
+                return await self._provider.embed(
+                    model=target_model,
+                    input=input_text,
+                    timeout=kwargs.get("timeout") or settings.LLM_TIMEOUT * 2
+                )
+            except Exception as e:
+                log.error("llm.embed.error", error=str(e), model=self._model_id or "default")
                 raise

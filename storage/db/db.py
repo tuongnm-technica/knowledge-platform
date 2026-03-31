@@ -375,6 +375,7 @@ class LLMModelORM(Base):
     api_key = Column(Text) # optional, for remote providers
     is_active = Column(Boolean, nullable=False, default=True)
     is_default = Column(Boolean, nullable=False, default=False)
+    is_chat_enabled = Column(Boolean, nullable=False, default=False) # Whether users can select this in chat
     description = Column(Text) # Purpose/Usage of this model
     config = Column(JSON, default={}) # temperature, top_p, etc.
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -779,6 +780,7 @@ async def create_tables():
                 api_key TEXT,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 is_default BOOLEAN NOT NULL DEFAULT FALSE,
+                is_chat_enabled BOOLEAN NOT NULL DEFAULT FALSE,
                 config JSON NOT NULL DEFAULT '{}'::json,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -793,6 +795,21 @@ async def create_tables():
         await conn.execute(text(
             "ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS description TEXT"
         ))
+        await conn.execute(text(
+            "ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS base_url TEXT"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS api_key TEXT"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS llm_model_name VARCHAR(255) NOT NULL DEFAULT 'unknown'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS is_chat_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS model_bindings (
                 task_type VARCHAR(50) PRIMARY KEY,
@@ -801,54 +818,114 @@ async def create_tables():
             )
         """))
 
-    # Seed default LLM models if table is empty
+async def reset_llm_models_to_defaults():
+    """Xóa sạch và nạp lại cấu hình model chuẩn từ settings."""
+    import uuid
+    import structlog
+    from sqlalchemy import select, func, delete
+    from config.settings import settings
+
+    async with AsyncSessionLocal() as session:
+        # 0. Manual Schema Sync (Raw SQL) to fix ProgrammingError for missing columns
+        from sqlalchemy import text
+        await session.execute(text("ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS description TEXT"))
+        await session.execute(text("ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE"))
+        await session.execute(text("ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS base_url TEXT"))
+        await session.execute(text("ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS api_key TEXT"))
+        await session.execute(text("ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS llm_model_name VARCHAR(255) NOT NULL DEFAULT 'unknown'"))
+        await session.execute(text("ALTER TABLE llm_models ADD COLUMN IF NOT EXISTS is_chat_enabled BOOLEAN NOT NULL DEFAULT FALSE"))
+        await session.commit()
+
+        # 1. Clear everything
+        # Note: ModelBindingORM refers to model_bindings table, LLMModelORM to llm_models
+        await session.execute(delete(ModelBindingORM))
+        await session.execute(delete(LLMModelORM))
+        await session.commit()
+        
+        # 2. Seed Models
+        models_to_seed = [
+            {
+                "id": uuid.uuid4(),
+                "name": "Ollama LLM (Primary)",
+                "provider": "ollama",
+                "llm_model_name": settings.OLLAMA_LLM_MODEL,
+                "description": f"Mô hình ngôn ngữ chính ({settings.OLLAMA_LLM_MODEL}) chạy nội bộ",
+                "base_url": settings.OLLAMA_BASE_URL,
+                "is_active": True,
+                "is_default": True,
+                "is_chat_enabled": True
+            },
+            {
+                "id": uuid.uuid4(),
+                "name": "Ollama Embedding",
+                "provider": "ollama",
+                "llm_model_name": settings.OLLAMA_EMBED_MODEL,
+                "description": f"Mô hình nhúng văn bản ({settings.OLLAMA_EMBED_MODEL})",
+                "base_url": settings.OLLAMA_BASE_URL,
+                "is_active": True,
+                "is_default": False
+            },
+            {
+                "id": uuid.uuid4(),
+                "name": "Ollama Vision",
+                "provider": "ollama",
+                "llm_model_name": settings.OLLAMA_VISION_MODEL or "llava-phi3",
+                "description": f"Mô hình thị giác máy tính ({settings.OLLAMA_VISION_MODEL or 'llava-phi3'})",
+                "base_url": settings.OLLAMA_BASE_URL,
+                "is_active": True,
+                "is_default": False
+            }
+        ]
+        for m in models_to_seed:
+            session.add(LLMModelORM(**m))
+        await session.commit()
+
+        # 3. Seed Bindings
+        res = await session.execute(select(LLMModelORM).where(LLMModelORM.name == "Ollama LLM (Primary)").limit(1))
+        primary_llm = res.scalar_one_or_none()
+        res_embed = await session.execute(select(LLMModelORM).where(LLMModelORM.name == "Ollama Embedding").limit(1))
+        embed_llm = res_embed.scalar_one_or_none()
+        res_vision = await session.execute(select(LLMModelORM).where(LLMModelORM.name == "Ollama Vision").limit(1))
+        vision_llm = res_vision.scalar_one_or_none()
+
+        if primary_llm:
+            bindings = [
+                {"task_type": "chat", "model_id": primary_llm.id},
+                {"task_type": "ingestion_llm", "model_id": primary_llm.id},
+                {"task_type": "agent", "model_id": primary_llm.id},
+                {"task_type": "skill", "model_id": primary_llm.id},
+            ]
+            if embed_llm:
+                bindings.append({"task_type": "embedding", "model_id": embed_llm.id})
+            if vision_llm:
+                bindings.append({"task_type": "vision", "model_id": vision_llm.id})
+            
+            for b in bindings:
+                session.add(ModelBindingORM(**b))
+            await session.commit()
+        
+        structlog.get_logger().info("llm_models.reset_to_defaults", count=len(models_to_seed))
+
+async def initial_db_setup():
+    """Thiết lập ban đầu cho Database (Tables, Indexes, Seed Data)."""
+    await create_tables()
+
+    # Seed default LLM models if table is empty or has old logic
     async with AsyncSessionLocal() as session:
         from sqlalchemy import select, func
-        from sqlalchemy import insert
         result = await session.execute(select(func.count()).select_from(LLMModelORM))
         count = result.scalar()
-        if count == 0:
-            models_to_seed = [
-                {
-                    "id": uuid.uuid4(),
-                    "name": "Gemini 1.5 Flash (Google)",
-                    "provider": "gemini",
-                    "llm_model_name": "gemini-1.5-flash",
-                    "description": "Model chính cho Chat và Agent (Nhanh & Hiệu quả)",
-                    "api_key": "YOUR_GEMINI_API_KEY", # Placeholder
-                    "is_active": True,
-                    "is_default": True
-                },
-                {
-                    "id": uuid.uuid4(),
-                    "name": "Ollama Default (Qwen 2.5)",
-                    "provider": "ollama",
-                    "llm_model_name": settings.OLLAMA_LLM_MODEL,
-                    "description": "Model chạy nội bộ cho Ingestion và Tóm tắt tài liệu",
-                    "base_url": settings.OLLAMA_BASE_URL,
-                    "is_active": True,
-                    "is_default": False
-                }
-            ]
-            for m in models_to_seed:
-                session.add(LLMModelORM(**m))
-            await session.commit()
-
-            # Also seed default task bindings
-            from sqlalchemy import select
-            res = await session.execute(select(LLMModelORM).where(LLMModelORM.is_default == True).limit(1))
-            default_model = res.scalar_one_or_none()
-            if default_model:
-                bindings = [
-                    {"task_type": "chat", "model_id": default_model.id},
-                    {"task_type": "ingestion_llm", "model_id": default_model.id},
-                    {"task_type": "agent", "model_id": default_model.id},
-                ]
-                for b in bindings:
-                    session.add(ModelBindingORM(**b))
-                await session.commit()
-            
-            structlog.get_logger().info("llm_models.seeded", count=len(models_to_seed))
+        
+        res_legacy = await session.execute(
+            select(LLMModelORM).where(
+                (LLMModelORM.name.like('%Gemini%')) | 
+                (LLMModelORM.name.like('%Ollama Default%'))
+            ).limit(1)
+        )
+        has_legacy = res_legacy.scalar_one_or_none() is not None
+        
+        if count == 0 or has_legacy:
+            await reset_llm_models_to_defaults()
 
     # Seed default prompts (only inserts rows that don't exist yet)
     async with AsyncSessionLocal() as session:

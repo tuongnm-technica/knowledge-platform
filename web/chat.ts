@@ -118,27 +118,33 @@ export class ChatModule {
         if (!this.modelSelector) return;
         
         try {
-            const res = await authFetch(`${API}/models`);
+            // Fetch only models enabled for chat by Admin
+            const res = await authFetch(`${API}/models/chat`);
             if (!res.ok) throw new Error('Failed to fetch models');
             const models = await res.json();
             
             this.modelSelector.innerHTML = '';
             
-            // Add a "Auto" option or Default indicator
+            if (models.length === 0) {
+                this.modelSelector.innerHTML = '<option value="">Dùng model mặc định</option>';
+                return;
+            }
+
+            // Populate selector
             models.forEach((m: any) => {
                 const opt = document.createElement('option');
                 opt.value = m.id;
                 opt.textContent = `${m.name} (${m.provider})`;
+                
+                // If it's the system default, mark it
                 if (m.is_default) {
-                    opt.selected = true;
-                    opt.textContent += ' - Default';
+                    opt.textContent += ' (Mặc định)';
+                    // We don't necessarily select it if another was already selected,
+                    // but on first load we should.
+                    if (!this.modelSelector!.value) opt.selected = true;
                 }
                 this.modelSelector!.appendChild(opt);
             });
-            
-            if (models.length === 0) {
-                this.modelSelector.innerHTML = '<option value="">No models available</option>';
-            }
         } catch (err) {
             console.error('Error loading models:', err);
             if (this.modelSelector) {

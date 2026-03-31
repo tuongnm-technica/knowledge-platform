@@ -19,6 +19,7 @@
 @import './modules/documents.css';
 @import './modules/graph.css';
 @import './modules/history.css';
+@import './modules/models.css';
 
 :root {
   /* Base Color Tokens - Light (Clean & Crisp) */

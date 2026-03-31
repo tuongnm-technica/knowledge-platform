@@ -279,13 +279,14 @@ export interface LLMModel {
     api_key?: string;
     is_active: boolean;
     is_default: boolean;
+    is_chat_enabled: boolean;
     description?: string;
     config: Record<string, any>;
     created_at?: string;
     updated_at?: string;
 }
 
-export type TaskType = 'chat' | 'ingestion_llm' | 'agent' | 'embedding';
+export type TaskType = 'chat' | 'ingestion_llm' | 'agent' | 'embedding' | 'skill' | 'vision';
 export type ModelBindings = Record<TaskType, string>;
 
 export interface AskRequest {
