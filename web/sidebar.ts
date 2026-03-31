@@ -15,13 +15,7 @@ export class SidebarModule {
     }
 
     private bindEvents() {
-        const basketNav = document.getElementById('nav-basket');
-        if (basketNav) {
-            basketNav.addEventListener('click', () => {
-                // Dispatch event to open basket drawer
-                document.dispatchEvent(new CustomEvent('kp-open-basket'));
-            });
-        }
+        // Events for common sidebar items if any
     }
 
     public async updateUserCard() {
@@ -41,13 +35,25 @@ export class SidebarModule {
     }
 
     private applyPermissions(user: any) {
+        const role = (user.role || '').toLowerCase();
+        const isSystemAdmin = user.is_admin === true || role === 'system_admin' || role === 'admin';
+
         // 1. If admin, EVERYTHING is visible (early return)
-        if (user.is_admin || user.role === 'system_admin' || user.role === 'admin') {
+        if (isSystemAdmin) {
             console.log('Sidebar: Admin mode enabled, skipping filters');
             return;
         }
 
-        // 2. Filter all nav items with data-target
+        // 2. Strict enforcement for Admin-only modules (Connectors, Users)
+        // Hidden for anyone who is NOT a System Admin, regardless of role list
+        ADMIN_ONLY_TARGETS.forEach(target => {
+            const el = document.getElementById(`nav-${target}`);
+            if (el) {
+                el.style.setProperty('display', 'none', 'important');
+            }
+        });
+
+        // 3. Filter all nav items with data-target based on role mapping
         document.querySelectorAll('.nav-item').forEach(item => {
             const target = item.getAttribute('data-target');
             
@@ -56,15 +62,6 @@ export class SidebarModule {
 
             if (target && !isAllowed(user, target)) {
                 (item as HTMLElement).style.setProperty('display', 'none', 'important');
-            }
-        });
-
-        // 3. Strict enforcement for Admin-only modules (Connectors, Users)
-        // This is a safety layer in case data-target is missing or being overridden
-        ADMIN_ONLY_TARGETS.forEach(target => {
-            const el = document.getElementById(`nav-${target}`);
-            if (el) {
-                el.style.setProperty('display', 'none', 'important');
             }
         });
 

@@ -169,6 +169,11 @@ class SlackScanner(BaseScanner):
 
                     saved_task_titles = []
                     for task in tasks:
+                        # Harden: lọc nếu độ tin cậy thấp hoặc mô tả quá ngắn (tránh junk/social chat)
+                        if task.confidence < 0.7 or len(task.description or "") < 40:
+                            log.debug("scanner.slack.scan.filtered_junk", title=task.title, confidence=task.confidence, desc_len=len(task.description or ""))
+                            continue
+
                         t_ids = await _save_task(task)
                         if t_ids:
                             total += len(t_ids)
@@ -281,6 +286,11 @@ class SlackScanner(BaseScanner):
         saved_task_titles = []
         total = 0
         for task in tasks:
+            # Harden: lọc nếu độ tin cậy thấp hoặc mô tả quá ngắn (webhook auto-trigger)
+            if task.confidence < 0.7 or len(task.description or "") < 40:
+                log.debug("scanner.slack.scan_thread.filtered_junk", title=task.title, confidence=task.confidence, desc_len=len(task.description or ""))
+                continue
+
             t_ids = await _save_task(task)
             if t_ids:
                 total += len(t_ids)

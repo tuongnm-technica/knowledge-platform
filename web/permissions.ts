@@ -49,7 +49,8 @@ export function isAllowed(user: User | null, target: string): boolean {
         return true;
     }
 
-    const allowedTargets = PERMISSIONS[user.role] || PERMISSIONS['standard'];
+    const role = (user.role || 'standard').toLowerCase();
+    const allowedTargets = PERMISSIONS[role] || PERMISSIONS['standard'];
     return (allowedTargets as string[]).includes(target);
 }
 

@@ -55,6 +55,9 @@ export class DraftsModule {
         });
         document.querySelector('#drafts-close-editor')?.addEventListener('click', () => this.closeDraftEditor());
         document.querySelector('#drafts-save-btn')?.addEventListener('click', () => this.saveDraft());
+        document.querySelector('#drafts-open-basket')?.addEventListener('click', () => {
+             document.dispatchEvent(new CustomEvent('kp-open-basket'));
+        });
     }
 
     public async openDocDraftEditor(draftId: string) {

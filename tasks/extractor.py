@@ -17,9 +17,15 @@ log = structlog.get_logger()
 
 async def detect_action_signal(content: str, llm_client: ILLMClient) -> bool:
     """Layer 3: Fast check if the content contains any actionable tasks/requests to save tokens."""
-    sys_prompt = "Bạn là AI classifier. Phân tích đoạn giao tiếp và quyết định xem có chứa yêu cầu công việc, task, bug report cần theo dõi không. Trả về JSON chuẩn xác: {\"has_action\": true/false, \"confidence\": 0.9}. CHỈ JSON."
+    sys_prompt = (
+        "Bạn là AI classifier chuyên nghiệp. Phân tích nội dung chat và quyết định xem có chứa YÊU CẦU CÔNG VIỆC THỰC SỰ (Task, Bug, Feature) cần theo dõi lâu dài hay không.\n"
+        "QUY TẮC:\n"
+        "- Trả về has_action=true nếu là yêu cầu kỹ thuật, sửa lỗi, tính năng mới hoặc task có quy mô rõ ràng.\n"
+        "- PHẢI trả về has_action=false nếu chỉ là: chào hỏi, nhờ vả nhanh (check log giúp em, ping bác, bác xem cái này...), thảo luận phi kỹ thuật, hoặc chỉ là câu cảm ơn.\n"
+        "Trả về JSON: {\"has_action\": true/false, \"confidence\": 0.9}. CHỈ JSON."
+    )
     try:
-        raw = await llm_client.chat(system=sys_prompt, user=f"Nội dung:\n{content[:2000]}", max_tokens=40)
+        raw = await llm_client.chat(system=sys_prompt, user=f"Nội dung:\n{content[:2000]}", max_tokens=60)
         return '"has_action": true' in raw.lower() or '"has_action":true' in raw.lower()
     except Exception as e:
         log.warning("extractor.signal.error", error=str(e))

@@ -78,6 +78,11 @@ class ConfluenceScanner(BaseScanner):
                 tasks = await extract_tasks_from_content(content=clean, source_type="confluence", llm_client=self.llm_client, source_ref=page_id)
 
                 for task in tasks:
+                    # Harden: lọc nếu độ tin cậy thấp hoặc mô tả quá ngắn (tránh rác từ confluence draft)
+                    if task.confidence < 0.7 or len(task.description or "") < 40:
+                        log.debug("scanner.confluence.filtered_junk", title=task.title, confidence=task.confidence, desc_len=len(task.description or ""))
+                        continue
+
                     suggested_assignee = task.suggested_assignee or await self.repo.suggest_assignee_from_history(labels=task.labels or [])
                     draft_id = await self.repo.create_draft(
                         title=task.title,
