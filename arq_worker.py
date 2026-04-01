@@ -7,11 +7,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from config.settings import settings
+from config.settings import settings
 from apps.api.services.connectors_service import _run_sync_task
-from tasks.scanner import scan_and_create_drafts
-from orchestration.agent_tasks import run_agent_job, run_workflow_job
-from tasks.doc_tasks import run_doc_drafting_job
-from orchestration.sdlc_tasks import run_sdlc_generation_job
+
 
 log = structlog.get_logger()
 
@@ -28,6 +26,31 @@ async def sync_connector_job(ctx, connector_type: str, instance_id: str, increme
     except Exception as e:
         log.error("worker.sync_connector_job.failed", connector=connector_type, error=str(e))
         raise
+
+async def run_agent_job_proxy(ctx, *args, **kwargs):
+    from orchestration.agent_tasks import run_agent_job
+    return await run_agent_job(ctx, *args, **kwargs)
+
+async def run_workflow_job_proxy(ctx, *args, **kwargs):
+    from orchestration.agent_tasks import run_workflow_job
+    return await run_workflow_job(ctx, *args, **kwargs)
+
+async def run_doc_drafting_job_proxy(ctx, *args, **kwargs):
+    from tasks.doc_tasks import run_doc_drafting_job
+    return await run_doc_drafting_job(ctx, *args, **kwargs)
+
+async def run_sdlc_generation_job_proxy(ctx, *args, **kwargs):
+    from orchestration.sdlc_tasks import run_sdlc_generation_job
+    return await run_sdlc_generation_job(ctx, *args, **kwargs)
+
+async def generate_pm_digest_job_proxy(ctx, *args, **kwargs):
+    from tasks.pm_reports import generate_pm_digest
+    return await generate_pm_digest(ctx, *args, **kwargs)
+
+async def send_scheduled_pm_reports_job_proxy(ctx, *args, **kwargs):
+    from tasks.pm_reports import send_scheduled_pm_reports
+    return await send_scheduled_pm_reports(ctx, *args, **kwargs)
+
 
 async def fast_background_job(ctx, task_data: str):
     """Ví dụ một job phụ trợ nhẹ nhàng chạy ở queue default."""
@@ -55,6 +78,7 @@ async def scan_sources_job(ctx, slack_days: int, confluence_days: int, triggered
     """ARQ job để quét tất cả các nguồn dữ liệu và tạo task drafts."""
     log.info("worker.scan_sources_job.started", triggered_by=triggered_by)
     try:
+        from tasks.scanner import scan_and_create_drafts
         async with ctx["db_session_factory"]() as session:
             stats = await scan_and_create_drafts(
                 session=session,
@@ -114,6 +138,10 @@ class DefaultWorkerSettings(BaseWorkerSettings):
 class AIWorkerSettings(BaseWorkerSettings):
     """Worker chuyên xử lý các tác vụ AI/Agent nặng (ReAct loops)."""
     queue_name = "arq:ai"
-    functions = [run_agent_job, run_workflow_job, run_doc_drafting_job, run_sdlc_generation_job]
+    functions = [
+        run_agent_job_proxy, run_workflow_job_proxy, run_doc_drafting_job_proxy, 
+        run_sdlc_generation_job_proxy, generate_pm_digest_job_proxy,
+        send_scheduled_pm_reports_job_proxy
+    ]
     job_timeout = settings.ARQ_AI_JOB_TIMEOUT
     max_jobs = 3    # Giới hạn chạy song song ít để bảo vệ GPU

@@ -1,0 +1,115 @@
+<!-- ── INTEGRATION PAGE (UI for SMTP, LDAP, SSO etc.) ── -->
+<div class="page" id="page-integration" style="display: none;">
+  <div class="integration-content">
+    <div class="page-intro">
+      <div class="intro-copy">
+        <div class="intro-kicker">Settings</div>
+        <div class="intro-title">Integration Settings</div>
+        <div class="intro-sub">Cấu hình kết nối hệ thống cốt lõi: Mail server, Single Sign-On, và External User Directories.</div>
+      </div>
+    </div>
+
+    <!-- Tabs Container -->
+    <div class="tab-headers">
+      <div class="tab active" data-tab="smtp">SMTP Settings</div>
+      <div class="tab disabled" data-tab="ldap">LDAP Settings</div>
+      <div class="tab disabled" data-tab="sso">Single Sign-On</div>
+    </div>
+
+    <div class="panels-container premium-card" style="padding: 24px;">
+      <!-- SMTP Settings Panel -->
+      <div class="panel active" id="panel-smtp">
+        
+        <div class="status-banner" style="background: var(--surface-hover); padding: 12px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid var(--accent-light);">
+          <strong>SMTP Configuration Status:</strong> <span id="smtpStatusText">Checking...</span>
+          <div style="font-size: 0.85em; color: var(--text-dim); margin-top: 4px;">
+            Khi cấu hình được lưu và kiểm tra thành công, hệ thống sẽ tự động sử dụng cấu hình này để gửi PM Digest và Notification thay cho fallback qua console.
+          </div>
+        </div>
+
+        <form id="smtpForm" class="settings-form">
+          <div class="form-section-title" style="margin-bottom: 16px; font-weight: 600;">SMTP Configuration</div>
+          
+          <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div class="form-group">
+              <label>SMTP Host <span class="required" style="color:var(--danger)">*</span></label>
+              <input type="text" id="smtpHost" name="smtp_host" class="form-control" placeholder="smtp.gmail.com | smtp.office365.com" required>
+            </div>
+            
+            <div class="form-group">
+              <label>SMTP Port <span class="required" style="color:var(--danger)">*</span></label>
+              <input type="number" id="smtpPort" name="smtp_port" class="form-control" placeholder="25 | 465 (SSL) | 587 (STARTTLS)" required>
+            </div>
+            
+            <div class="form-group">
+              <label>Security Mode <span class="required" style="color:var(--danger)">*</span></label>
+              <select id="smtpSecurity" name="security_mode" class="form-control" required>
+                <option value="STARTTLS" selected>STARTTLS (Recommended)</option>
+                <option value="SSL">SSL</option>
+                <option value="NONE">None</option>
+              </select>
+            </div>
+            
+            <div class="form-group" style="display: flex; align-items: center; gap: 12px; padding-top: 32px;">
+              <input type="checkbox" id="smtpAuthEnabled" name="authentication_enabled" style="transform: scale(1.2);">
+              <label for="smtpAuthEnabled" style="margin: 0;">Authentication Enabled</label>
+            </div>
+            
+            <div class="form-group auth-group">
+              <label>SMTP Username</label>
+              <input type="text" id="smtpUsername" name="smtp_username" class="form-control" placeholder="Enter username / email">
+            </div>
+            
+            <div class="form-group auth-group">
+              <label>SMTP Password</label>
+              <input type="password" id="smtpPassword" name="smtp_password" class="form-control" placeholder="Enter password or App Password">
+            </div>
+            
+            <div class="form-group">
+              <label>Sender Email Address <span class="required" style="color:var(--danger)">*</span></label>
+              <input type="email" id="smtpSenderEmail" name="sender_email_address" class="form-control" placeholder="noreply@yourbiz.com" required>
+            </div>
+            
+            <div class="form-group">
+              <label>Sender Display Name <span class="required" style="color:var(--danger)">*</span></label>
+              <input type="text" id="smtpSenderName" name="sender_display_name" class="form-control" placeholder="Knowledge Platform" required>
+            </div>
+          </div>
+          
+          <div class="form-actions" style="margin-top: 24px;">
+            <button type="submit" class="primary-btn" id="saveSmtpBtn">Save SMTP Settings</button>
+          </div>
+        </form>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 32px 0;">
+
+        <form id="testMailForm" class="settings-form">
+          <div class="form-section-title" style="margin-bottom: 16px; font-weight: 600;">Test Mail</div>
+          
+          <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div class="form-group">
+              <label>Test Email Recipient <span class="required" style="color:var(--danger)">*</span></label>
+              <input type="email" id="testEmailRecipient" name="recipient" class="form-control" placeholder="Enter your email to test" required>
+            </div>
+            <div class="form-group">
+              <label>Body Type</label>
+              <select class="form-control" disabled>
+                <option>Plain text</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group" style="margin-top: 16px;">
+            <label>Email Body <span class="required" style="color:var(--danger)">*</span></label>
+            <textarea id="testEmailBody" name="body" class="form-control" rows="4" style="resize: vertical;" required>This is a test email sent from Knowledge Platform SMTP configurations.</textarea>
+          </div>
+          
+          <div class="form-actions" style="margin-top: 16px;">
+            <button type="submit" class="secondary-btn" id="sendTestMailBtn">Send Test Mail</button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>

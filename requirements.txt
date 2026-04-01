@@ -45,6 +45,7 @@ networkx
 Pillow
 
 aiohttp
+aiosmtplib
 
 langgraph
 langchain-ollama

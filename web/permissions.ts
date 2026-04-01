@@ -25,7 +25,9 @@ export type PageTarget =
     | 'users' 
     | 'connectors' 
     | 'models' 
-    | 'prompts';
+    | 'prompts'
+    | 'integration'
+    | 'pm_dashboard';
 
 /**
  * Mapping of roles to allowed page targets.
@@ -33,7 +35,7 @@ export type PageTarget =
  */
 export const PERMISSIONS: Record<string, PageTarget[]> = {
     'knowledge_architect': ['chat', 'search', 'documents', 'graph', 'prompts', 'memory'],
-    'pm_po': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'memory', 'ba-suite', 'workflows'],
+    'pm_po': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'memory', 'ba-suite', 'workflows', 'pm_dashboard'],
     'ba_sa': ['chat', 'search', 'documents', 'graph', 'tasks', 'drafts', 'ba-suite', 'workflows'],
     'dev_qa': ['chat', 'search', 'documents', 'graph', 'tasks'],
     'standard': ['chat', 'search', 'documents', 'graph'],
@@ -59,4 +61,4 @@ export function isAllowed(user: User | null, target: string): boolean {
  * List of targets that are strictly reserved for admins.
  * Non-admins can NEVER see these even if they are somehow in their role's list.
  */
-export const ADMIN_ONLY_TARGETS: PageTarget[] = ['users', 'connectors', 'models'];
+export const ADMIN_ONLY_TARGETS: PageTarget[] = ['users', 'connectors', 'models', 'integration'];

@@ -16,11 +16,17 @@ from fastapi import Request
 from contextlib import asynccontextmanager
 from pathlib import Path
 from storage.db.db import create_tables
-from apps.api.routes import search, ask, ingest, health, connectors, auth, users, groups, graph, docs, documents, assets, prompts, tasks, history, memory, workflows, slack, feedback, models
+from utils.logger_config import configure_logging
+
 from config.settings import settings
+
+# Khởi tạo logging ngay lập tức để tránh lỗi Circular Import khi nạp các routes/tasks
+configure_logging(debug=getattr(settings, "DEBUG", False))
+
+from apps.api.routes import search, ask, ingest, health, connectors, auth, users, groups, graph, docs, documents, assets, prompts, tasks, history, memory, workflows, slack, feedback, models, settings as settings_routes, pm_routes
 import httpx
-from utils.logging import configure_logging
 from scheduler.sync_scheduler import start_scheduler, stop_scheduler
+
 from storage.vector.vector_store import get_qdrant
 from qdrant_client.models import Distance, VectorParams
 
@@ -34,7 +40,6 @@ if (WEB_DIR / "dist").exists():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    configure_logging(debug=settings.DEBUG)
     log.info("startup.begin", app=settings.APP_NAME)
 
     await create_tables()
@@ -89,6 +94,8 @@ app.include_router(workflows.router, prefix="/api")
 app.include_router(slack.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
+app.include_router(settings_routes.router, prefix="/api")
+app.include_router(pm_routes.router, prefix="/api")
 
 # ==========================================
 # SDLC MULTI-AGENT PROXY ROUTES

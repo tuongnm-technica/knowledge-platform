@@ -3,7 +3,15 @@ import sys
 import asyncio
 from arq import Worker
 from arq.connections import create_pool
+from utils.logger_config import configure_logging
+
+from config.settings import settings
+
+# Khởi tạo logging ngay lập tức để tránh lỗi Circular Import (AttributeError: logging.NOTSET)
+configure_logging(debug=getattr(settings, "DEBUG", False))
+
 import arq_worker
+
 
 async def run():
     worker_type = os.getenv("ARQ_WORKER_TYPE", "default")

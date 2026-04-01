@@ -47,6 +47,34 @@ async def _run_jira_task_sync() -> None:
     # For now, keeping it consistent.
     log.info("scheduler.jira_sync.skipped", reason="Not yet refactored to worker")
 
+async def _run_pm_digest_generation() -> None:
+    """Job hàng ngày lúc 0:00 để AI tự động phân tích dữ liệu mới nhất."""
+    try:
+        from arq_worker import REDIS_URL
+        from arq import create_pool
+        from arq.connections import RedisSettings
+        
+        pool = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+        # Sử dụng proxy job đã đăng ký trong arq_worker.py
+        await pool.enqueue_job("generate_pm_digest_job_proxy", _queue_name="arq:ai")
+        log.info("scheduler.pm_digest_gen.enqueued")
+    except Exception as exc:
+        log.error("scheduler.pm_digest_gen.failed", error=str(exc))
+
+async def _run_pm_report_sending() -> None:
+    """Job gửi email báo cáo vào sáng T2 và T5."""
+    try:
+        from arq_worker import REDIS_URL
+        from arq import create_pool
+        from arq.connections import RedisSettings
+        
+        pool = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+        await pool.enqueue_job("send_scheduled_pm_reports_job_proxy", _queue_name="arq:ai")
+        log.info("scheduler.pm_report_send.enqueued")
+    except Exception as exc:
+        log.error("scheduler.pm_report_send.failed", error=str(exc))
+
+
 
 async def sync_connector_key_job(connector_key: str) -> None:
     log.info("scheduler.sync.enqueue", connector=connector_key)
@@ -171,6 +199,21 @@ def start_scheduler() -> None:
         name="Jira task status sync",
         misfire_grace_time=600,
     )
+    scheduler.add_job(
+        _run_pm_digest_generation,
+        trigger=CronTrigger(hour=0, minute=0, timezone="Asia/Ho_Chi_Minh"),
+        id="pm_digest_gen_daily",
+        name="Daily PM Digest Generation (0:00)",
+        misfire_grace_time=3600,
+    )
+    scheduler.add_job(
+        _run_pm_report_sending,
+        trigger=CronTrigger(day_of_week="mon,thu", hour=8, minute=0, timezone="Asia/Ho_Chi_Minh"),
+        id="pm_report_send_biweekly",
+        name="Biweekly PM Report Sending (Mon, Thu @ 8:00)",
+        misfire_grace_time=3600,
+    )
+
     scheduler.start()
     trigger_scheduler_refresh()
     log.info(

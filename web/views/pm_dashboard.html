@@ -1,0 +1,188 @@
+<!-- ── PM DASHBOARD PAGE ── -->
+<div class="page" id="page-pm_dashboard" style="display: none;">
+  <div class="pm-dashboard-content" style="max-width: 1200px; margin: 0 auto; width: 100%; padding-bottom: 40px;">
+    
+    <!-- PAGE HEADER -->
+    <div class="page-intro" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px;">
+      <div class="intro-copy">
+        <div class="intro-kicker">Reporting</div>
+        <div class="intro-title">PM Status Dashboard</div>
+        <div class="intro-sub">Theo dõi tổng quan tiến độ các dự án và các rủi ro (blockers) được AI phân tích. Cập nhật T2 và T5 lúc 8:00 AM.</div>
+      </div>
+      
+      <div class="header-actions">
+        <label for="pmProjectFilter" style="font-weight: 500; font-size: 0.9em; margin-right: 8px; color: var(--text-dim)">Dự án:</label>
+        <select id="pmProjectFilter" class="form-control" style="width: 250px; display: inline-block;">
+          <option value="">-- Tất cả dự án --</option>
+        </select>
+        <button id="refreshPmBtn" class="secondary-btn" title="Cập nhật dữ liệu"><span class="nav-icon" style="margin:0">🔄</span></button>
+        <button id="refreshAiBtn" class="primary-btn" title="Làm mới phân tích AI" style="margin-left: 8px; background-color: var(--accent-light); color: white;">
+          <span class="nav-icon" style="margin:0; margin-right:4px;">🪄</span> Làm mới AI
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI STATS CARDS -->
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px;">
+      <div class="stat-card premium-card" style="padding: 20px; text-align: center; border-top: 4px solid var(--accent-color);">
+        <div style="font-size: 0.9em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">Tổng Quan (Tổng)</div>
+        <div id="pmStatTotal" style="font-size: 2.2em; font-weight: 700; color: var(--text-color);">0</div>
+      </div>
+      <div class="stat-card premium-card" style="padding: 20px; text-align: center; border-top: 4px solid var(--success);">
+        <div style="font-size: 0.9em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">Đã Xong (Done)</div>
+        <div id="pmStatDone" style="font-size: 2.2em; font-weight: 700; color: var(--success);">0</div>
+      </div>
+      <div class="stat-card premium-card" style="padding: 20px; text-align: center; border-top: 4px solid var(--warning);">
+        <div style="font-size: 0.9em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">Đang Thực Hiện</div>
+        <div id="pmStatInProgress" style="font-size: 2.2em; font-weight: 700; color: var(--warning);">0</div>
+      </div>
+      <div class="stat-card premium-card" style="padding: 20px; text-align: center; border-top: 4px solid var(--danger);">
+        <div style="font-size: 0.9em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">Việc Tồn (To-Do)</div>
+        <div id="pmStatTodo" style="font-size: 2.2em; font-weight: 700; color: var(--text-color);">0</div>
+      </div>
+      <div class="stat-card premium-card" style="padding: 20px; text-align: center; border-top: 4px solid #ef4444; background: rgba(239, 68, 68, 0.03);">
+        <div style="font-size: 0.9em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">Ưu Tiên Cao</div>
+        <div id="pmStatHighRisk" style="font-size: 2.2em; font-weight: 700; color: #ef4444;">0</div>
+      </div>
+      <div class="stat-card premium-card" style="padding: 20px; text-align: center; border-top: 4px solid var(--accent-light);">
+        <div style="font-size: 0.9em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">Tỷ Lệ Hoàn Thành</div>
+        <div id="pmStatCompletion" style="font-size: 2.2em; font-weight: 700; color: var(--accent-light);">0%</div>
+      </div>
+    </div>
+
+    <!-- SECONDARY REPORTS ROW -->
+    <div class="pm-secondary-reports" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; margin-bottom: 32px;">
+      <!-- TEAM WORKLOAD (Chart.js) -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">📊</span> Tải trọng nhân sự (Workload)
+        </h3>
+        <div style="height: 300px; position: relative;">
+          <canvas id="pmWorkloadChart"></canvas>
+        </div>
+      </div>
+
+      <!-- STALE TASKS TABLE -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">⚠️</span> Task cần chú ý (Stale/Urgent)
+        </h3>
+        <div id="pmStaleTasksList" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="padding: 20px; text-align: center; color: var(--text-dim);">Đang tải danh sách...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI RISKS & BLOCKERS SECTION -->
+    <div style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.25em; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+        <span class="nav-icon" style="margin:0; font-size:1.2em">🤖</span> AI Risks & PM Digest (Tuần này)
+      </h3>
+      <div id="pmRisksContainer" class="risks-container" style="display: flex; flex-direction: column; gap: 16px;">
+        <!-- AI Risks inserted here -->
+        <div style="padding: 32px; text-align: center; color: var(--text-dim);">Đang tải báo cáo rủi ro...</div>
+      </div>
+    </div>
+    
+  </div>
+</div>
+
+<style>
+.stat-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px var(--shadow-color);
+}
+.risk-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 4px var(--shadow-color);
+}
+.risk-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+.risk-card-title {
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 1.1em;
+}
+.risk-card-date {
+    font-size: 0.85em;
+    color: var(--text-dim);
+}
+.risk-card-body {
+    color: var(--text-color);
+    line-height: 1.6;
+    font-size: 0.95em;
+}
+.risk-card-body ul, .risk-card-body ol {
+    margin-left: 20px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+.risk-card-body p {
+    margin-bottom: 12px;
+}
+
+/* Stale Tasks Styles */
+.stale-task-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.2s;
+    text-decoration: none;
+    color: inherit;
+}
+.stale-task-item:last-child {
+    border-bottom: none;
+}
+.stale-task-item:hover {
+    background: rgba(var(--accent-color-rgb), 0.05);
+}
+.stale-task-key {
+    font-weight: 700;
+    font-size: 0.85em;
+    color: var(--accent-color);
+    margin-right: 8px;
+    background: rgba(var(--accent-color-rgb), 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    min-width: 80px;
+    text-align: center;
+}
+.stale-task-title {
+    font-size: 0.9em;
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.stale-tag {
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.tag-danger { background: #fee2e2; color: #991b1b; }
+.tag-warning { background: #fef3c7; color: #92400e; }
+.stale-assignee {
+    font-size: 0.8em;
+    color: var(--text-dim);
+    margin-left: 12px;
+    min-width: 100px;
+    text-align: right;
+}
+</style>

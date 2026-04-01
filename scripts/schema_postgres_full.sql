@@ -296,6 +296,32 @@ CREATE TABLE IF NOT EXISTS sync_logs (
 CREATE INDEX IF NOT EXISTS idx_sync_logs_connector ON sync_logs (connector);
 CREATE INDEX IF NOT EXISTS idx_sync_logs_last_sync_at ON sync_logs (last_sync_at);
 
+-- SMTP Settings
+CREATE TABLE IF NOT EXISTS smtp_settings (
+  id VARCHAR(50) PRIMARY KEY DEFAULT 'default',
+  smtp_host VARCHAR(255),
+  smtp_port INTEGER,
+  security_mode VARCHAR(20) DEFAULT 'STARTTLS',
+  authentication_enabled BOOLEAN DEFAULT FALSE,
+  smtp_username VARCHAR(255),
+  smtp_password VARCHAR(255),
+  sender_email_address VARCHAR(255),
+  sender_display_name VARCHAR(255),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- User Mappings (for external systems like Jira)
+CREATE TABLE IF NOT EXISTS user_mappings (
+  id UUID PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  system_name VARCHAR(50) NOT NULL DEFAULT 'jira',
+  external_id VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_user_mappings_user_id ON user_mappings (user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_mappings_system_external ON user_mappings (system_name, external_id);
+
 -- ---------------------------------------------------------------------------
 -- Seed: sys_admin application user (full quyền trong app)
 --

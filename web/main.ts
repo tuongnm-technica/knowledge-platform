@@ -24,6 +24,8 @@ import { HistoryModule } from './history';
 import { SidebarModule } from './sidebar';
 import { ThemeModule } from './theme';
 import { ModelsModule } from './models_page';
+import { integrationModule } from './integration';
+import { pmDashboardModule } from './pm_dashboard';
 
 // --- Initialization ---
 
@@ -119,6 +121,8 @@ async function initApp() {
             '/ba-suite': () => renderPage('ba-suite'),
             '/workflows': () => renderPage('workflows', () => workflowModule.init()),
             '/models': () => renderPage('models', () => modelsModule.init()),
+            '/integrations': () => renderPage('integration', () => integrationModule.init()),
+            '/pm-dashboard': () => renderPage('pm_dashboard', () => pmDashboardModule.init()),
         })
         .resolve();
 
@@ -189,6 +193,8 @@ const PAGE_TITLES: Record<string, string> = {
     'ba-suite': 'Auto Work - Dashboard',
     workflows: 'AI Workflows',
     models: 'Quản lý AI Models',
+    integration: 'Integrations',
+    pm_dashboard: 'PM Dashboard',
 };
 
 async function renderPage(target: string, initFn?: () => void) {
