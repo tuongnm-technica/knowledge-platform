@@ -56,14 +56,17 @@
   </div>
 
   <!-- Add/Edit Model Modal -->
-  <div class="modal-overlay" id="modelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); align-items: center; justify-content: center;">
-    <div class="modal-content premium-card" style="width: 90%; max-width: 650px; max-height: 90vh; overflow-y: auto;">
-      <div class="modal-header">
-        <h2 id="modalTitle">Cấu hình AI Model</h2>
-        <button class="close-modal">&times;</button>
+  <div class="modal-overlay" id="modelModal" style="display: none;">
+    <div class="kp-modal premium-card" style="max-width: 650px;">
+      <div class="kp-modal-header">
+        <div class="kp-modal-header-copy">
+            <h2 id="modalTitle" class="kp-modal-title">Cấu hình AI Model</h2>
+        </div>
+        <button class="kp-modal-close close-modal" type="button">&times;</button>
       </div>
       
-      <form id="modelForm" class="modal-body">
+      <form id="modelForm" class="kp-modal-form-wrapper">
+        <div class="kp-modal-body">
         <input type="hidden" id="modelId">
         
         <div class="form-grid">
@@ -115,9 +118,8 @@
               <label for="m-default">Mặc định hệ thống</label>
             </div>
           </div>
-        </div>
-
-        <div class="modal-footer">
+        </div> <!-- end body -->
+        <div class="kp-modal-actions">
           <button type="button" class="secondary-btn close-modal">Hủy bỏ</button>
           <button type="submit" class="primary-btn" id="saveModelBtn">Lưu Registry</button>
         </div>

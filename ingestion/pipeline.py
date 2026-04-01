@@ -1,5 +1,6 @@
 import inspect
 import time
+import asyncio
 
 import structlog
 
