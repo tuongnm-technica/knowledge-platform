@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from persistence.doc_draft_repository import DocDraftRepository
 from persistence.project_memory_repository import ProjectMemoryRepository
 from orchestration.doc_orchestrator import DocOrchestrator
-from orchestration.agent import OllamaLLM
+from services.llm_service import LLMService
 
 log = structlog.get_logger()
 
@@ -33,7 +33,7 @@ async def run_doc_drafting_job(
         repo = DocDraftRepository(session)
         memory_repo = ProjectMemoryRepository(session)
         
-        llm = OllamaLLM()
+        llm = LLMService(task_type="drafting")
         orchestrator = DocOrchestrator(llm)
         
         content = ""

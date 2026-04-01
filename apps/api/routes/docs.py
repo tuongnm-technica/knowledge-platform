@@ -16,7 +16,6 @@ from persistence.document_repository import DocumentRepository
 from persistence.project_memory_repository import ProjectMemoryRepository
 from prompts.doc_draft_prompt import SUPPORTED_DOC_TYPES, build_doc_system_prompt, build_doc_user_prompt
 from storage.db.db import get_db
-from orchestration.agent import OllamaLLM
 from utils.queue_client import get_redis_pool
 
 
@@ -265,11 +264,8 @@ async def create_doc_draft_from_answer(
     )
 
     content = ""
-    llm = OllamaLLM()
-    try:
-        ok = await llm.is_available()
-    except Exception:
-        ok = False
+    llm = LLMService(task_type="drafting")
+    ok = await llm.is_available()
 
     structured_data = {}
     if ok:
@@ -488,11 +484,12 @@ Reply with the raw Markdown replacement text only. Do not add conversational pad
 
     user_prompt = f"INSTRUCTION FROM USER: {req.instruction}\n\nORIGINAL SNIPPET TO REPLACE:\n{req.selected_text}"
     
-    llm = OllamaLLM()
+    llm = LLMService(task_type="refine")
+    ok = await llm.is_available()
+    if not ok:
+        raise HTTPException(status_code=503, detail="LLM hiện không khả dụng")
+    
     try:
-        ok = await llm.is_available()
-        if not ok:
-            raise HTTPException(status_code=503, detail="LLM hiện không khả dụng")
         new_text = await llm.chat(system=system, user=user_prompt, max_tokens=1500)
     except HTTPException:
         raise

@@ -4,7 +4,7 @@ import asyncio
 import structlog
 from typing import List, Dict, Any
 from config.settings import settings
-from orchestration.agent import OllamaLLM
+from services.llm_service import LLMService
 
 log = structlog.get_logger()
 
@@ -16,7 +16,7 @@ class SemanticRelationExtractor:
     def __init__(self):
         # We reuse OllamaLLM to perform local fast extraction.
         # It's recommended to set LLM_MODEL in settings to a fast 8B model.
-        self._llm = OllamaLLM()
+        self._llm = LLMService(task_type="extraction")
         self._allowed_predicates = [
             "depends_on",
             "part_of",

@@ -104,7 +104,7 @@ async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question
                     )
                     await session_inner.commit()
 
-            agent = Agent(session, user_id, llm_model_id=llm_model_id)
+            agent = Agent(session, user_id, model_id=llm_model_id)
             result = await agent.ask(question, on_thought=on_thought, on_token=on_token, on_sources=on_sources)
             
             # 4. Save the result
@@ -178,8 +178,8 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
             if not workflow or not workflow.get("nodes"):
                 raise ValueError(f"Workflow {workflow_id} not found or has no nodes")
 
-            from llm.ollama import OllamaLLMClient
-            llm = OllamaLLMClient()
+            from services.llm_service import LLMService
+            llm = LLMService(task_type="workflow")
             
             payloads = {"START": initial_context}
             final_output = ""

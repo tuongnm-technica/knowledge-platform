@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "marked": "^17.0.4"
-  },
-  "devDependencies": {
-    "@types/marked": "^5.0.2"
-  }
-}
