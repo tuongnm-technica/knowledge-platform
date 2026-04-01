@@ -218,9 +218,10 @@ async def get_pm_stale_tasks(
 
         
     # Condition for stale: no update for X days OR High priority
+    # Dùng make_interval() thay vì CAST(:days || ' days') để tránh lỗi asyncpg khi truyền int
     query += """
       AND (
-          updated_at < NOW() - CAST(:days || ' days' AS INTERVAL)
+          updated_at < NOW() - make_interval(days => :days)
           OR metadata->>'priority' IN ('High', 'Highest')
       )
     """
