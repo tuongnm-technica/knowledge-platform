@@ -14,6 +14,7 @@ class BaseLLMProvider(ABC):
         options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         on_token: Optional[Any] = None,
+        **kwargs: Any
     ) -> str:
         """
         Send a chat request to the LLM.
@@ -26,6 +27,7 @@ class BaseLLMProvider(ABC):
         model: str,
         input: str | List[str],
         timeout: Optional[float] = None,
+        **kwargs: Any
     ) -> List[float] | List[List[float]]:
         """
         Generate embeddings for the input text.

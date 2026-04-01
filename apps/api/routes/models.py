@@ -122,17 +122,23 @@ async def update_model(
     return updated
 
 
-@router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_model(
+@router.post("/{model_id}/toggle-chat", response_model=LLMModelResponse)
+async def toggle_model_chat(
     model_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(require_admin),
 ):
     repo = LLMModelRepository(db)
-    deleted = await repo.delete(model_id)
-    if not deleted:
+    model = await repo.get_by_id(model_id)
+    if not model:
         raise HTTPException(status_code=404, detail="Model not found")
-    return None
+    
+    # Toggle the flag
+    updated = await repo.update(model_id, {"is_chat_enabled": not model.is_chat_enabled})
+    return updated
+
+
+@router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/bindings", response_model=Dict[str, uuid.UUID])

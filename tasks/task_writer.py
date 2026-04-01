@@ -214,10 +214,7 @@ async def build_task_from_answer(
             model = str(settings.OLLAMA_VISION_MODEL or "").strip() or model
             user_msg["images"] = vision_images
 
-        client = llm_client or LLMService(
-            model=model,
-            timeout=180
-        )
+        client = llm_client or LLMService()
         raw = await client.chat(
             system=TASK_SYSTEM,
             user=user_prompt,

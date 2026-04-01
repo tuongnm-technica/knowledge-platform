@@ -13,6 +13,7 @@ export class ModelsModule {
         vision: '',
     };
     private initialized = false;
+    private editingTask: TaskType | null = null;
 
     public async init() {
         (window as any).modelsModule = this;
@@ -130,24 +131,48 @@ export class ModelsModule {
                 const currentId = this.bindings[task.type];
                 
                 // For chat, show more info about multi-select
-                let infoText = '';
+                let infoContainer = '';
+                
                 if (task.type === 'chat') {
-                    const chatEnabledCount = this.models.filter(m => m.is_chat_enabled && m.is_active).length;
-                    infoText = `<span class="count-badge">${chatEnabledCount}</span> model khả dụng`;
+                    if (this.editingTask === 'chat') {
+                        // In edit mode, show checkboxes for all models
+                        const checkList = activeModels.map(m => {
+                            return `
+                            <label class="chat-model-checkbox" style="display:flex; align-items:center; gap:6px; margin-bottom:4px; font-size:12px; cursor:pointer;">
+                                <input type="checkbox" ${m.is_chat_enabled ? 'checked' : ''} onchange="window.modelsModule.toggleChatModel('${m.id}')">
+                                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${m.llm_model_name}">${m.llm_model_name}</span>
+                            </label>`;
+                        }).join('');
+
+                        infoContainer = `<div style="max-height:120px; overflow-y:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background:var(--bg2);">
+                            <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; font-weight:700;">Model khả dụng trong Chat:</div>
+                            ${checkList}
+                        </div>`;
+                    } else {
+                        const chatEnabledCount = this.models.filter(m => m.is_chat_enabled && m.is_active).length;
+                        infoContainer = `<span class="count-badge">${chatEnabledCount}</span> model khả dụng`;
+                    }
                 } else {
-                    infoText = `<span style="color:var(--text-dim); font-size:11px;">Mặc định hệ thống</span>`;
+                    infoContainer = `<span style="color:var(--text-dim); font-size:11px;">Mặc định hệ thống</span>`;
                 }
 
+                // Filter dropdown for Chat task: only show chat-enabled models
+                const dropdownModels = task.type === 'chat' 
+                    ? activeModels.filter(m => m.is_chat_enabled)
+                    : activeModels;
+
+                const isCurrentlyEditing = this.editingTask === task.type;
+
                 return `
-                <tr id="task-row-${task.type}">
+                <tr id="task-row-${task.type}" class="${isCurrentlyEditing ? 'is-editing' : ''}">
                     <td>
                         <div style="font-weight:600; font-size:14px;">${task.label}</div>
                         <div style="font-size:11px; color:var(--text-dim); margin-top:2px;">${task.desc}</div>
                     </td>
                     <td>
-                        <select class="form-select task-binding-select" data-task="${task.type}" disabled style="width:100%; border-radius:8px;">
+                        <select class="form-select task-binding-select" data-task="${task.type}" ${isCurrentlyEditing ? '' : 'disabled'} style="width:100%; border-radius:8px;">
                             <option value="">-- Chọn Model mặc định --</option>
-                            ${activeModels
+                            ${dropdownModels
                                 .map(
                                     (model) =>
                                         `<option value="${model.id}" ${currentId === model.id ? 'selected' : ''}>${model.llm_model_name} - ${model.name} (${model.provider})</option>`
@@ -156,11 +181,18 @@ export class ModelsModule {
                         </select>
                     </td>
                     <td>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                            ${infoText}
-                            <button class="btn-binding-toggle edit" onclick="window.modelsModule.toggleBindingEdit('${task.type}', this)">
-                                ✏️ Sửa
-                            </button>
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+                            ${infoContainer}
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                <button class="btn-binding-toggle ${isCurrentlyEditing ? 'save' : 'edit'}" 
+                                        onclick="window.modelsModule.toggleBindingEdit('${task.type}', this)">
+                                    ${isCurrentlyEditing ? '✅ Lưu' : '✏️ Sửa'}
+                                </button>
+                                ${isCurrentlyEditing ? `
+                                <button class="btn-binding-toggle cancel" onclick="window.modelsModule.cancelBindingEdit()">
+                                    ❌ Hủy
+                                </button>` : ''}
+                            </div>
                         </div>
                     </td>
                 </tr>`;
@@ -168,15 +200,15 @@ export class ModelsModule {
             .join('');
     }
 
-    public async toggleBindingEdit(taskType: TaskType, buttonEl: HTMLElement) {
-        const row = document.getElementById(`task-row-${taskType}`);
-        const select = row?.querySelector('select') as HTMLSelectElement;
-        if (!row || !select) return;
-
-        const isEditing = row.classList.contains('is-editing');
+    public async toggleBindingEdit(taskType: TaskType, _buttonEl: HTMLElement) {
+        const isEditing = this.editingTask === taskType;
 
         if (isEditing) {
             // SAVE MODE
+            const row = document.getElementById(`task-row-${taskType}`);
+            const select = row?.querySelector('select') as HTMLSelectElement;
+            if (!row || !select) return;
+
             const modelId = select.value;
             if (!modelId) {
                 showToast('Vui lòng chọn một model', 'warning');
@@ -185,20 +217,46 @@ export class ModelsModule {
 
             const success = await this.updateBinding(taskType, modelId);
             if (success) {
-                row.classList.remove('is-editing');
-                select.disabled = true;
-                buttonEl.innerHTML = '✏️ Sửa';
-                buttonEl.classList.remove('save');
-                buttonEl.classList.add('edit');
+                this.editingTask = null;
+                await this.refreshData();
             }
         } else {
             // EDIT MODE
-            row.classList.add('is-editing');
-            select.disabled = false;
-            buttonEl.innerHTML = '✅ Lưu';
-            buttonEl.classList.remove('edit');
-            buttonEl.classList.add('save');
-            select.focus();
+            this.editingTask = taskType;
+            this.renderTasks();
+            
+            // Focus the select for better UX
+            const targetRow = document.getElementById(`task-row-${taskType}`);
+            const targetSelect = targetRow?.querySelector('select') as HTMLSelectElement;
+            if (targetSelect) targetSelect.focus();
+        }
+    }
+
+    public cancelBindingEdit() {
+        this.editingTask = null;
+        this.renderTasks();
+    }
+
+    public async toggleChatModel(modelId: string) {
+        try {
+            const res = await authFetch(`/api/models/${modelId}/toggle-chat`, {
+                method: 'POST'
+            });
+
+            if (!res.ok) {
+                throw new Error('Lỗi khi bật/tắt chat model');
+            }
+
+            const updatedModel = await res.json();
+            // Update local model state
+            const idx = this.models.findIndex(m => m.id === modelId);
+            if (idx !== -1) {
+                this.models[idx].is_chat_enabled = updatedModel.is_chat_enabled;
+            }
+            
+            showToast(`Đã ${updatedModel.is_chat_enabled ? 'bật' : 'tắt'} model cho Chat`, 'success');
+        } catch (err) {
+            showToast((err as Error).message, 'error');
         }
     }
 

@@ -30,9 +30,7 @@ async def scan_and_create_drafts(
 
     # A single HTTP client is shared for both LLM calls and other API calls.
     async with httpx.AsyncClient(timeout=60) as http_client:
-        llm_client = LLMService(
-            model=settings.OLLAMA_LLM_MODEL,
-        )
+        llm_client = LLMService()
 
         for source, scanner_cls in SCANNERS.items():
             scanner = scanner_cls(session, repo, http_client, llm_client)

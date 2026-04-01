@@ -218,7 +218,7 @@
 /* --- Modal & Form Styles --- */
 .form-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 16px;
 }
 
@@ -293,6 +293,12 @@
 .btn-binding-toggle.save:hover {
     background: var(--accent-hover);
     transform: translateY(-1px);
+}
+
+.btn-binding-toggle.cancel:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border-color: var(--danger);
 }
 
 .checkbox-row {

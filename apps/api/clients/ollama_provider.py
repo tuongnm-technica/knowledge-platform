@@ -53,6 +53,7 @@ class OllamaProvider(BaseLLMProvider):
         options: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
         on_token: Optional[Any] = None,
+        **kwargs: Any
     ) -> str:
         payload_chat = {
             "model": model,
@@ -137,6 +138,7 @@ class OllamaProvider(BaseLLMProvider):
         model: str,
         input: str | List[str],
         timeout: Optional[float] = None,
+        **kwargs: Any
     ) -> List[float] | List[List[float]]:
         payload = {
             "model": model,

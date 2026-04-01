@@ -118,7 +118,12 @@ export class ChatModule {
         if (!this.modelSelector) return;
         
         try {
-            // Fetch only models enabled for chat by Admin
+            // 1. Fetch Chat Bindings to find the default model
+            const boundRes = await authFetch('/api/models/bindings');
+            const bindings = boundRes.ok ? await boundRes.json() : {};
+            const defaultChatId = bindings['chat'];
+
+            // 2. Fetch only models enabled for chat by Admin
             const res = await authFetch(`${API}/models/chat`);
             if (!res.ok) throw new Error('Failed to fetch models');
             const models = await res.json();
@@ -126,7 +131,7 @@ export class ChatModule {
             this.modelSelector.innerHTML = '';
             
             if (models.length === 0) {
-                this.modelSelector.innerHTML = '<option value="">Dùng model mặc định</option>';
+                this.modelSelector.innerHTML = '<option value="">Chọn model...</option>';
                 return;
             }
 
@@ -134,15 +139,17 @@ export class ChatModule {
             models.forEach((m: any) => {
                 const opt = document.createElement('option');
                 opt.value = m.id;
-                opt.textContent = `${m.name} (${m.provider})`;
+                opt.textContent = `${m.llm_model_name} (${m.name})`;
                 
-                // If it's the system default, mark it
-                if (m.is_default) {
-                    opt.textContent += ' (Mặc định)';
-                    // We don't necessarily select it if another was already selected,
-                    // but on first load we should.
-                    if (!this.modelSelector!.value) opt.selected = true;
+                // Prioritize the bound default model, then the system default flag
+                if (m.id === defaultChatId) {
+                    opt.textContent += ' [Mặc định]';
+                    opt.selected = true;
+                } else if (!defaultChatId && m.is_default) {
+                    opt.textContent += ' [System]';
+                    opt.selected = true;
                 }
+                
                 this.modelSelector!.appendChild(opt);
             });
         } catch (err) {

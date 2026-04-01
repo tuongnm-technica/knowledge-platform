@@ -13,10 +13,10 @@ class LLMService:
     # Class-level semaphore to limit total concurrent LLM calls across all instances
     _semaphore = asyncio.Semaphore(getattr(settings, "MAX_CONCURRENT_LLM", 2))
 
-    def __init__(self, model_id: Optional[str | uuid.UUID] = None, task_type: str = "chat"):
-        self._provider: BaseLLMProvider = get_llm_provider()
-        self._model_id = model_id
+    def __init__(self, model_id: Optional[str | uuid.UUID] = None, task_type: str = "chat", **kwargs: Any):
+        self._model_id = model_id or kwargs.get("model")
         self._task_type = task_type
+        self._init_kwargs = kwargs
         # Default model based on task type
         if task_type == "embedding":
             self._default_model = settings.OLLAMA_EMBED_MODEL
@@ -25,10 +25,26 @@ class LLMService:
         else:
             self._default_model = settings.OLLAMA_LLM_MODEL
 
-    async def _resolve_model_config(self) -> tuple[str, Dict[str, Any], Optional[str]]:
+
+    async def is_available(self) -> bool:
         """
-        Resolves the technical model name, extra config, and API key from DB or settings.
-        Returns: (model_name, config_dict, api_key)
+        Kiểm tra xem LLM Provider mặc định có đang hoạt động hay không.
+        """
+        try:
+            model_name, _, _, provider, base_url = await self._resolve_model_config()
+            provider_client = get_llm_provider(provider, base_url)
+            
+            # Simple embedding check
+            await provider_client.embed(model=model_name, input="ping", timeout=5)
+            return True
+        except Exception as e:
+            log.warning("llm.availability_check.failed", error=str(e))
+            return False
+
+    async def _resolve_model_config(self) -> tuple[str, Dict[str, Any], Optional[str], str, Optional[str]]:
+        """
+        Resolves model metadata.
+        Returns: (model_name, config_dict, api_key, provider, base_url)
         """
         async with AsyncSessionLocal() as session:
             if self._model_id:
@@ -38,7 +54,13 @@ class LLMService:
                     res = await session.execute(select(LLMModelORM).where(LLMModelORM.id == uid))
                     model_obj = res.scalar_one_or_none()
                     if model_obj and model_obj.is_active:
-                        return model_obj.llm_model_name, model_obj.config or {}, model_obj.api_key
+                        return (
+                            model_obj.llm_model_name, 
+                            model_obj.config or {}, 
+                            model_obj.api_key, 
+                            model_obj.provider, 
+                            model_obj.base_url
+                        )
                 except ValueError:
                     pass
 
@@ -52,16 +74,28 @@ class LLMService:
                 )
                 model_obj = res.scalar_one_or_none()
                 if model_obj:
-                    return model_obj.llm_model_name, model_obj.config or {}, model_obj.api_key
+                    return (
+                        model_obj.llm_model_name, 
+                        model_obj.config or {}, 
+                        model_obj.api_key, 
+                        model_obj.provider, 
+                        model_obj.base_url
+                    )
 
             # 3. Fall back to system default from DB
             res = await session.execute(select(LLMModelORM).where(LLMModelORM.is_default == True, LLMModelORM.is_active == True).limit(1))
             model_obj = res.scalar_one_or_none()
             if model_obj:
-                return model_obj.llm_model_name, model_obj.config or {}, model_obj.api_key
+                return (
+                    model_obj.llm_model_name, 
+                    model_obj.config or {}, 
+                    model_obj.api_key, 
+                    model_obj.provider, 
+                    model_obj.base_url
+                )
 
         # 4. Ultimate fallback to settings
-        return self._default_model, {}, None
+        return self._default_model, {}, None, settings.LLM_PROVIDER, settings.OLLAMA_BASE_URL
 
     async def chat(self, system: str, user: str, max_tokens: int = 800, on_token: Any = None, **kwargs: Any) -> str:
         """
@@ -70,7 +104,10 @@ class LLMService:
         async with self._semaphore:
             try:
                 # Resolve model name and config dynamically
-                model_name, base_config, api_key = await self._resolve_model_config()
+                model_name, base_config, api_key, provider, base_url = await self._resolve_model_config()
+                
+                # Get dynamic provider client
+                provider_client = get_llm_provider(provider, base_url)
                 
                 # Override with kwargs if provided
                 target_model = kwargs.get("model") or model_name
@@ -91,7 +128,7 @@ class LLMService:
                 if "options" in kwargs:
                     options.update(kwargs["options"])
 
-                return await self._provider.chat(
+                return await provider_client.chat(
                     model=target_model,
                     messages=messages,
                     options=options,
@@ -113,12 +150,15 @@ class LLMService:
         async with self._semaphore:
             try:
                 # Resolve model name and config dynamically
-                model_name, _, api_key = await self._resolve_model_config()
+                model_name, _, api_key, provider, base_url = await self._resolve_model_config()
+                
+                # Get dynamic provider client
+                provider_client = get_llm_provider(provider, base_url)
                 
                 # Override with kwargs if provided
                 target_model = kwargs.get("model") or model_name
                 
-                return await self._provider.embed(
+                return await provider_client.embed(
                     model=target_model,
                     input=input_text,
                     timeout=kwargs.get("timeout") or settings.LLM_TIMEOUT * 2
