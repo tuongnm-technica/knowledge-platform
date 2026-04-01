@@ -104,7 +104,7 @@ async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question
                     )
                     await session_inner.commit()
 
-            agent = Agent(session, user_id, model_id=llm_model_id)
+            agent = Agent(session, user_id, session_id=session_id, model_id=llm_model_id)
             result = await agent.ask(question, on_thought=on_thought, on_token=on_token, on_sources=on_sources)
             
             # 4. Save the result
@@ -113,17 +113,6 @@ async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question
             agent_plan = result.get("agent_plan", [])
             rewritten_query = result.get("rewritten_query", "")
             
-            # Create the final assistant message in the session
-            if session_id:
-                new_msg = ChatMessage(
-                    session_id=session_id,
-                    role="assistant",
-                    content=answer,
-                    sources=sources,
-                    agent_plan=agent_plan,
-                    rewritten_query=rewritten_query
-                )
-                session.add(new_msg)
             
             # 5. Update job to 'completed'
             await session.execute(

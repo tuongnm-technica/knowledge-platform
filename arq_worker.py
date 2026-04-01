@@ -1,3 +1,4 @@
+import arq
 import asyncio
 import os
 import structlog
@@ -139,9 +140,12 @@ class AIWorkerSettings(BaseWorkerSettings):
     """Worker chuyên xử lý các tác vụ AI/Agent nặng (ReAct loops)."""
     queue_name = "arq:ai"
     functions = [
-        run_agent_job_proxy, run_workflow_job_proxy, run_doc_drafting_job_proxy, 
-        run_sdlc_generation_job_proxy, generate_pm_digest_job_proxy,
-        send_scheduled_pm_reports_job_proxy
+        arq.func(run_agent_job_proxy, name='run_agent_job'),
+        arq.func(run_workflow_job_proxy, name='run_workflow_job'),
+        arq.func(run_doc_drafting_job_proxy, name='run_doc_drafting_job'),
+        arq.func(run_sdlc_generation_job_proxy, name='run_sdlc_generation_job'),
+        arq.func(generate_pm_digest_job_proxy, name='generate_pm_digest'),
+        arq.func(send_scheduled_pm_reports_job_proxy, name='send_scheduled_pm_reports'),
     ]
     job_timeout = settings.ARQ_AI_JOB_TIMEOUT
     max_jobs = 3    # Giới hạn chạy song song ít để bảo vệ GPU

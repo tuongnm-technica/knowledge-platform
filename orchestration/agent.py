@@ -39,17 +39,19 @@ class Agent:
     - Tích hợp Vision pipeline: Giải thích diagram, screenshot từ Confluence/Jira.
     - Truyền ID nhất quán (intake_id, design_ref) xuyên suốt chuỗi 9 Agents.
     """
-    def __init__(self, session: AsyncSession, user_id: str, model_id: str | None = None):
+    def __init__(self, session: AsyncSession, user_id: str, session_id: str | None = None, model_id: str | None = None):
         """
-        Initialize Agent with user context from the start.
+        Initialize Agent with user and/or session context.
         
         Args:
             session: AsyncSession for database access
             user_id: User ID for permission/context filtering
+            session_id: Optional ID of the chat session for message storage
             model_id: Optional ID of the LLM model to use
         """
         self._session = session
         self._user_id = user_id
+        self._session_id = session_id
         self._model_id = model_id
         
         # Phase 1: Decoupled LLM
@@ -224,11 +226,6 @@ class Agent:
         if self._session_id:
             try:
                 from models.chat import ChatMessage
-                user_msg = ChatMessage(
-                    session_id=self._session_id,
-                    role="user",
-                    content=question,
-                )
                 ai_msg = ChatMessage(
                     session_id=self._session_id,
                     role="assistant",
@@ -238,7 +235,6 @@ class Agent:
                     rewritten_query=result.rewritten_query,
                     query_id=query_id
                 )
-                self._session.add(user_msg)
                 self._session.add(ai_msg)
                 await self._session.commit()
             except Exception as e:
