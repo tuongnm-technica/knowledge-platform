@@ -289,7 +289,7 @@ class ReActLoop:
         final_scores = [float(s.get("agent_score") or s.get("score") or 0) for s in cast(List[dict], sources)[:6]]
         best_final = max(final_scores) if final_scores else 0.0
 
-        if best_final < no_answer_threshold and not sources:
+        if not sources or best_final < no_answer_threshold:
             log.info("agent.no_answer_gate", best_score=best_final, threshold=no_answer_threshold)
             vni_chars_gate = re.compile(r'[àáảãạăầấẩẫậắẳẵặêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]', re.IGNORECASE)
             no_ans = (

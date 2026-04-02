@@ -65,14 +65,16 @@ async def get_pm_dashboard_stats(
     res_metrics = await session.execute(query_metrics, {"p": project_key, "p_br": f"[{project_key}]" if project_key else None})
     stats_row = res_metrics.fetchone()
     
-    # [LIVE FALLBACK] If no daily metrics found, compute live from documents table
-    if not stats_row:
+    # [LIVE FALLBACK] If no daily metrics found or they are all NULL, compute live from documents table
+    is_empty = not stats_row or all(v is None for v in stats_row)
+    
+    if is_empty:
         live_query = text("""
             SELECT 
-                COUNT(*) FILTER (WHERE metadata->>'statusCategory' ILIKE 'to do' OR metadata->>'status' ILIKE 'open') as todo,
-                COUNT(*) FILTER (WHERE metadata->>'statusCategory' ILIKE 'in progress' OR metadata->>'status' ILIKE 'in progress' OR metadata->>'status' ILIKE 'doing') as wip,
-                COUNT(*) FILTER (WHERE metadata->>'statusCategory' ILIKE 'done' OR metadata->>'status' ILIKE 'resolved' OR metadata->>'status' ILIKE 'closed' OR metadata->>'status' ILIKE 'done') as done,
-                COUNT(*) FILTER (WHERE (metadata->>'priority' ILIKE 'high' OR metadata->>'priority' ILIKE 'critical' OR metadata->>'priority' ILIKE 'highest')) as high
+                COUNT(*) FILTER (WHERE (metadata)::jsonb->>'statusCategory' ILIKE 'to do' OR (metadata)::jsonb->>'status' ILIKE 'open') as todo,
+                COUNT(*) FILTER (WHERE (metadata)::jsonb->>'statusCategory' ILIKE 'in progress' OR (metadata)::jsonb->>'status' ILIKE 'in progress' OR (metadata)::jsonb->>'status' ILIKE 'doing') as wip,
+                COUNT(*) FILTER (WHERE (metadata)::jsonb->>'statusCategory' ILIKE 'done' OR (metadata)::jsonb->>'status' ILIKE 'resolved' OR (metadata)::jsonb->>'status' ILIKE 'closed' OR (metadata)::jsonb->>'status' ILIKE 'done') as done,
+                COUNT(*) FILTER (WHERE ((metadata)::jsonb->>'priority' ILIKE 'high' OR (metadata)::jsonb->>'priority' ILIKE 'critical' OR (metadata)::jsonb->>'priority' ILIKE 'highest')) as high
             FROM documents
             WHERE source = 'jira' 
               AND (
@@ -245,20 +247,21 @@ async def get_pm_logtime(
 @router.get("/dashboard/logtime-trend")
 async def get_pm_logtime_trend(
     project_key: Optional[str] = None,
-    days: int = 30,
+    days: int = 250,
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    # Temporarily disabled to debug aggregation error
-    return {"trend": []}
     """
-    query = f\"\"\"
+    Groups effort (log-time) by day and user for a trend chart.
+    Uses JSONB unnesting to reach individual worklog entries.
+    """
+    query = f"""
         SELECT 
             CAST(w->>'started' AS DATE) as log_date,
             w->>'author' as user_name,
             SUM(CAST(COALESCE(w->>'timeSpentSeconds', '0') AS INTEGER)) as seconds
         FROM documents,
-             jsonb_array_elements(CASE WHEN jsonb_typeof(metadata->'worklog') = 'array' THEN (metadata->'worklog') ELSE '[]'::jsonb END) w
+             jsonb_array_elements(CASE WHEN jsonb_typeof((metadata->'worklog')::jsonb) = 'array' THEN (metadata->'worklog')::jsonb ELSE '[]'::jsonb END) w
         WHERE source = 'jira' 
           AND (
               :p IS NULL
@@ -271,9 +274,9 @@ async def get_pm_logtime_trend(
           AND CAST(w->>'started' AS DATE) >= CURRENT_DATE - INTERVAL '{days} days'
         GROUP BY 1, 2
         ORDER BY 1 ASC, 3 DESC
-    \"\"\"
+    """
     
-    params = {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {"p": "%", "p_br": "%"}
+    params = {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {"p": None, "p_br": None}
     
     res = await session.execute(text(query), params)
     rows = res.fetchall()
@@ -287,7 +290,6 @@ async def get_pm_logtime_trend(
         })
         
     return {"trend": trend}
-    """
 
 
 @router.get("/dashboard/stale")
