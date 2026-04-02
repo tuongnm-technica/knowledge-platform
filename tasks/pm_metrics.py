@@ -26,25 +26,24 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
     
     query = text("""
         SELECT 
-            (metadata)::jsonb->>'statusCategory' as cat, 
-            (metadata)::jsonb->>'priority' as priority, 
-            (metadata)::jsonb->'assignee'->>'accountId' as account_id, 
-            (metadata)::jsonb->'assignee'->>'displayName' as display_name, 
-            (metadata)::jsonb->>'sprint' as sprint_json, 
-            (metadata)::jsonb->>'epic' as epic_json, 
+            CAST(metadata AS JSONB)->>'statusCategory' as cat, 
+            CAST(metadata AS JSONB)->>'priority' as priority, 
+            CAST(metadata AS JSONB)->'assignee'->>'accountId' as account_id, 
+            CAST(metadata AS JSONB)->'assignee'->>'displayName' as display_name, 
+            CAST(metadata AS JSONB)->>'sprint' as sprint_json, 
+            CAST(metadata AS JSONB)->>'epic' as epic_json, 
             updated_at, 
             created_at, 
-            (metadata)::jsonb->>'resolved_date' as resolved_date 
+            CAST(metadata AS JSONB)->>'resolved_date' as resolved_date 
         FROM documents 
         WHERE source = 'jira' 
           AND (
-              metadata->>'project_key' ILIKE :p 
-              OR metadata->>'project_key' ILIKE :p_br 
-              OR metadata->>'project' ILIKE :p 
-              OR metadata->>'project' ILIKE :p_br
+              metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%' 
+              OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%' 
+              OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
           )
     """)
-    res = await session.execute(query, {"p": project_key, "p_br": f"[{project_key}]"})
+    res = await session.execute(query, {"p": project_key})
     issues = res.mappings().fetchall()
     
     if not issues:

@@ -46,7 +46,7 @@ class BaseScanner(abc.ABC):
         # Multi-instance fallback
         try:
             inst = await self.session.execute(
-                text("SELECT id::text FROM connector_instances WHERE connector_type = :t ORDER BY created_at ASC LIMIT 1"),
+                text("SELECT CAST(id AS TEXT) AS id FROM connector_instances WHERE connector_type = :t ORDER BY created_at ASC LIMIT 1"),
                 {"t": connector},
             )
             instance_id = inst.scalar()

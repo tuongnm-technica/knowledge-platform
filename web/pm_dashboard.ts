@@ -18,6 +18,7 @@ export class PMDashboardModule {
     private burnupChart: Chart | null = null;
     private logTimeChart: Chart | null = null;
     private logTimeTrendChart: Chart | null = null;
+    private logtimeDays: number = 30;
     
     public async init() {
         if (this.isInitialized) return;
@@ -40,6 +41,14 @@ export class PMDashboardModule {
 
         if (filter) {
             filter.addEventListener('change', () => this.refreshData());
+        }
+        
+        const logtimeRange = document.getElementById('pmLogtimeRange') as HTMLSelectElement;
+        if (logtimeRange) {
+            logtimeRange.addEventListener('change', () => {
+                this.logtimeDays = parseInt(logtimeRange.value) || 30;
+                this.refreshLogtimeTrend();
+            });
         }
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
@@ -143,6 +152,9 @@ export class PMDashboardModule {
         const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
         const projectKey = select ? select.value : '';
         const qs = projectKey ? `?project_key=${encodeURIComponent(projectKey)}` : '';
+        
+        const logRangeSelector = document.getElementById('pmLogtimeRange') as HTMLSelectElement;
+        const days = logRangeSelector ? parseInt(logRangeSelector.value) : this.logtimeDays;
 
         try {
             const [stats, risks, workload, stale, epics, cfd, leadTime, issueTypes, retrospective, burnup, logtime, logtimeTrend] = await Promise.all([
@@ -157,7 +169,7 @@ export class PMDashboardModule {
                 authFetch(`/api/pm/dashboard/retrospective${qs}`).then(r => r.ok ? r.json() : { retrospectives: [] }),
                 authFetch(`/api/pm/dashboard/burnup${qs}`).then(r => r.ok ? r.json() : { burnup: [] }),
                 authFetch(`/api/pm/dashboard/logtime${qs}`).then(r => r.ok ? r.json() : { logtime: [] }),
-                authFetch(`/api/pm/dashboard/logtime-trend${qs}`).then(r => r.ok ? r.json() : { trend: [] })
+                authFetch(`/api/pm/dashboard/logtime-trend${qs}${qs ? '&' : '?'}days=${days}`).then(r => r.ok ? r.json() : { trend: [] })
             ]);
 
             this.renderStats(stats);
@@ -393,6 +405,23 @@ export class PMDashboardModule {
                 scales: { x: { beginAtZero: true, title: { display: true, text: 'Hours' } } }
             }
         });
+    }
+
+    private async refreshLogtimeTrend() {
+        const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
+        const projectKey = select ? select.value : '';
+        const qs = projectKey ? `?project_key=${encodeURIComponent(projectKey)}` : '';
+        const days = this.logtimeDays;
+
+        try {
+            const res = await authFetch(`/api/pm/dashboard/logtime-trend${qs}${qs ? '&' : '?'}days=${days}`);
+            if (res.ok) {
+                const data = await res.json();
+                this.renderLogTimeTrend(data.trend || []);
+            }
+        } catch (e) {
+            console.error('Failed to refresh logtime trend:', e);
+        }
     }
 
     private renderLogTimeTrend(trend: any[]) {

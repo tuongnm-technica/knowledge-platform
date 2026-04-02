@@ -46,23 +46,52 @@ async def get_pm_dashboard_stats(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     # Fetching metrics from pm_metrics_daily and pm_project_insights
-    query_metrics = text("""
-        SELECT 
-            todo_count, in_progress_count, done_count, high_priority_count
-        FROM pm_metrics_daily
-        WHERE (:p IS NULL OR project_key ILIKE :p OR project_key ILIKE :p_br)
-        ORDER BY date DESC LIMIT 1
-    """)
+    if project_key:
+        query_metrics = text("""
+            SELECT 
+                todo_count, in_progress_count, done_count, high_priority_count
+            FROM pm_metrics_daily
+            WHERE (project_key ILIKE '%' || CAST(:p AS TEXT) || '%' OR CAST(:p AS TEXT) || '%' ILIKE '%' || project_key || '%')
+            ORDER BY date DESC LIMIT 1
+        """)
+        query_insights = text("""
+            SELECT velocity_weekly, risk_score, health_status, insight
+            FROM pm_metrics_by_project
+            WHERE (project_key ILIKE '%' || CAST(:p AS TEXT) || '%' OR CAST(:p AS TEXT) || '%' ILIKE '%' || project_key || '%')
+            ORDER BY updated_at DESC LIMIT 1
+        """)
+    else:
+        # Global View: Sum of latest metrics for each project
+        query_metrics = text("""
+            WITH latest_dates AS (
+                SELECT project_key, MAX(date) as max_date
+                FROM pm_metrics_daily
+                GROUP BY project_key
+            )
+            SELECT 
+                SUM(m.todo_count) as todo_count, 
+                SUM(m.in_progress_count) as in_progress_count, 
+                SUM(m.done_count) as done_count, 
+                SUM(m.high_priority_count) as high_priority_count
+            FROM pm_metrics_daily m
+            JOIN latest_dates ld ON m.project_key = ld.project_key AND m.date = ld.max_date
+        """)
+        query_insights = text("""
+            SELECT 
+                AVG(velocity_weekly) as velocity_weekly, 
+                AVG(risk_score) as risk_score, 
+                'overview' as health_status, 
+                'Global overview of all projects' as insight
+            FROM pm_metrics_by_project
+        """)
     
-    query_insights = text("""
-        SELECT velocity_weekly, risk_score, health_status, insight
-        FROM pm_metrics_by_project
-        WHERE (:p IS NULL OR project_key ILIKE :p OR project_key ILIKE :p_br)
-        ORDER BY updated_at DESC LIMIT 1
-    """)
-    
-    res_metrics = await session.execute(query_metrics, {"p": project_key, "p_br": f"[{project_key}]" if project_key else None})
+    res_metrics = await session.execute(query_metrics, {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {})
     stats_row = res_metrics.fetchone()
     
     # [LIVE FALLBACK] If no daily metrics found or they are all NULL, compute live from documents table
@@ -78,14 +107,13 @@ async def get_pm_dashboard_stats(
             FROM documents
             WHERE source = 'jira' 
               AND (
-                  :p IS NULL 
-                  OR metadata->>'project_key' ILIKE :p 
-                  OR metadata->>'project_key' ILIKE :p_br
-                  OR metadata->>'project' ILIKE :p
-                  OR metadata->>'project' ILIKE :p_br
+                  CAST(:p AS TEXT) IS NULL 
+                  OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+                  OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+                  OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
               )
         """)
-        res_live = await session.execute(live_query, {"p": project_key, "p_br": f"[{project_key}]" if project_key else None})
+        res_live = await session.execute(live_query, {"p": project_key})
         live_stats = res_live.fetchone()
         stats = {
             "todo_count": live_stats[0] or 0,
@@ -119,12 +147,12 @@ async def get_pm_dashboard_stats(
     }
 
     # Optional: Merge project insights if available
-    p_res = await session.execute(query_insights, {"p": project_key, "p_br": f"[{project_key}]" if project_key else None})
+    p_res = await session.execute(query_insights, {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {})
     p_metrics = p_res.mappings().first()
     if p_metrics:
         formatted_stats.update({
-            "velocity_weekly": p_metrics["velocity_weekly"],
-            "risk_score": p_metrics["risk_score"],
+            "velocity_weekly": round(p_metrics["velocity_weekly"] or 0, 1),
+            "risk_score": round(p_metrics["risk_score"] or 0, 1),
             "health_status": p_metrics["health_status"]
         })
     
@@ -137,10 +165,12 @@ async def get_pm_risks(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     # Placeholder for risks generated by PM Digest background task
-    # For now, we simulate pulling "ai_task_drafts" or "documents" that are labeled as risks
-    # In full implementation, we can query a specific table for generated reports
-    
     query = """
     SELECT 
         title, content, created_at
@@ -150,8 +180,8 @@ async def get_pm_risks(
     
     params = {}
     if project_key:
-        query += " AND title LIKE :project_key"
-        params["project_key"] = f"%[{project_key}]%"
+        query += " AND title ILIKE :p"
+        params["p"] = f"%{project_key}%"
         
     query += " ORDER BY created_at DESC LIMIT :limit"
     params["limit"] = limit
@@ -185,10 +215,16 @@ async def get_pm_workload(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     query = "SELECT user_id, display_name, project_key, todo_count, in_progress_count, done_count FROM pm_metrics_by_user"
+    params = {}
     if project_key:
-        query += " WHERE project_key ILIKE :p OR project_key ILIKE :p_br"
-        params = {"p": project_key, "p_br": f"[{project_key}]"}
+        query += " WHERE (project_key ILIKE '%' || CAST(:p AS TEXT) || '%' OR CAST(:p AS TEXT) || '%' ILIKE '%' || project_key || '%')"
+        params = {"p": project_key}
         
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -213,6 +249,11 @@ async def get_pm_logtime(
     """
     Aggregates total time spent (logged hours) from issue metadata by user.
     """
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     query = """
         SELECT 
             metadata->'assignee'->>'displayName' as user_name,
@@ -220,17 +261,17 @@ async def get_pm_logtime(
         FROM documents
         WHERE source = 'jira' 
           AND (
-              metadata->>'project_key' ILIKE :p 
-              OR metadata->>'project_key' ILIKE :p_br
-              OR metadata->>'project' ILIKE :p
-              OR metadata->>'project' ILIKE :p_br
+              CAST(:p AS TEXT) IS NULL
+              OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+              OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+              OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
           )
         GROUP BY 1
         HAVING SUM(CAST(COALESCE(metadata->'timetracking'->>'timeSpentSeconds', '0') AS INTEGER)) > 0
         ORDER BY seconds DESC
     """
     
-    params = {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {"p": "%", "p_br": "%"}
+    params = {"p": project_key}
     
     res = await session.execute(text(query), params)
     rows = res.fetchall()
@@ -251,6 +292,11 @@ async def get_pm_logtime_trend(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     """
     Groups effort (log-time) by day and user for a trend chart.
     Uses JSONB unnesting to reach individual worklog entries.
@@ -264,19 +310,18 @@ async def get_pm_logtime_trend(
              jsonb_array_elements(CASE WHEN jsonb_typeof((metadata->'worklog')::jsonb) = 'array' THEN (metadata->'worklog')::jsonb ELSE '[]'::jsonb END) w
         WHERE source = 'jira' 
           AND (
-              :p IS NULL
-              OR metadata->>'project_key' ILIKE :p 
-              OR metadata->>'project_key' ILIKE :p_br
-              OR metadata->>'project' ILIKE :p
-              OR metadata->>'project' ILIKE :p_br
+              CAST(:p AS TEXT) IS NULL
+              OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+              OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+              OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
           )
-          AND (w->>'started') IS NOT NULL
+        AND (w->>'started') IS NOT NULL
           AND CAST(w->>'started' AS DATE) >= CURRENT_DATE - INTERVAL '{days} days'
         GROUP BY 1, 2
         ORDER BY 1 ASC, 3 DESC
     """
     
-    params = {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {"p": None, "p_br": None}
+    params = {"p": project_key}
     
     res = await session.execute(text(query), params)
     rows = res.fetchall()
@@ -299,6 +344,30 @@ async def get_pm_stale_tasks(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
+    query = """
+    SELECT 
+        source_id as key, title, 
+        metadata->>'status' as status, 
+        metadata->'assignee'->>'displayName' as assignee, 
+        updated_at
+    FROM documents 
+    WHERE source = 'jira' 
+      AND (
+          CAST(:p AS TEXT) IS NULL 
+          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+          OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
+      )
+      AND metadata->>'statusCategory' = 'in progress'
+      AND updated_at < NOW() - CAST(:d || ' days' AS INTERVAL)
+    ORDER BY updated_at ASC LIMIT 50
+    """
+    params = {"p": project_key, "d": str(days)}
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
     return {"tasks": [dict(r) for r in rows]}
@@ -324,10 +393,10 @@ async def refresh_pm_ai_analysis(
         # Kiểm tra xem dự án có dữ liệu Jira không
         res = await session.execute(
             text("""SELECT COUNT(*) FROM documents WHERE source = 'jira' AND (
-                metadata->>'project_key' ILIKE :p OR metadata->>'project_key' ILIKE :p_br OR
-                metadata->>'project' ILIKE :p OR metadata->>'project' ILIKE :p_br
+                metadata->>'project_key' ILIKE '%' || :p || '%' OR 
+                metadata->>'project' ILIKE '%' || :p || '%'
             )"""),
-            {"p": project_key, "p_br": f"[{project_key}]"}
+            {"p": project_key}
         )
 
         count = res.scalar() or 0
@@ -352,21 +421,26 @@ async def get_pm_burnup(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     query = """
     SELECT 
         DATE(updated_at) as done_date,
         COUNT(id) as count
     FROM documents 
     WHERE source = 'jira' 
-      AND metadata->>'statusCategory' = 'done'
+      AND (metadata)::jsonb->>'statusCategory' = 'done'
+      AND (
+          CAST(:p AS TEXT) IS NULL 
+          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+      )
+    GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30
     """
-    params = {}
-    if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
-        
-    query += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30"
+    params = {"p": project_key}
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -390,6 +464,11 @@ async def get_pm_cfd(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     # Simulated CFD from current Snapshot DB
     query = """
     SELECT 
@@ -400,9 +479,8 @@ async def get_pm_cfd(
     """
     params = {}
     if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
+        query += " AND (metadata->>'project_key' ILIKE '%' || :p || '%' OR metadata->>'project' ILIKE '%' || :p || '%')"
+        params["p"] = project_key
         
     query += " GROUP BY DATE(created_at) ORDER BY DATE(created_at) ASC"
     
@@ -414,10 +492,10 @@ async def get_pm_cfd(
         DATE(updated_at) as resolved_date,
         COUNT(id) as total_resolved
     FROM documents 
-    WHERE source = 'jira' AND metadata->>'statusCategory' = 'done'
+    WHERE source = 'jira' AND (metadata)::jsonb->>'statusCategory' = 'done'
     """
     if project_key:
-        query_done += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
+        query_done += " AND (metadata->>'project_key' ILIKE '%' || :p || '%' OR metadata->>'project' ILIKE '%' || :p || '%')"
         
     query_done += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC"
     
@@ -468,23 +546,28 @@ async def get_pm_lead_time(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     query = """
     SELECT 
         DATE(updated_at) as done_date,
         AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/86400) as daily_avg_lead_time
     FROM documents 
     WHERE source = 'jira' 
-      AND metadata->>'statusCategory' = 'done'
+      AND (metadata)::jsonb->>'statusCategory' = 'done'
       AND updated_at IS NOT NULL
       AND created_at IS NOT NULL
+      AND (
+          CAST(:p AS TEXT) IS NULL 
+          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+      )
+    GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30
     """
-    params = {}
-    if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
-        
-    query += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30"
+    params = {"p": project_key, "p_br": f"[{project_key}]" if project_key else None}
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -513,20 +596,25 @@ async def get_pm_issue_types(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     query = """
     SELECT 
         COALESCE(metadata->>'issue_type', 'Unknown') as issue_type,
         COUNT(id) as count
     FROM documents 
     WHERE source = 'jira'
+      AND (
+          CAST(:p AS TEXT) IS NULL 
+          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+      )
+    GROUP BY COALESCE(metadata->>'issue_type', 'Unknown') ORDER BY count DESC
     """
-    params = {}
-    if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
-        
-    query += " GROUP BY COALESCE(metadata->>'issue_type', 'Unknown') ORDER BY count DESC"
+    params = {"p": project_key}
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -540,6 +628,11 @@ async def get_pm_epics(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     # Fetch Epics
     query = """
     SELECT 
@@ -552,14 +645,14 @@ async def get_pm_epics(
     FROM documents
     WHERE source = 'jira'
       AND metadata->>'issue_type' = 'Epic'
+      AND (
+          CAST(:p AS TEXT) IS NULL 
+          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
+          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
+      )
+    ORDER BY updated_at DESC LIMIT 20
     """
-    params = {}
-    if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
-        
-    query += " ORDER BY updated_at DESC LIMIT 20"
+    params = {"p": project_key}
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -586,19 +679,23 @@ async def get_pm_retrospective(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+
     query = """
     SELECT 
         title, content, created_at
     FROM doc_drafts
     WHERE doc_type = 'pm_sprint_retrospective'
     """
-    params = {}
+    params = {"limit": limit}
     if project_key:
-        query += " AND title LIKE :project_key"
-        params["project_key"] = f"%[{project_key}]%"
+        query += " AND title ILIKE :p"
+        params["p"] = f"%{project_key}%"
         
     query += " ORDER BY created_at DESC LIMIT :limit"
-    params["limit"] = limit
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -674,7 +771,7 @@ async def generate_pm_custom_report(
       AND updated_at < NOW() - interval '3 days'
     ORDER BY updated_at ASC LIMIT 10
     """
-    s_res = await session.execute(text(stale_query), {"p": project_key, "p_br": f"[{project_key}]"})
+    s_res = await session.execute(text(stale_query), {"p": project_key})
     stale_issues = s_res.mappings().all()
     stale_str = "\n".join([f"- [{i['key']}] {i['title']} (Assignee: {i['assignee']}, Last Updated: {i['updated_at']})" for i in stale_issues])
 
@@ -692,7 +789,7 @@ async def generate_pm_custom_report(
           AND metadata->>'statusCategory' = 'in progress'
         ORDER BY updated_at DESC LIMIT 10
     """)
-    w_res = await session.execute(wip_query, {"p": project_key, "p_br": f"[{project_key}]"})
+    w_res = await session.execute(wip_query, {"p": project_key})
     wip_items = w_res.mappings().all()
     wip_str = "\n".join([f"- [{i['key']}] {i['title']} ({i['status']})" for i in wip_items])
 
@@ -757,6 +854,11 @@ async def get_pm_drilldown(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Drill-down API to fetch issue list for a specific metric."""
+    if not project_key or project_key.strip() == "":
+        project_key = None
+    else:
+        project_key = project_key.strip()
+
     query = """
     SELECT 
         source_id as key, title, 
@@ -768,7 +870,8 @@ async def get_pm_drilldown(
     """
     params = {}
     if project_key:
-        query += " AND metadata->>'project_key' = :p"
+        project_key = project_key.strip().replace("[", "").replace("]", "")
+        query += " AND (metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%' OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%')"
         params["p"] = project_key
         
     if metric == "high_priority":

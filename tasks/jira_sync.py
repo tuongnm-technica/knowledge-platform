@@ -27,7 +27,7 @@ async def sync_submitted_drafts(session: AsyncSession, *, limit: int = 50) -> di
     result = await session.execute(
         text(
             """
-            SELECT id::text AS id, jira_key, suggested_fields, status
+            SELECT CAST(id AS TEXT) AS id, jira_key, suggested_fields, status
             FROM ai_task_drafts
             WHERE status = 'submitted'
               AND jira_key IS NOT NULL
@@ -96,7 +96,7 @@ async def sync_submitted_drafts(session: AsyncSession, *, limit: int = 50) -> di
                         UPDATE ai_task_drafts
                         SET suggested_fields = CAST(:sf AS JSON),
                             status = CASE WHEN :done THEN 'done' ELSE status END
-                        WHERE id::text = :id AND status = 'submitted'
+                        WHERE CAST(id AS TEXT) = :id AND status = 'submitted'
                         """
                     ),
                     {"sf": json.dumps(suggested_fields), "done": bool(done), "id": row["id"]},
