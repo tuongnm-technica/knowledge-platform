@@ -82,12 +82,15 @@ def _confluence_ui_url(*, base_url: str, webui: str, space_key: str, page_id: st
 
 
 def _allowed_space_keys(override: set[str] | None = None) -> set[str]:
+    """
+    Return explicit space keys to sync based on DB selection.
+    Ignores settings.CONFLUENCE_SPACE_KEYS to avoid double-filtering
+    and ensure the UI selection is the single source of truth.
+    If empty, all accessible spaces will be synced.
+    """
     if override:
         return {key.strip() for key in override if key and str(key).strip()}
-    raw = (settings.CONFLUENCE_SPACE_KEYS or "").strip()
-    if not raw:
-        return set()
-    return {key.strip() for key in raw.split(",") if key.strip()}
+    return set()
 
 
 class ConfluenceConnector(BaseConnector):

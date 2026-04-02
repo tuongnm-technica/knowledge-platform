@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+import json
+from pydantic import BaseModel
+from services.llm_service import LLMService
 
 from apps.api.auth.dependencies import CurrentUser, get_current_user
 from storage.db.db import get_db
@@ -283,4 +286,362 @@ async def refresh_pm_ai_analysis(
     except Exception as e:
         log.error("pm_routes.refresh_ai.failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dashboard/burnup")
+async def get_pm_burnup(
+    project_key: Optional[str] = None,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    query = """
+    SELECT 
+        DATE(updated_at) as done_date,
+        COUNT(id) as count
+    FROM documents 
+    WHERE source = 'jira' 
+      AND metadata->>'statusCategory' = 'done'
+    """
+    params = {}
+    if project_key:
+        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
+        params["project_key"] = project_key
+        params["project_key_br"] = f"[{project_key}]"
+        
+    query += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30"
+    
+    res = await session.execute(text(query), params)
+    rows = res.mappings().fetchall()
+    
+    # Calculate cumulative (Burnup)
+    burnup_data = []
+    cumulative = 0
+    for r in rows:
+        cumulative += r["count"]
+        burnup_data.append({
+            "date": r["done_date"].isoformat() if r["done_date"] else None,
+            "daily_completed": r["count"],
+            "cumulative": cumulative
+        })
+        
+    return {"burnup": burnup_data}
+
+@router.get("/dashboard/cfd")
+async def get_pm_cfd(
+    project_key: Optional[str] = None,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    # Simulated CFD from current Snapshot DB
+    query = """
+    SELECT 
+        DATE(created_at) as created_date,
+        COUNT(id) as total_entered
+    FROM documents 
+    WHERE source = 'jira'
+    """
+    params = {}
+    if project_key:
+        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
+        params["project_key"] = project_key
+        params["project_key_br"] = f"[{project_key}]"
+        
+    query += " GROUP BY DATE(created_at) ORDER BY DATE(created_at) ASC"
+    
+    created_res = await session.execute(text(query), params)
+    
+    # Same for done
+    query_done = """
+    SELECT 
+        DATE(updated_at) as resolved_date,
+        COUNT(id) as total_resolved
+    FROM documents 
+    WHERE source = 'jira' AND metadata->>'statusCategory' = 'done'
+    """
+    if project_key:
+        query_done += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
+        
+    query_done += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC"
+    
+    resolved_res = await session.execute(text(query_done), params)
+    
+    created_rows = created_res.mappings().fetchall()
+    resolved_rows = resolved_res.mappings().fetchall()
+    
+    timeline = {}
+    for r in created_rows:
+        d = r["created_date"].isoformat() if r["created_date"] else "unknown"
+        if d not in timeline:
+             timeline[d] = {"entered": 0, "resolved": 0}
+        timeline[d]["entered"] += r["total_entered"]
+        
+    for r in resolved_rows:
+        d = r["resolved_date"].isoformat() if r["resolved_date"] else "unknown"
+        if d not in timeline:
+             timeline[d] = {"entered": 0, "resolved": 0}
+        timeline[d]["resolved"] += r["total_resolved"]
+        
+    dates = sorted(list(timeline.keys()))
+    cfd_data = []
+    cum_entered = 0
+    cum_resolved = 0
+    
+    for d in dates:
+        if d == "unknown": continue
+        cum_entered += timeline[d]["entered"]
+        cum_resolved += timeline[d]["resolved"]
+        
+        # Calculate ToDo + InProgress loosely as entered - resolved
+        wip = cum_entered - cum_resolved
+        if wip < 0: wip = 0
+        
+        cfd_data.append({
+            "date": d,
+            "done": cum_resolved,
+            "wip": wip,  # To do + In Progress
+            "total": cum_entered
+        })
+        
+    return {"cfd": cfd_data[-30:]} # Last 30 points
+
+@router.get("/dashboard/lead-time")
+async def get_pm_lead_time(
+    project_key: Optional[str] = None,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    query = """
+    SELECT 
+        DATE(updated_at) as done_date,
+        AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/86400) as daily_avg_lead_time
+    FROM documents 
+    WHERE source = 'jira' 
+      AND metadata->>'statusCategory' = 'done'
+      AND updated_at IS NOT NULL
+      AND created_at IS NOT NULL
+    """
+    params = {}
+    if project_key:
+        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
+        params["project_key"] = project_key
+        params["project_key_br"] = f"[{project_key}]"
+        
+    query += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30"
+    
+    res = await session.execute(text(query), params)
+    rows = res.mappings().fetchall()
+    
+    overall_avg = 0
+    trend = []
+    total_days = 0
+    count = 0
+    for r in rows:
+        val = float(r["daily_avg_lead_time"] or 0)
+        total_days += val
+        count += 1
+        trend.append({
+            "date": r["done_date"].isoformat() if r["done_date"] else None,
+            "avg_lead_time_days": round(val, 2)
+        })
+        
+    if count > 0:
+        overall_avg = round(total_days / count, 2)
+        
+    return {"overall_avg_lead_time_days": overall_avg, "trend": trend}
+
+@router.get("/dashboard/issue-types")
+async def get_pm_issue_types(
+    project_key: Optional[str] = None,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    query = """
+    SELECT 
+        COALESCE(metadata->>'issue_type', 'Unknown') as issue_type,
+        COUNT(id) as count
+    FROM documents 
+    WHERE source = 'jira'
+    """
+    params = {}
+    if project_key:
+        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
+        params["project_key"] = project_key
+        params["project_key_br"] = f"[{project_key}]"
+        
+    query += " GROUP BY COALESCE(metadata->>'issue_type', 'Unknown') ORDER BY count DESC"
+    
+    res = await session.execute(text(query), params)
+    rows = res.mappings().fetchall()
+    
+    res_data = [{"type": r["issue_type"], "count": r["count"]} for r in rows]
+    return {"issue_types": res_data}
+
+@router.get("/dashboard/epics")
+async def get_pm_epics(
+    project_key: Optional[str] = None,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    # Fetch Epics
+    query = """
+    SELECT 
+        source_id as key,
+        title,
+        metadata->>'status' as status_name,
+        metadata->>'statusCategory' as status_category,
+        updated_at,
+        url
+    FROM documents
+    WHERE source = 'jira'
+      AND metadata->>'issue_type' = 'Epic'
+    """
+    params = {}
+    if project_key:
+        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
+        params["project_key"] = project_key
+        params["project_key_br"] = f"[{project_key}]"
+        
+    query += " ORDER BY updated_at DESC LIMIT 20"
+    
+    res = await session.execute(text(query), params)
+    rows = res.mappings().fetchall()
+    
+    epics = []
+    for r in rows:
+        cat = r["status_category"] or "to do"
+        progress = 100 if cat.lower() == 'done' else (50 if cat.lower() in ['in progress', 'indeterminate'] else 0)
+        epics.append({
+            "key": r["key"],
+            "title": r["title"],
+            "status": r["status_name"],
+            "progress": progress,
+            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+            "url": r["url"]
+        })
+        
+    return {"epics": epics}
+
+@router.get("/dashboard/retrospective")
+async def get_pm_retrospective(
+    project_key: Optional[str] = None,
+    limit: int = 2,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    query = """
+    SELECT 
+        title, content, created_at
+    FROM doc_drafts
+    WHERE doc_type = 'pm_sprint_retrospective'
+    """
+    params = {}
+    if project_key:
+        query += " AND title LIKE :project_key"
+        params["project_key"] = f"%[{project_key}]%"
+        
+    query += " ORDER BY created_at DESC LIMIT :limit"
+    params["limit"] = limit
+    
+    res = await session.execute(text(query), params)
+    rows = res.mappings().fetchall()
+    
+    reports = []
+    for r in rows:
+        reports.append({
+            "title": r["title"],
+            "summary": r["content"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None
+        })
+        
+    if not reports:
+        reports = [
+            {
+                "title": "Chưa có báo cáo AI Retrospective",
+                "summary": "AI Retrospective được sinh ra tự động vào cuối mỗi Sprint (TBD).",
+                "created_at": None
+            }
+        ]
+        
+    return {"retrospectives": reports}
+
+
+class CustomReportRequest(BaseModel):
+    project_key: str
+    prompt: str
+
+@router.post("/dashboard/custom-report")
+async def generate_pm_custom_report(
+    req: CustomReportRequest,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project_key = req.project_key.strip()
+    prompt = req.prompt.strip()
+    
+    if not project_key or not prompt:
+        raise HTTPException(status_code=400, detail="Missing project_key or prompt")
+        
+    # Fetch recent data for context (limit 150)
+    query = """
+    SELECT 
+        source_id as key,
+        title,
+        metadata->>'status' as status,
+        metadata->>'priority' as priority,
+        metadata->>'issue_type' as issue_type,
+        COALESCE(metadata->'assignee'->>'displayName', 'Unassigned') as assignee,
+        DATE(created_at) as created_at,
+        DATE(updated_at) as updated_at
+    FROM documents
+    WHERE source = 'jira'
+      AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)
+    ORDER BY updated_at DESC LIMIT 150
+    """
+    
+    params = {
+        "project_key": project_key,
+        "project_key_br": f"[{project_key}]"
+    }
+    
+    res = await session.execute(text(query), params)
+    rows = res.mappings().fetchall()
+    
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy data Jira cho dự án {project_key}")
+        
+    context_lines = []
+    for r in rows:
+        context_lines.append(f"[{r['key']}] {r['title']} | Status: {r['status']} | Type: {r['issue_type']} | Priority: {r['priority']} | Assignee: {r['assignee']} | Updated: {r['updated_at']}")
+        
+    context_str = "\n".join(context_lines)
+    
+    system_prompt = f"""Bạn là một Chuyên gia Quản lý Dự án (PM/PO) AI cao cấp. Phân tích Dữ liệu Dự án Jira bên dưới để tạo Báo cáo Markdown trả lời yêu cầu của Người Dùng. 
+
+DỮ LIỆU DỰ ÁN ({project_key}):
+{context_str}
+
+QUY TẮC PHẢN HỒI:
+1. Bạn phải phân tích Dữ liệu Dự án để trả lời. Không bịa đặt data. 
+2. Trả lời bằng định dạng Markdown đẹp, chuyên nghiệp.
+3. Nếu Người Dùng yêu cầu hoặc câu trả lời phù hợp để vẽ biểu đồ Tỷ lệ (Pie/Doughnut), Số lượng (Bar), hoặc Xu hướng (Line), HÃY XUẤT RA MỘT KHỐI JSON CHỨA CẤU HÌNH CHART.JS chuẩn xác.
+4. Cú pháp bắt buộc để xuất biểu đồ là:
+```json
+{{
+  "is_chart": true,
+  "type": "bar", // bar, line, pie, doughnut
+  "data": {{
+      "labels": ["Item 1", "Item 2"],
+      "datasets": [{{ "label": "Dataset 1", "data": [10, 20], "backgroundColor": ["#3b82f6", "#ef4444"] }}]
+  }},
+  "options": {{ "responsive": true }}
+}}
+```
+Khối JSON phải nằm gọn trong cặp ```json ... ``` (để render frontend bắt được). Đảm bảo JSON hợp lệ 100%. Mảng màu tham khảo: #3b82f6, #ef4444, #10b981, #f59e0b, #8b5cf6, #64748b."""
+
+    llm = LLMService(task_type="pm_report")
+    try:
+        reply = await llm.chat(system=system_prompt, user=f"Yêu cầu của bạn: {prompt}", max_tokens=1500)
+        return {"report": reply}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
 

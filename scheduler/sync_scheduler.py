@@ -99,6 +99,59 @@ async def sync_connector_key_job(connector_key: str) -> None:
     except Exception as e:
         log.error("scheduler.sync.enqueue_failed", connector=connector_key, error=str(e))
 
+async def trigger_ai_workflow_job(workflow_id: str) -> None:
+    import uuid
+    from models.chat import ChatSession, ChatJob
+    log.info("scheduler.ai_workflow.enqueue", workflow_id=workflow_id)
+    try:
+        from storage.db.db import AsyncSessionLocal, AIWorkflowORM
+        from sqlalchemy import select
+        
+        async with AsyncSessionLocal() as session:
+            # 1. Get workflow to get name
+            result = await session.execute(select(AIWorkflowORM).where(AIWorkflowORM.id == uuid.UUID(workflow_id)))
+            workflow = result.scalars().first()
+            if not workflow:
+                return
+
+            # 2. Setup job metadata
+            session_id = str(uuid.uuid4())
+            job_id = str(uuid.uuid4())
+            user_id = "scheduler"
+            
+            # Create chat session & job for tracking
+            session.add(ChatSession(id=session_id, user_id=user_id, title=f"Scheduled Workflow: {workflow.name}"))
+            session.add(ChatJob(id=job_id, session_id=session_id, user_id=user_id, question="[Scheduled Trigger Run]", status="queued"))
+            await session.commit()
+
+            # Create workflow run tracking record
+            from persistence.workflow_repository import WorkflowRepository
+            repo = WorkflowRepository(session)
+            run_id = await repo.create_run(
+                workflow_id=workflow_id,
+                triggered_by=user_id,
+                trigger_type="scheduled",
+                initial_context="[Scheduled Trigger Run]",
+                job_id=job_id,
+            )
+
+        # 3. Enqueue
+        redis = await get_redis_pool()
+        await redis.enqueue_job(
+            "run_workflow_job",
+            job_id,
+            user_id,
+            workflow_id,
+            "[Scheduled Trigger Run]",
+            session_id,
+            run_id,
+            _queue_name=settings.ARQ_AI_QUEUE_NAME
+        )
+        log.info("scheduler.ai_workflow.enqueued", workflow_id=workflow_id)
+    except Exception as e:
+        import traceback
+        log.error("scheduler.ai_workflow.enqueue_failed", workflow_id=workflow_id, error=str(e), trace=traceback.format_exc())
+
 
 async def refresh_scheduler_jobs() -> None:
     """
@@ -129,9 +182,20 @@ async def refresh_scheduler_jobs() -> None:
             )
             configs = [dict(row) for row in result.mappings().all()]
 
-        # Replace connector jobs (keep non-connector jobs like task_scan).
+            workflow_result = await session.execute(
+                text(
+                    """
+                    SELECT id, name, schedule_cron 
+                    FROM ai_workflows 
+                    WHERE trigger_type = 'scheduled' AND schedule_cron IS NOT NULL AND schedule_cron != ''
+                    """
+                )
+            )
+            scheduled_workflows = [dict(row) for row in workflow_result.mappings().all()]
+
+        # Replace connector & workflow jobs (keep static jobs like task_scan).
         for job in list(scheduler.get_jobs()):
-            if str(job.id).startswith("sync_"):
+            if str(job.id).startswith("sync_") or str(job.id).startswith("wf_"):
                 try:
                     scheduler.remove_job(job.id)
                 except Exception:
@@ -160,6 +224,22 @@ async def refresh_scheduler_jobs() -> None:
                 replace_existing=True,
                 misfire_grace_time=3600,
             )
+
+        for wf in scheduled_workflows:
+            wf_id = str(wf["id"])
+            cron_expr = wf["schedule_cron"]
+            try:
+                scheduler.add_job(
+                    trigger_ai_workflow_job,
+                    trigger=CronTrigger.from_crontab(cron_expr, timezone="Asia/Ho_Chi_Minh"),
+                    id=f"wf_{wf_id}",
+                    name=f"Workflow: {wf['name']}",
+                    args=[wf_id],
+                    replace_existing=True,
+                    misfire_grace_time=3600,
+                )
+            except Exception as e:
+                log.warning("scheduler.wf.cron_error", workflow_id=wf_id, cron=cron_expr, error=str(e))
 
         log.info("scheduler.jobs_refreshed", jobs=[job.id for job in scheduler.get_jobs()])
     except Exception as exc:

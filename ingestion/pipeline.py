@@ -245,13 +245,17 @@ class IngestionPipeline:
         await self._graph.link_document_entities(doc.id, extracted_entities)
         
         # Mới: Sử dụng LLM để trích xuất Semantic Relations và nhét vào DB
-        try:
-            semantic_relations = await self._relation_extractor.extract(f"{doc.title}\n{doc.content}")
-            if semantic_relations:
-                source_val = doc.source.value if hasattr(doc.source, "value") else str(doc.source)
-                await self._graph.link_document_semantic_relations(doc.id, semantic_relations, source=source_val)
-        except Exception as e:
-            log.warning("ingestion.semantic_relations.failed", doc_id=doc.id, error=str(e))
+        # Skip cho Jira/Slack: nội dung ngắn/cấu trúc, không cần LLM relations
+        # (giảm số LLM call từ N_issues → 0 cho Jira, tăng tốc ingest ~5-10x)
+        _SKIP_RELATIONS_FOR = {SourceType.JIRA, SourceType.SLACK}
+        if doc.source not in _SKIP_RELATIONS_FOR:
+            try:
+                semantic_relations = await self._relation_extractor.extract(f"{doc.title}\n{doc.content}")
+                if semantic_relations:
+                    source_val = doc.source.value if hasattr(doc.source, "value") else str(doc.source)
+                    await self._graph.link_document_semantic_relations(doc.id, semantic_relations, source=source_val)
+            except Exception as e:
+                log.warning("ingestion.semantic_relations.failed", doc_id=doc.id, error=str(e))
         
         # Best-effort explicit cross-document links (URLs, Jira keys, SMB paths).
         try:

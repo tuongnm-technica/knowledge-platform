@@ -3,17 +3,17 @@
   <div class="integration-content">
     <div class="page-intro">
       <div class="intro-copy">
-        <div class="intro-kicker">Settings</div>
+        <div class="integration-intro-kicker">Settings</div>
         <div class="intro-title">Integration Settings</div>
         <div class="intro-sub">Cấu hình kết nối hệ thống cốt lõi: Mail server, Single Sign-On, và External User Directories.</div>
       </div>
     </div>
 
     <!-- Tabs Container -->
-    <div class="tab-headers">
-      <div class="tab active" data-tab="smtp">SMTP Settings</div>
-      <div class="tab disabled" data-tab="ldap">LDAP Settings</div>
-      <div class="tab disabled" data-tab="sso">Single Sign-On</div>
+    <div class="integration-tabs">
+      <div class="integration-tab-btn active" data-tab="smtp">SMTP Settings</div>
+      <div class="integration-tab-btn disabled" data-tab="ldap">LDAP Settings</div>
+      <div class="integration-tab-btn disabled" data-tab="sso">Single Sign-On</div>
     </div>
 
     <div class="panels-container premium-card" style="padding: 24px;">
@@ -77,9 +77,13 @@
           </div>
           
           <div class="form-actions" style="margin-top: 24px;">
-            <button type="submit" class="primary-btn" id="saveSmtpBtn">Save SMTP Settings</button>
+            <!-- Nút Save giờ đã trở thành Floating Action Button (FAB) -->
           </div>
         </form>
+        
+        <button type="button" class="integration-fab-save" id="saveSmtpBtn" title="Lưu cấu hình">
+          <span class="btn-icon">📌</span> Lưu cấu hình
+        </button>
 
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 32px 0;">
 

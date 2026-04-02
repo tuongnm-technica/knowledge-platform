@@ -74,7 +74,15 @@ class JiraClient:
             "attachment",
         ]
 
-    def get_projects(self, filter_allowed: bool = True) -> list[dict]:
+    def get_projects(self, filter_allowed: bool = False) -> list[dict]:
+        """Return all Jira projects the token can see.
+
+        `filter_allowed` is kept for backward-compat but defaults to False:
+        project filtering is the responsibility of `JiraConnector` via
+        `connector_configs.selection.projects` (stored in DB).  Relying on
+        the env-var JIRA_PROJECT_KEYS as a secondary filter caused the
+        connector to silently skip all projects not in that env list.
+        """
         try:
             projects = self._client.projects()
             if filter_allowed:
@@ -111,10 +119,12 @@ class JiraClient:
             return self.get_issues(project_key, max_results=max_results)
 
     def _jql_issues(self, jql: str, *, max_results: int) -> list[dict]:
-        # Atlassian python API supports start/limit paging via Jira.jql().
+        """Paginate through JQL results, capped at *max_results*."""
         start = 0
         issues: list[dict] = []
-        limit = min(max_results, 200) if max_results else 200
+        # Use page size of 100 — large enough for throughput, small enough to
+        # avoid Jira's payload-size limit on instances with heavy custom fields.
+        limit = min(max_results, 100) if max_results else 100
 
         while True:
             result = self._client.jql(
@@ -128,6 +138,8 @@ class JiraClient:
                 break
 
             issues.extend(batch)
+            log.debug("jira.page", jql=jql[:80], start=start, batch=len(batch), total_so_far=len(issues))
+
             if max_results and len(issues) >= max_results:
                 issues = issues[:max_results]
                 break

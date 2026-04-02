@@ -20,6 +20,8 @@
 @import './modules/graph.css';
 @import './modules/history.css';
 @import './modules/models.css';
+@import './modules/workflows.css';
+@import './modules/integration.css';
 
 :root {
   /* Base Color Tokens - Light (Clean & Crisp) */

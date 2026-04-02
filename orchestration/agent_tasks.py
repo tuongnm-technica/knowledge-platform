@@ -147,19 +147,32 @@ async def run_agent_job(ctx: Dict[str, Any], job_id: str, user_id: str, question
             await session.commit()
 
 
-async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workflow_id: str, initial_context: str, session_id: str | None = None):
+
+
+async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workflow_id: str, initial_context: str, session_id: str | None = None, run_id: str | None = None):
     """
     Background worker task to execute an AI Workflow sequentially.
+    Supports node_type: llm (default), rag (RAG-augmented), doc_writer.
+    Tracks execution in workflow_runs table if run_id is provided.
     """
-    log.info("worker.run_workflow_job.started", job_id=job_id, workflow_id=workflow_id)
-    
+    log.info("worker.run_workflow_job.started", job_id=job_id, workflow_id=workflow_id, run_id=run_id)
+
     async with AsyncSessionLocal() as session:
         await session.execute(
             text("UPDATE chat_jobs SET status = 'running', updated_at = NOW() WHERE id = :id"),
             {"id": job_id}
         )
         await session.commit()
-        
+
+        # Update run status to running
+        if run_id:
+            try:
+                from persistence.workflow_repository import WorkflowRepository
+                run_repo = WorkflowRepository(session)
+                await run_repo.update_run_status(run_id, "running")
+            except Exception as e:
+                log.warning("worker.run_workflow_job.run_status_update_failed", error=str(e))
+
         try:
             from persistence.workflow_repository import WorkflowRepository
             repo = WorkflowRepository(session)
@@ -169,48 +182,102 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
 
             from services.llm_service import LLMService
             llm = LLMService(task_type="workflow")
-            
+
             payloads = {"START": initial_context}
+            node_outputs: Dict[str, str] = {}
             final_output = ""
-            
-            async def update_thought(step: str):
+
+            async def update_thought(step: str, step_order: int = 0):
                 async with AsyncSessionLocal() as s_inner:
                     await s_inner.execute(
                         text("""
-                            UPDATE chat_jobs 
-                            SET thoughts = COALESCE(thoughts, '[]'::jsonb) || :t::jsonb, 
-                                updated_at = NOW() 
+                            UPDATE chat_jobs
+                            SET thoughts = COALESCE(thoughts, '[]'::jsonb) || :t::jsonb,
+                                updated_at = NOW()
                             WHERE id = :id
                         """),
-                        {"id": job_id, "t": json.dumps([{"plan": f"Executing: {step}"}])}
+                        {"id": job_id, "t": json.dumps([{"plan": f"[Bước {step_order}] {step}", "step": step_order}])}
                     )
                     await s_inner.commit()
 
             for node in workflow["nodes"]:
                 step_name = node.get("name", "Step")
-                await update_thought(step_name)
-                
-                prompt = node.get("system_prompt", "")
-                
+                step_order = node.get("step_order", 1)
+                node_type = node.get("node_type", "llm")
+
+                await update_thought(step_name, step_order)
+
+                prompt_template = node.get("system_prompt", "")
+
                 # Simple templating {{k}}
                 for k, v in payloads.items():
-                    prompt = prompt.replace(f"{{{{{k}}}}}", str(v))
-                
-                # Provide a generic User prompt representing the task
+                    prompt_template = prompt_template.replace(f"{{{{{k}}}}}", str(v))
+
                 sys_prompt = "You are an AI assistant executing a systematic workflow step. Respond exactly as instructed."
-                user_prompt = prompt
-                
+                if node_type == "doc_writer":
+                    sys_prompt = (
+                        "You are an expert Technical Writer and Business Analyst. "
+                        "Your task is to produce a high-quality, professional document based on the provided requirements. "
+                        "CRITICAL INSTRUCTIONS:\n"
+                        "1. Output ONLY the raw Markdown text.\n"
+                        "2. Do NOT wrap your response in an outer markdown code block (like ```markdown).\n"
+                        "3. Use appropriate heading levels (#, ##, ###), lists, and tables where suitable.\n"
+                        "4. Do NOT include any conversational filler like 'Here is the document' or 'Certainly!'."
+                    )
+                rag_context = ""
+
+                # ── RAG Node: inject knowledge base context ─────────────────
+                if node_type == "rag":
+                    try:
+                        from retrieval.hybrid.hybrid_search import HybridSearch
+                        searcher = HybridSearch(session)
+                        # Use the previous node's interpolated output as search query if available, 
+                        # otherwise fallback to initial context
+                        prev_node_key = f"node_{step_order - 1}_output"
+                        search_query = payloads.get(prev_node_key, initial_context)[:500]
+                        results = await searcher.search(search_query, top_k=5, allowed_document_ids=None)
+                        if results:
+                            rag_context = "\n\n".join([
+                                f"--- {r.get('title', 'Document')} ---\n{r.get('content', '')[:2000]}"
+                                for r in results[:5]
+                            ])
+                            prompt_template = f"## Thông tin từ Knowledge Base:\n{rag_context}\n\n## Yêu cầu:\n{prompt_template}"
+                        log.info("worker.run_workflow_job.rag_node", results=len(results), step=step_name)
+                    except Exception as rag_err:
+                        log.warning("worker.run_workflow_job.rag_failed", error=str(rag_err))
+
                 model_override = node.get("model_override")
                 kw = {}
                 if model_override:
                     kw["model"] = model_override
-                    
-                output = await llm.chat(system=sys_prompt, user=user_prompt, max_tokens=3000, **kw)
+
+                output = await llm.chat(system=sys_prompt, user=prompt_template, max_tokens=4000, **kw)
                 output = (output or "").strip()
-                
-                payloads[f"node_{node.get('step_order', 1)}_output"] = output
+
+                node_key = f"node_{step_order}_output"
+                payloads[node_key] = output
+                node_outputs[node_key] = output
                 final_output = output
-                
+
+                # Save node output to chat job thoughts for live tracking
+                async with AsyncSessionLocal() as s_inner:
+                    await s_inner.execute(
+                        text("""
+                            UPDATE chat_jobs
+                            SET thoughts = COALESCE(thoughts, '[]'::jsonb) || :t::jsonb,
+                                updated_at = NOW()
+                            WHERE id = :id
+                        """),
+                        {"id": job_id, "t": json.dumps([{
+                            "step": "node_complete",
+                            "node": step_name,
+                            "step_order": step_order,
+                            "output_preview": output[:200],
+                        }])}
+                    )
+                    await s_inner.commit()
+
+            # ── Save ChatMessage ─────────────────────────────────────────────
             if session_id:
                 new_msg = ChatMessage(
                     session_id=session_id,
@@ -218,29 +285,58 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
                     content=final_output
                 )
                 session.add(new_msg)
-                
-            result_json = {"answer": final_output, "workflow_name": workflow["name"]}
+
+            result_json = {
+                "answer": final_output,
+                "workflow_name": workflow["name"],
+                "node_outputs": node_outputs,
+                "sources": [],
+            }
             await session.execute(
                 text("""
-                    UPDATE chat_jobs 
-                    SET status = 'completed', 
-                        result = :res, 
-                        updated_at = NOW() 
+                    UPDATE chat_jobs
+                    SET status = 'completed',
+                        result = :res,
+                        updated_at = NOW()
                     WHERE id = :id
                 """),
                 {"id": job_id, "res": json.dumps(result_json)}
             )
             await session.commit()
-            log.info("worker.run_workflow_job.completed", job_id=job_id)
+
+            # Update workflow_runs record
+            if run_id:
+                try:
+                    run_repo = WorkflowRepository(session)
+                    await run_repo.update_run_status(
+                        run_id,
+                        status="completed",
+                        node_outputs=node_outputs,
+                        final_output=final_output,
+                    )
+                except Exception as e:
+                    log.warning("worker.run_workflow_job.run_complete_update_failed", error=str(e))
+
+            log.info("worker.run_workflow_job.completed", job_id=job_id, nodes=len(node_outputs))
 
         except Exception as e:
             import traceback
             trace_err = traceback.format_exc()
             log.exception("worker.run_workflow_job.failed", job_id=job_id, error=str(e), trace=trace_err)
+            err_msg = f"{str(e)}\n\n{trace_err}"
             await session.execute(
                 text("UPDATE chat_jobs SET status = 'failed', error = :err, updated_at = NOW() WHERE id = :id"),
-                {"id": job_id, "err": f"{str(e)}\n\n{trace_err}"}
+                {"id": job_id, "err": err_msg}
             )
+            await session.commit()
+            # Update run record to failed
+            if run_id:
+                try:
+                    run_repo = WorkflowRepository(session)
+                    await run_repo.update_run_status(run_id, status="failed", error=str(e))
+                except Exception:
+                    pass
+
             await session.commit()
 
 

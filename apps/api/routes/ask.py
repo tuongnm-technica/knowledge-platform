@@ -118,6 +118,7 @@ async def ask(
 
 
 @router.get("/status/{job_id}", response_model=JobStatusResponse)
+@router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(
     job_id: str,
     db: AsyncSession = Depends(get_db),

@@ -1,5 +1,5 @@
 <!-- ── PM DASHBOARD PAGE ── -->
-<div class="page" id="page-pm_dashboard" style="display: none;">
+<div class="page" id="page-pm_dashboard" style="display: none; height: 100%; overflow-y: auto; padding: 24px;">
   <div class="pm-dashboard-content" style="max-width: 1200px; margin: 0 auto; width: 100%; padding-bottom: 40px;">
     
     <!-- PAGE HEADER -->
@@ -21,6 +21,15 @@
         </button>
       </div>
     </div>
+
+    <!-- TABS NAVIGATION -->
+    <div class="pm-tabs" style="display: flex; gap: 16px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 0px;">
+      <button class="pm-tab-btn active" data-tab="tab-overview" style="background: none; border: none; font-size: 1.1em; font-weight: 600; padding: 12px 16px; cursor: pointer; border-bottom: 3px solid var(--accent-color); color: var(--accent-color);">Tổng Quan</button>
+      <button class="pm-tab-btn" data-tab="tab-custom" style="background: none; border: none; font-size: 1.1em; font-weight: 600; padding: 12px 16px; cursor: pointer; color: var(--text-dim); border-bottom: 3px solid transparent; transition: color 0.2s;">Custom AI Report 🪄</button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW -->
+    <div id="tab-overview" class="pm-tab-content">
 
     <!-- KPI STATS CARDS -->
     <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px;">
@@ -73,16 +82,102 @@
       </div>
     </div>
 
-    <!-- AI RISKS & BLOCKERS SECTION -->
-    <div style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.25em; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-        <span class="nav-icon" style="margin:0; font-size:1.2em">🤖</span> AI Risks & PM Digest (Tuần này)
-      </h3>
-      <div id="pmRisksContainer" class="risks-container" style="display: flex; flex-direction: column; gap: 16px;">
-        <!-- AI Risks inserted here -->
-        <div style="padding: 32px; text-align: center; color: var(--text-dim);">Đang tải báo cáo rủi ro...</div>
+    <!-- NEW TRENDS ROW -->
+    <div class="pm-trends-reports" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; margin-bottom: 32px;">
+      <!-- BURNUP -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">📈</span> Tốc độ Hoàn Thành (Burn-up)
+        </h3>
+        <div style="height: 300px; position: relative;">
+          <canvas id="pmBurnupChart"></canvas>
+        </div>
+      </div>
+      <!-- CFD -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">🌊</span> Dòng chảy Công việc (CFD)
+        </h3>
+        <div style="height: 300px; position: relative;">
+          <canvas id="pmCfdChart"></canvas>
+        </div>
       </div>
     </div>
+    
+    <!-- NEW QUALITY ROW -->
+    <div class="pm-quality-reports" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; margin-bottom: 32px;">
+      <!-- LEAD TIME -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">⏱️</span> Thời gian Xử lý (Lead Time Tr.B: <span id="pmOverallLeadTime" style="color:var(--accent-color)">-</span> ngày)
+        </h3>
+        <div style="height: 300px; position: relative;">
+          <canvas id="pmLeadTimeChart"></canvas>
+        </div>
+      </div>
+      <!-- ISSUE TYPES -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">🍩</span> Phân bổ Công việc (Issue Types)
+        </h3>
+        <div style="height: 300px; position: relative; display: flex; justify-content: center;">
+          <canvas id="pmIssueTypesChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- EPICS & RISKS ROW -->
+    <div class="pm-summary-reports" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; margin-bottom: 32px;">
+      <!-- EPICS -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">🎯</span> Tiến độ Epics (Epic Health)
+        </h3>
+        <div id="pmEpicsList" style="max-height: 480px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="padding: 20px; text-align: center; color: var(--text-dim);">Đang tải danh sách Epics...</div>
+        </div>
+      </div>
+      
+      <!-- RETROSPECTIVE & RISKS -->
+      <div>
+        <h3 style="font-size: 1.25em; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+          <span class="nav-icon" style="margin:0; font-size:1.2em">🤖</span> AI Risks & PM Digest
+        </h3>
+        <div id="pmRisksContainer" class="risks-container" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
+          <!-- AI Risks inserted here -->
+          <div style="padding: 16px; text-align: center; color: var(--text-dim);">Đang tải báo cáo rủi ro...</div>
+        </div>
+        
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+          <span class="nav-icon" style="margin:0; font-size:1.2em">📝</span> AI Sprint Retrospective
+        </h3>
+        <div id="pmRetroContainer" class="risks-container" style="display: flex; flex-direction: column; gap: 16px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
+          <!-- AI Retros inserted here -->
+          <div style="padding: 16px; text-align: center; color: var(--text-dim);">Đang tải Retrospective...</div>
+        </div>
+      </div>
+    </div>
+    </div> <!-- END TAB OVERVIEW -->
+
+    <!-- TAB 2: CUSTOM REPORT -->
+    <div id="tab-custom" class="pm-tab-content" style="display: none;">
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.2em; font-weight: 600; margin-bottom: 16px;">Tạo Báo Cáo Tùy Chỉnh (Dữ liệu: 150 tickets gần nhất)</h3>
+        <textarea id="pmCustomPrompt" class="form-control" rows="4" style="width: 100%; border-radius: 8px; padding: 12px; font-family: inherit; margin-bottom: 16px; border: 1px solid var(--border-color); resize: vertical; background: var(--bg-color); color: var(--text-color);" placeholder="Nhập yêu cầu báo cáo... Ví dụ: Thống kê và đánh giá rủi ro các task In Progress lâu hơn 5 ngày. Yêu cầu vẽ thêm biểu đồ tròn (Pie) hiển thị tỷ trọng theo Assignee."></textarea>
+        <div style="display: flex; justify-content: flex-end;">
+            <button id="pmGenerateCustomBtn" class="primary-btn" style="padding: 10px 24px; font-weight: 600;">Sinh Báo Cáo Khách Hàng 🚀</button>
+        </div>
+      </div>
+      
+      <div id="pmCustomLoading" style="display: none; text-align: center; padding: 40px; color: var(--text-dim);">
+         <div style="margin-top: 16px; font-weight: 600; font-size: 1.1em;">🪄 Đang cào dữ liệu Jira và yêu cầu AI phân tích (Mất khoảng 20-30s)...</div>
+      </div>
+
+      <div id="pmCustomResult" class="markdown-body" style="margin-top: 24px; padding: 32px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; display: none; line-height: 1.6; color: var(--text-color);">
+         <!-- Markdown & Charts injected here -->
+      </div>
+    </div>
+
     
   </div>
 </div>

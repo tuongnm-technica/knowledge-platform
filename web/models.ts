@@ -253,15 +253,19 @@ export interface AIWorkflowNode {
     id?: string;
     step_order: number;
     name: string;
+    node_type: string;  // 'llm' | 'rag' | 'doc_writer'
     model_override?: string | null;
     system_prompt: string;
+    input_vars?: string[];
 }
 
 export interface AIWorkflow {
     id: string;
     name: string;
     description: string;
-    trigger_type: string;
+    trigger_type: string;  // 'manual' | 'scheduled' | 'webhook'
+    schedule_cron?: string | null;
+    webhook_token?: string | null;
     nodes?: AIWorkflowNode[];
     created_at?: string;
     updated_at?: string;

@@ -317,7 +317,9 @@ class AIWorkflowORM(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=False, default="")
-    trigger_type = Column(String(50), nullable=False, default="manual")
+    trigger_type = Column(String(50), nullable=False, default="manual")  # manual | scheduled | webhook
+    schedule_cron = Column(String(100), nullable=True)  # e.g. '0 8 * * 1-5' for weekdays at 8am
+    webhook_token = Column(String(100), nullable=True, unique=True)  # for webhook trigger
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_by = Column(String(255), nullable=False, default="system")
@@ -331,9 +333,30 @@ class AIWorkflowNodeORM(Base):
     workflow_id = Column(UUID(as_uuid=True), ForeignKey("ai_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
     step_order = Column(Integer, nullable=False)
     name = Column(String(255), nullable=False)
+    node_type = Column(String(50), nullable=False, default="llm")  # llm | rag | doc_writer
     model_override = Column(String(100), nullable=True)
     system_prompt = Column(Text, nullable=False, default="")
+    input_vars = Column(JSON, default=list)  # list of variable names this node expects
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class WorkflowRunORM(Base):
+    __tablename__ = "workflow_runs"
+    __table_args__ = {"comment": "Execution history for AI workflow runs"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("ai_workflows.id", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(UUID(as_uuid=True), nullable=True)  # link to ChatJob
+    triggered_by = Column(String(255), nullable=True)  # user_id or 'scheduler' or 'webhook'
+    trigger_type = Column(String(50), nullable=False, default="manual")
+    status = Column(String(20), nullable=False, default="queued")  # queued|running|completed|failed
+    initial_context = Column(Text, nullable=True)
+    node_outputs = Column(JSON, default=dict)  # {"node_1": "...", "node_2": "..."}
+    final_output = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class SkillPromptORM(Base):
@@ -742,11 +765,15 @@ async def create_tables():
                 name VARCHAR(255) NOT NULL,
                 description TEXT NOT NULL DEFAULT '',
                 trigger_type VARCHAR(50) NOT NULL DEFAULT 'manual',
+                schedule_cron VARCHAR(100),
+                webhook_token VARCHAR(100) UNIQUE,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_by VARCHAR(255) NOT NULL DEFAULT 'system'
             )
         """))
+        await conn.execute(text("ALTER TABLE ai_workflows ADD COLUMN IF NOT EXISTS schedule_cron VARCHAR(100)"))
+        await conn.execute(text("ALTER TABLE ai_workflows ADD COLUMN IF NOT EXISTS webhook_token VARCHAR(100) UNIQUE"))
         
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ai_workflow_nodes (
@@ -754,14 +781,38 @@ async def create_tables():
                 workflow_id UUID NOT NULL REFERENCES ai_workflows(id) ON DELETE CASCADE,
                 step_order INTEGER NOT NULL,
                 name VARCHAR(255) NOT NULL,
+                node_type VARCHAR(50) NOT NULL DEFAULT 'llm',
                 model_override VARCHAR(100),
                 system_prompt TEXT NOT NULL DEFAULT '',
+                input_vars JSON NOT NULL DEFAULT '[]'::json,
                 updated_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
         """))
+        await conn.execute(text("ALTER TABLE ai_workflow_nodes ADD COLUMN IF NOT EXISTS node_type VARCHAR(50) NOT NULL DEFAULT 'llm'"))
+        await conn.execute(text("ALTER TABLE ai_workflow_nodes ADD COLUMN IF NOT EXISTS input_vars JSON NOT NULL DEFAULT '[]'::json"))
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_workflow_nodes_workflow_id ON ai_workflow_nodes (workflow_id)"
         ))
+
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS workflow_runs (
+                id UUID PRIMARY KEY,
+                workflow_id UUID NOT NULL REFERENCES ai_workflows(id) ON DELETE CASCADE,
+                job_id UUID,
+                triggered_by VARCHAR(255),
+                trigger_type VARCHAR(50) NOT NULL DEFAULT 'manual',
+                status VARCHAR(20) NOT NULL DEFAULT 'queued',
+                initial_context TEXT,
+                node_outputs JSON NOT NULL DEFAULT '{}'::json,
+                final_output TEXT,
+                error TEXT,
+                started_at TIMESTAMP,
+                finished_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_id ON workflow_runs (workflow_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs (status)"))
 
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sdlc_jobs (

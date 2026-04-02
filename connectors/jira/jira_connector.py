@@ -4,7 +4,7 @@ import asyncio
 from models.document import Document, SourceType
 from connectors.base.base_connector import BaseConnector
 from connectors.jira.jira_client import JiraClient
-from permissions.workspace_config import get_jira_workspace  # ← thêm
+from permissions.workspace_config import get_jira_workspace
 from config.settings import settings
 import structlog
 
@@ -45,8 +45,11 @@ class JiraConnector(BaseConnector):
 
     async def fetch_documents(self, last_sync: datetime | None = None) -> list[Document]:
         documents = []
+        # get_projects() defaults to filter_allowed=False so ALL projects the token
+        # can see are returned; filtering by project is done via self._project_keys
+        # (set from connector_configs.selection.projects in the DB).
         projects = await asyncio.to_thread(self._client.get_projects)
-        log.info("jira.fetch.start", projects=len(projects))
+        log.info("jira.fetch.start", projects=len(projects), filter_keys=list(self._project_keys) or "all")
 
         since = None
         if last_sync:
@@ -56,14 +59,15 @@ class JiraConnector(BaseConnector):
         for project in projects:
             project_key  = project["key"]
             if self._project_keys and project_key not in self._project_keys:
+                log.debug("jira.fetch.project.skipped", key=project_key)
                 continue
             project_name = project.get("name", project_key)
             log.info("jira.fetch.project", key=project_key, name=project_name)
 
             if since:
-                issues = await asyncio.to_thread(self._client.get_issues_since, project_key, since, 500)
+                issues = await asyncio.to_thread(self._client.get_issues_since, project_key, since, 2000)
             else:
-                issues = await asyncio.to_thread(self._client.get_issues, project_key, 500)
+                issues = await asyncio.to_thread(self._client.get_issues, project_key, 2000)
             log.info("jira.fetch.issues", project=project_key, count=len(issues))
 
             for issue in issues:
@@ -159,7 +163,7 @@ class JiraConnector(BaseConnector):
             return None
 
         permissions  = [f"group_jira_project_{str(project_key or '').strip().lower()}"]
-        workspace_id = get_jira_workspace(project_key)  # ← thêm
+        workspace_id = get_jira_workspace(project_key)
 
         doc = Document(
             id=str(uuid.uuid4()),
@@ -189,7 +193,7 @@ class JiraConnector(BaseConnector):
                 "image_attachments": image_attachments,
             },
             permissions=permissions,
-            workspace_id=workspace_id,  # ← thêm
+            workspace_id=workspace_id,
         )
 
         log.info("jira.issue.ok", key=issue_key or issue.get("key"), title=summary[:60])

@@ -115,7 +115,7 @@ export class IntegrationModule {
         try {
             const btn = document.getElementById('saveSmtpBtn') as HTMLButtonElement;
             btn.disabled = true;
-            btn.textContent = 'Saving...';
+            btn.innerHTML = '<span class="btn-icon">⏳</span> Saving...';
             
             const req = await authFetch('/api/settings/smtp', {
                 method: 'POST',
@@ -133,7 +133,7 @@ export class IntegrationModule {
         } finally {
             const btn = document.getElementById('saveSmtpBtn') as HTMLButtonElement;
             btn.disabled = false;
-            btn.textContent = 'Save SMTP Settings';
+            btn.innerHTML = '<span class="btn-icon">📌</span> Lưu cấu hình';
         }
     }
     
