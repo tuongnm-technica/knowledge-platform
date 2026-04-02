@@ -52,6 +52,11 @@ async def send_scheduled_pm_reports_job_proxy(ctx, *args, **kwargs):
     from tasks.pm_reports import send_scheduled_pm_reports
     return await send_scheduled_pm_reports(ctx, *args, **kwargs)
 
+async def aggregate_pm_metrics_job(ctx, project_key: str):
+    from tasks.pm_metrics import aggregate_pm_metrics
+    async with ctx["db_session_factory"]() as session:
+        return await aggregate_pm_metrics(session, project_key)
+
 
 async def fast_background_job(ctx, task_data: str):
     """Ví dụ một job phụ trợ nhẹ nhàng chạy ở queue default."""
@@ -146,6 +151,7 @@ class AIWorkerSettings(BaseWorkerSettings):
         arq.func(run_sdlc_generation_job_proxy, name='run_sdlc_generation_job'),
         arq.func(generate_pm_digest_job_proxy, name='generate_pm_digest'),
         arq.func(send_scheduled_pm_reports_job_proxy, name='send_scheduled_pm_reports'),
+        arq.func(aggregate_pm_metrics_job, name='aggregate_pm_metrics'),
     ]
     job_timeout = settings.ARQ_AI_JOB_TIMEOUT
     max_jobs = 3    # Giới hạn chạy song song ít để bảo vệ GPU

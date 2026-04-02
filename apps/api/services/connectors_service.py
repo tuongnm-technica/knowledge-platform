@@ -975,6 +975,23 @@ async def _run_sync_task(connector_type: str, instance_id: str, incremental: boo
             start = perf_counter()
             stats = await pipeline.run(connector, incremental=incremental, connector_key=connector_key)
             log.info("connectors.sync.done", key=connector_key, elapsed=round(perf_counter() - start, 2), **stats)
+            
+            # Post-sync: Trigger PM Metrics Aggregation if Jira
+            if connector_type == "jira":
+                try:
+                    from utils.queue_client import get_redis_pool
+                    redis = await get_redis_pool()
+                    projects = selection.get("projects") or []
+                    if not projects:
+                        # Fallback: get distinct projects from DB for this connector
+                        res = await session.execute(text("SELECT DISTINCT metadata->>'project_key' FROM documents WHERE source = 'jira'"))
+                        projects = [row[0] for row in res.fetchall() if row[0]]
+                    
+                    for p in projects:
+                        await redis.enqueue_job("aggregate_pm_metrics", p, _queue_name="arq:ai")
+                        log.info("pm_metrics.trigger.queued", project=p)
+                except Exception as e:
+                    log.error("pm_metrics.trigger.failed", error=str(e))
     except Exception as e:
         log.exception("connectors.sync.failed_bg_task", key=connector_key, error=str(e))
         # Đảm bảo tắt thanh tiến độ nếu pipeline bị crash ngầm

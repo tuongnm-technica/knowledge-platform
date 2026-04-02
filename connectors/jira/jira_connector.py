@@ -179,18 +179,22 @@ class JiraConnector(BaseConnector):
                 "project_key":   project_key,
                 "project_name":  project_name,
                 "issue_key":     issue_key,
-                "status":        (fields.get("status") or {}).get("name", ""),
-                "issue_type":    (fields.get("issuetype") or {}).get("name", ""),
-                "priority":      (fields.get("priority") or {}).get("name", ""),
-                "creator_name":  (fields.get("creator") or {}).get("displayName", ""),
-                "creator_email": (fields.get("creator") or {}).get("emailAddress", ""),
-                "creator_account": (fields.get("creator") or {}).get("name", "") or (fields.get("creator") or {}).get("accountId", ""),
-                "assignee_name": (fields.get("assignee") or {}).get("displayName", ""),
-                "assignee_email": (fields.get("assignee") or {}).get("emailAddress", ""),
-                "assignee_account": (fields.get("assignee") or {}).get("name", "") or (fields.get("assignee") or {}).get("accountId", ""),
+                "status": (fields.get("status") or {}).get("name", ""),
+                "statusCategory": ((fields.get("status") or {}).get("statusCategory") or {}).get("name", "To Do").lower().replace("indeterminate", "in progress"),
+                "issue_type": (fields.get("issuetype") or {}).get("name", ""),
+                "priority": (fields.get("priority") or {}).get("name", ""),
+                "sprint": self._extract_sprint(fields),
+                "epic": fields.get("epic") or fields.get("customfield_11201") or fields.get("customfield_10001"), # Common epic fields
+                "creator_name": (fields.get("creator") or {}).get("displayName", ""),
+                "assignee": {
+                    "displayName": (fields.get("assignee") or {}).get("displayName", "Unassigned"),
+                    "emailAddress": (fields.get("assignee") or {}).get("emailAddress", ""),
+                    "accountId": (fields.get("assignee") or {}).get("accountId", "") or (fields.get("assignee") or {}).get("name", "") or (fields.get("assignee") or {}).get("displayName", "unassigned")
+                },
                 "permission_id": f"group_jira_project_{str(project_key or '').strip().lower()}",
                 "comment_count": self._comment_count(fields.get("comment") or {}),
                 "image_attachments": image_attachments,
+                "resolved_date": self._parse_dt(fields.get("resolutiondate")).isoformat() if fields.get("resolutiondate") else None,
             },
             permissions=permissions,
             workspace_id=workspace_id,
@@ -281,6 +285,23 @@ class JiraConnector(BaseConnector):
             lines.append(f"[{created}] {author}: {body_text}")
 
         return "\n".join(lines).strip()
+
+    def _extract_sprint(self, fields: dict) -> dict | None:
+        # Jira Sprint info is often in a custom field like customfield_10020
+        # It's an array of strings like "com.atlassian.greenhopper.service.sprint.Sprint@...[id=1,name=Sprint 1,state=ACTIVE,...]"
+        for k, v in fields.items():
+            if k.startswith("customfield_") and isinstance(v, list) and len(v) > 0:
+                s = str(v[0])
+                if "Sprint" in s and "id=" in s:
+                    try:
+                        # Extract id, name, state
+                        res = {}
+                        for part in s.split("[")[1].split("]")[0].split(","):
+                            kv = part.split("=")
+                            if len(kv) == 2: res[kv[0]] = kv[1]
+                        return res
+                    except: pass
+        return None
 
     @staticmethod
     def _parse_dt(s: str) -> datetime:

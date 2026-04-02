@@ -46,51 +46,40 @@ async def get_pm_dashboard_stats(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    # Base query for all Jira documents
-    query = """
-    SELECT 
-        COUNT(id) as total_issues,
-        COUNT(id) FILTER (WHERE metadata->>'statusCategory' = 'done') as done_issues,
-        COUNT(id) FILTER (WHERE metadata->>'statusCategory' IN ('in progress', 'indeterminate')) as in_progress_issues,
-        COUNT(id) FILTER (WHERE metadata->>'statusCategory' IN ('to do', 'new')) as todo_issues,
-        COUNT(id) FILTER (WHERE metadata->>'priority' IN ('High', 'Highest')) as high_priority_issues
-    FROM documents 
-    WHERE source = 'jira'
-    """
+    # Fetching metrics from pm_metrics_daily and pm_project_insights
+    query_metrics = text("""
+        SELECT 
+            todo_count, in_progress_count, done_count, high_priority_count
+        FROM pm_metrics_daily
+        WHERE (:p IS NULL OR project_key = :p)
+        ORDER BY date DESC LIMIT 1
+    """)
     
-    params = {}
-    if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
-
-
-        
-    res = await session.execute(text(query), params)
-    row = res.mappings().first()
+    query_insights = text("""
+        SELECT velocity_weekly, risk_score, health_status, insight
+        FROM pm_metrics_by_project
+        WHERE (:p IS NULL OR project_key = :p)
+        ORDER BY updated_at DESC LIMIT 1
+    """)
     
-    if not row:
-         return {
-            "total_issues": 0, "done_issues": 0, 
-            "in_progress_issues": 0, "todo_issues": 0, "high_priority_issues": 0,
-            "completion_rate": 0
-         }
-         
-    total = row["total_issues"] or 0
-    done = row["done_issues"] or 0
-    in_progress = row["in_progress_issues"] or 0
-    todo = row["todo_issues"] or 0
-    high_priority = row["high_priority_issues"] or 0
+    d_res = await session.execute(query_metrics, {"p": project_key})
+    d_metrics = d_res.mappings().first()
     
-    completion_rate = round((done / total * 100), 2) if total > 0 else 0
+    p_res = await session.execute(query_insights, {"p": project_key})
+    p_metrics = p_res.mappings().first()
     
     return {
-        "total_issues": total,
-        "done_issues": done,
-        "in_progress_issues": in_progress,
-        "todo_issues": todo,
-        "high_priority_issues": high_priority,
-        "completion_rate": completion_rate
+        "project_key": project_key,
+        "velocity_weekly": p_metrics["velocity_weekly"] if p_metrics else 0,
+        "risk_score": p_metrics["risk_score"] if p_metrics else 0,
+        "health_status": p_metrics["health_status"] if p_metrics else "healthy",
+        "insight": p_metrics["insight"] if p_metrics else None,
+        "total_issues": (d_metrics["todo_count"] + d_metrics["in_progress_count"] + d_metrics["done_count"]) if d_metrics else 0,
+        "done_issues": d_metrics["done_count"] if d_metrics else 0,
+        "in_progress_issues": d_metrics["in_progress_count"] if d_metrics else 0,
+        "todo_issues": d_metrics["todo_count"] if d_metrics else 0,
+        "high_priority_issues": d_metrics["high_priority_count"] if d_metrics else 0,
+        "completion_rate": round((d_metrics["done_count"] / (d_metrics["todo_count"] + d_metrics["in_progress_count"] + d_metrics["done_count"]) * 100), 1) if d_metrics and (d_metrics["todo_count"] + d_metrics["in_progress_count"] + d_metrics["done_count"]) > 0 else 0
     }
     
 @router.get("/dashboard/risks")
@@ -148,45 +137,23 @@ async def get_pm_workload(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    query = """
-    SELECT 
-        COALESCE(metadata->'assignee'->>'displayName', 'Unassigned') as assignee,
-        COALESCE(metadata->>'statusCategory', 'to do') as status,
-        COUNT(*) as count
-    FROM documents
-    WHERE source = 'jira'
-    """
-    
+    query = "SELECT user_id, display_name, project_key, todo_count, in_progress_count, done_count FROM pm_metrics_by_user"
     params = {}
     if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
-
-
+        query += " WHERE project_key = :p"
+        params["p"] = project_key
         
-    query += " GROUP BY 1, 2 ORDER BY count DESC"
-    
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
     
-    # Structure data for Chart.js: { assignee: { status: count } }
     workload = {}
     for r in rows:
-        name = r["assignee"]
-        status = r["status"].lower()
+        name = r["display_name"] or r["user_id"]
         if name not in workload:
             workload[name] = {"to do": 0, "in progress": 0, "done": 0}
-        
-        # Map some statuses to standard buckets if needed
-        if "todo" in status or "new" in status or "to do" in status:
-            workload[name]["to do"] += r["count"]
-        elif "progress" in status or "indeterminate" in status:
-            workload[name]["in progress"] += r["count"]
-        elif "done" in status:
-            workload[name]["done"] += r["count"]
-        else:
-            workload[name]["to do"] += r["count"] # Default fallback
+        workload[name]["to do"] += r["todo_count"]
+        workload[name]["in progress"] += r["in_progress_count"]
+        workload[name]["done"] += r["done_count"]
             
     return {"workload": workload}
 
@@ -198,55 +165,9 @@ async def get_pm_stale_tasks(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    query = """
-    SELECT 
-        source_id as key,
-        title,
-        COALESCE(metadata->'assignee'->>'displayName', 'Unassigned') as assignee,
-        metadata->>'status' as status_name,
-        metadata->>'priority' as priority,
-        updated_at,
-        url
-    FROM documents
-    WHERE source = 'jira'
-      AND metadata->>'statusCategory' NOT IN ('done')
-    """
-    
-    params = {"days": days}
-    if project_key:
-        query += " AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)"
-        params["project_key"] = project_key
-        params["project_key_br"] = f"[{project_key}]"
-
-
-        
-    # Condition for stale: no update for X days OR High priority
-    # Dùng make_interval() thay vì CAST(:days || ' days') để tránh lỗi asyncpg khi truyền int
-    query += """
-      AND (
-          updated_at < NOW() - make_interval(days => :days)
-          OR metadata->>'priority' IN ('High', 'Highest')
-      )
-    """
-    
-    query += " ORDER BY updated_at ASC LIMIT 15"
-    
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
-    
-    tasks = []
-    for r in rows:
-        tasks.append({
-            "key": r["key"],
-            "title": r["title"],
-            "assignee": r["assignee"],
-            "status": r["status_name"],
-            "priority": r["priority"],
-            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
-            "url": r["url"]
-        })
-        
-    return {"tasks": tasks}
+    return {"tasks": [dict(r) for r in rows]}
     
 @router.post("/dashboard/refresh-ai")
 async def refresh_pm_ai_analysis(
@@ -581,67 +502,94 @@ async def generate_pm_custom_report(
     if not project_key or not prompt:
         raise HTTPException(status_code=400, detail="Missing project_key or prompt")
         
-    # Fetch recent data for context (limit 150)
-    query = """
+    # Fetch current metrics for AI analysis
+    metrics_query = """
     SELECT 
-        source_id as key,
-        title,
-        metadata->>'status' as status,
-        metadata->>'priority' as priority,
-        metadata->>'issue_type' as issue_type,
-        COALESCE(metadata->'assignee'->>'displayName', 'Unassigned') as assignee,
-        DATE(created_at) as created_at,
-        DATE(updated_at) as updated_at
-    FROM documents
-    WHERE source = 'jira'
-      AND (metadata->>'project_key' ILIKE :project_key OR metadata->>'project_key' ILIKE :project_key_br)
-    ORDER BY updated_at DESC LIMIT 150
+        p.velocity_weekly, p.velocity_delta_pct, p.risk_score, p.health_status,
+        d.todo_count, d.in_progress_count, d.done_count
+    FROM pm_metrics_by_project p
+    JOIN pm_metrics_daily d ON d.project_key = p.project_key
+    WHERE p.project_key = :p
+    ORDER BY d.date DESC LIMIT 1
     """
+    m_res = await session.execute(text(metrics_query), {"p": project_key})
+    m = m_res.mappings().first() or {}
     
-    params = {
-        "project_key": project_key,
-        "project_key_br": f"[{project_key}]"
-    }
-    
-    res = await session.execute(text(query), params)
-    rows = res.mappings().fetchall()
-    
-    if not rows:
-        raise HTTPException(status_code=404, detail=f"Không tìm thấy data Jira cho dự án {project_key}")
-        
-    context_lines = []
-    for r in rows:
-        context_lines.append(f"[{r['key']}] {r['title']} | Status: {r['status']} | Type: {r['issue_type']} | Priority: {r['priority']} | Assignee: {r['assignee']} | Updated: {r['updated_at']}")
-        
-    context_str = "\n".join(context_lines)
-    
-    system_prompt = f"""Bạn là một Chuyên gia Quản lý Dự án (PM/PO) AI cao cấp. Phân tích Dữ liệu Dự án Jira bên dưới để tạo Báo cáo Markdown trả lời yêu cầu của Người Dùng. 
+    metrics_summary = f"""
+    THỐNG KÊ HIỆN TẠI:
+    - Velocity tuần này: {m.get('velocity_weekly', 0)} task
+    - So với tuần trước: {m.get('velocity_delta_pct', 0)}%
+    - Chỉ số rủi ro: {m.get('risk_score', 0)}/100
+    - Trạng thái: {m.get('health_status', 'N/A')}
+    - Phân bổ: ToDo({m.get('todo_count',0)}), InProgress({m.get('in_progress_count',0)}), Done({m.get('done_count',0)})
+    """
+
+    system_prompt = f"""Bạn là một Chuyên gia Quản lý Dự án AI. Phân tích Dữ liệu Dự án Jira bên dưới để tạo Báo cáo Markdown trả lời yêu cầu của Người Dùng. 
 
 DỮ LIỆU DỰ ÁN ({project_key}):
+{metrics_summary}
+
 {context_str}
 
 QUY TẮC PHẢN HỒI:
-1. Bạn phải phân tích Dữ liệu Dự án để trả lời. Không bịa đặt data. 
-2. Trả lời bằng định dạng Markdown đẹp, chuyên nghiệp.
-3. Nếu Người Dùng yêu cầu hoặc câu trả lời phù hợp để vẽ biểu đồ Tỷ lệ (Pie/Doughnut), Số lượng (Bar), hoặc Xu hướng (Line), HÃY XUẤT RA MỘT KHỐI JSON CHỨA CẤU HÌNH CHART.JS chuẩn xác.
-4. Cú pháp bắt buộc để xuất biểu đồ là:
-```json
-{{
-  "is_chart": true,
-  "type": "bar", // bar, line, pie, doughnut
-  "data": {{
-      "labels": ["Item 1", "Item 2"],
-      "datasets": [{{ "label": "Dataset 1", "data": [10, 20], "backgroundColor": ["#3b82f6", "#ef4444"] }}]
-  }},
-  "options": {{ "responsive": true }}
-}}
-```
-Khối JSON phải nằm gọn trong cặp ```json ... ``` (để render frontend bắt được). Đảm bảo JSON hợp lệ 100%. Mảng màu tham khảo: #3b82f6, #ef4444, #10b981, #f59e0b, #8b5cf6, #64748b."""
+1. Bạn phải dựa trên con số cụ thể trong THỐNG KÊ HIỆN TẠI để giải thích. Không nói chung chung. 
+Ví dụ: "Dự án chậm do Velocity giảm 15% so với tuần trước và 80% task đang bị nghẽn (In Progress > 3 ngày)".
+2. Phải đưa ra nhận định PM sắc bén: Team nào bottleneck? Sprint này ổn hay trễ? Cần xử lý ngay task nào?
+3. Trả lời bằng Markdown chuyên nghiệp.
+4. Xuất biểu đồ JSON nếu cần (Pie/Bar/Line)."""
 
     llm = LLMService(task_type="pm_report")
     try:
-        reply = await llm.chat(system=system_prompt, user=f"Yêu cầu của bạn: {prompt}", max_tokens=1500)
+        reply = await llm.chat(system=system_prompt, user=f"Yêu cầu: {prompt}", max_tokens=1500)
         return {"report": reply}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+
+
+@router.get("/dashboard/at-risk")
+async def get_at_risk_projects(
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    query = "SELECT * FROM pm_metrics_by_project WHERE health_status != 'healthy' ORDER BY risk_score DESC LIMIT 5"
+    res = await session.execute(text(query))
+    return {"projects": [dict(r) for r in res.mappings().fetchall()]}
+
+
+@router.get("/dashboard/details")
+async def get_pm_drilldown(
+    metric: str,
+    project_key: Optional[str] = None,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Drill-down API to fetch issue list for a specific metric."""
+    query = """
+    SELECT 
+        source_id as key, title, 
+        metadata->>'status' as status, 
+        metadata->'assignee'->>'displayName' as assignee, 
+        url
+    FROM documents
+    WHERE source = 'jira'
+    """
+    params = {}
+    if project_key:
+        query += " AND metadata->>'project_key' = :p"
+        params["p"] = project_key
+        
+    if metric == "high_priority":
+        query += " AND metadata->>'priority' IN ('High', 'Highest')"
+    elif metric == "todo":
+        query += " AND metadata->>'statusCategory' = 'to do'"
+    elif metric == "in_progress":
+        query += " AND metadata->>'statusCategory' = 'in progress'"
+    elif metric == "done":
+        query += " AND metadata->>'statusCategory' = 'done'"
+    elif metric == "stale":
+        query += " AND metadata->>'statusCategory' = 'in progress' AND updated_at < NOW() - interval '3 days'"
+        
+    query += " LIMIT 50"
+    res = await session.execute(text(query), params)
+    return {"issues": [dict(r) for r in res.mappings().fetchall()]}
 

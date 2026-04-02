@@ -1,27 +1,30 @@
 import { authFetch } from './client';
 import { AuthModule } from './auth';
-import { showToast, formatDateTime } from './ui';
+import { showToast, formatDateTime, escapeHtml, formatNumber } from './ui';
 import { renderMarkdown } from './format';
 import Chart from 'chart.js/auto';
 
+/**
+ * PM Dashboard 2.0 Module
+ * Fully aligned with Backend endpoints and optimized for Premium UX.
+ */
 export class PMDashboardModule {
     private isInitialized = false;
     private workloadChart: Chart | null = null;
-    private burnupChart: Chart | null = null;
-    private cfdChart: Chart | null = null;
     private leadTimeChart: Chart | null = null;
+    private velocityTrendChart: Chart | null = null;
     private issueTypeChart: Chart | null = null;
+    private cfdChart: Chart | null = null;
 
     public async init() {
         if (this.isInitialized) return;
 
-        console.log('PM Dashboard Module rendering...');
+        console.log('PM Dashboard 2.0 Module initializing...');
         const user = await AuthModule.getCurrentUser();
-        if (!user) {
-            return;
-        }
+        if (!user) return;
 
         this.bindEvents();
+        this.setupDrillDown();
         await this.loadProjects();
         await this.refreshData();
         this.isInitialized = true;
@@ -30,191 +33,75 @@ export class PMDashboardModule {
     private bindEvents() {
         const filter = document.getElementById('pmProjectFilter') as HTMLSelectElement;
         const refreshBtn = document.getElementById('refreshPmBtn');
+        const refreshAiBtn = document.getElementById('refreshAiBtn');
 
         if (filter) {
             filter.addEventListener('change', () => this.refreshData());
         }
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                showToast('Đang tải dữ liệu báo cáo...', 'info');
+                showToast('Đang cập nhật dữ liệu PM...', 'info');
                 this.refreshData();
             });
         }
-
-        const refreshAiBtn = document.getElementById('refreshAiBtn');
         if (refreshAiBtn) {
             refreshAiBtn.addEventListener('click', () => this.handleRefreshAI());
         }
 
-        // Tabs Logic
-        const tabs = document.querySelectorAll('.pm-tab-btn');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                const btn = e.currentTarget as HTMLElement;
-                const targetId = btn.getAttribute('data-tab');
-                
-                tabs.forEach(t => {
-                    const h = t as HTMLElement;
-                    h.classList.remove('active');
-                    h.style.color = 'var(--text-dim)';
-                    h.style.borderBottomColor = 'transparent';
-                });
-                
-                btn.classList.add('active');
-                btn.style.color = 'var(--accent-color)';
-                btn.style.borderBottomColor = 'var(--accent-color)';
-                
-                document.querySelectorAll('.pm-tab-content').forEach(c => (c as HTMLElement).style.display = 'none');
-                if (targetId) {
-                    const content = document.getElementById(targetId);
-                    if (content) content.style.display = 'block';
-                }
+        // Tab Switching
+        document.querySelectorAll('.pm-tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetId = (e.currentTarget as HTMLElement).getAttribute('data-tab');
+                this.switchTab(targetId!);
             });
         });
 
-        // Custom Report Generate Button
-        const generateAiReportBtn = document.getElementById('pmGenerateCustomBtn');
-        if (generateAiReportBtn) {
-            generateAiReportBtn.addEventListener('click', () => this.handleGenerateCustomReport());
+        // Custom Report
+        const generateBtn = document.getElementById('pmGenerateCustomBtn');
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => this.handleGenerateCustomReport());
         }
+    }
+
+    private switchTab(tabId: string) {
+        document.querySelectorAll('.pm-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            (btn as HTMLElement).style.color = 'var(--text-dim)';
+            (btn as HTMLElement).style.borderBottomColor = 'transparent';
+        });
+
+        const activeBtn = document.querySelector(`[data-tab="${tabId}"]`) as HTMLElement;
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            activeBtn.style.color = 'var(--accent-color)';
+            activeBtn.style.borderBottomColor = 'var(--accent-color)';
+        }
+
+        document.querySelectorAll('.pm-tab-content').forEach(c => (c as HTMLElement).style.display = 'none');
+        const activeContent = document.getElementById(tabId);
+        if (activeContent) activeContent.style.display = 'block';
     }
 
     private async handleRefreshAI() {
         const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
-        const projectKey = select ? select.value : '';
-
+        const projectKey = select?.value;
         if (!projectKey) {
-            showToast('Vui lòng chọn một dự án cụ thể để làm mới phân tích AI.', 'warning');
+            showToast('Vui lòng chọn 1 dự án để AI phân tích chuyên sâu.', 'warning');
             return;
         }
 
         try {
-            showToast(`Đang yêu cầu AI phân tích dự án ${projectKey}...`, 'info');
-            const res = await authFetch(`/api/pm/dashboard/refresh-ai?project_key=${encodeURIComponent(projectKey)}`, {
-                method: 'POST'
-            });
-
+            showToast('Đang yêu cầu AI phân tích dữ liệu dự án...', 'info');
+            const res = await authFetch(`/api/pm/dashboard/refresh-ai?project_key=${encodeURIComponent(projectKey)}`, { method: 'POST' });
             if (res.ok) {
-                showToast('Yêu cầu đã được gửi. Phân tích AI thường mất 15-30 giây. Vui lòng đợi...', 'success');
-                
-                // Tự động refresh phần Risks sau 20 giây
-                setTimeout(() => {
-                    this.refreshRisksOnly(projectKey);
-                }, 20000);
+                showToast('Yêu cầu thành công! AI đang làm việc. Vui lòng quay lại sau 20s.', 'success');
             } else {
-                const err = await res.json();
-                showToast(`Lỗi: ${err.detail || 'Không thể yêu cầu AI.'}`, 'error');
+                showToast('Không thể kích hoạt AI ngay lúc này.', 'error');
             }
-        } catch (error) {
-            console.error('Failed to trigger AI refresh:', error);
-            showToast('Lỗi kết nối khi yêu cầu AI.', 'error');
+        } catch (e) {
+            console.error(e);
         }
     }
-
-    private async refreshRisksOnly(projectKey: string) {
-        try {
-            const risksRes = await authFetch(`/api/pm/dashboard/risks?project_key=${encodeURIComponent(projectKey)}`).then(r => r.ok ? r.json() : null);
-            if (risksRes) {
-                this.renderRisks(risksRes.risks || []);
-                showToast('Đã cập nhật báo cáo AI mới nhất.', 'success');
-            }
-        } catch (error) {
-            console.error('Failed to refresh risks only:', error);
-        }
-    }
-
-    private async handleGenerateCustomReport() {
-        const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
-        const projectKey = select ? select.value : '';
-        const promptInput = document.getElementById('pmCustomPrompt') as HTMLTextAreaElement;
-        const prompt = promptInput ? promptInput.value.trim() : '';
-
-        if (!projectKey) {
-            showToast('Bạn phải chọn 1 dự án (Project) ở góc phải trên để phân tích!', 'warning');
-            return;
-        }
-
-        if (!prompt) {
-            showToast('Bạn chưa điền câu lệnh (Prompt).', 'warning');
-            return;
-        }
-
-        const btn = document.getElementById('pmGenerateCustomBtn') as HTMLButtonElement;
-        const loading = document.getElementById('pmCustomLoading');
-        const resultContainer = document.getElementById('pmCustomResult');
-
-        if (btn) btn.disabled = true;
-        if (loading) loading.style.display = 'block';
-        if (resultContainer) resultContainer.style.display = 'none';
-
-        try {
-            const res = await authFetch('/api/pm/dashboard/custom-report', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ project_key: projectKey, prompt })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                this.renderCustomReport(data.report || '');
-                if (resultContainer) resultContainer.style.display = 'block';
-                showToast('Đã tạo báo cáo!', 'success');
-            } else {
-                const err = await res.json();
-                showToast(`Lỗi: ${err.detail || 'Không thể sinh báo cáo.'}`, 'error');
-            }
-        } catch (error) {
-            console.error(error);
-            showToast('Lỗi mạng khi gọi AI.', 'error');
-        } finally {
-            if (btn) btn.disabled = false;
-            if (loading) loading.style.display = 'none';
-        }
-    }
-
-    private renderCustomReport(reportMd: string) {
-        const resultContainer = document.getElementById('pmCustomResult');
-        if (!resultContainer) return;
-
-        const jsonBlockRegex = /```json\s+({[\s\S]*?})\s+```/gi;
-        let finalMd = reportMd;
-        const chartConfigs: any[] = [];
-        
-        finalMd = finalMd.replace(jsonBlockRegex, (match, jsonString) => {
-            try {
-                const config = JSON.parse(jsonString);
-                if (config.is_chart) {
-                    chartConfigs.push(config);
-                    return `<div class="ai-chart-container" style="height: 350px; position: relative; margin: 32px 0; border: 1px dashed var(--border-color); padding: 16px; border-radius: 8px; background: var(--bg-color);"><canvas class="ai-generated-chart"></canvas></div>`;
-                }
-            } catch(e) {
-                console.error("Failed to parse chart json:", e);
-            }
-            return match;
-        });
-
-        const html = renderMarkdown(finalMd);
-        resultContainer.innerHTML = html;
-
-        setTimeout(() => {
-            const canvases = resultContainer.querySelectorAll('.ai-generated-chart') as NodeListOf<HTMLCanvasElement>;
-            chartConfigs.forEach((config, idx) => {
-                const canvas = canvases[idx];
-                if (canvas) {
-                    new Chart(canvas, {
-                        type: config.type || 'bar',
-                        data: config.data,
-                        options: {
-                            ...(config.options || {}),
-                            responsive: true,
-                            maintainAspectRatio: false
-                        }
-                    });
-                }
-            });
-        }, 50);
-    }
-
 
     private async loadProjects() {
         try {
@@ -222,101 +109,149 @@ export class PMDashboardModule {
             if (res.ok) {
                 const data = await res.json();
                 const projects = data.projects || [];
-                
                 const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
                 if (!select) return;
 
-                // Keep only the first "-- Tất cả dự án --" option
-                select.innerHTML = '<option value="">-- Tất cả dự án --</option>';
-                
+                select.innerHTML = '<option value="">-- Global View --</option>';
                 projects.forEach((p: any) => {
                     const opt = document.createElement('option');
                     opt.value = p.key;
                     opt.textContent = `[${p.key}] ${p.name}`;
+                    opt.style.backgroundColor = 'var(--bg-color)';
+                    opt.style.color = 'var(--text-color)';
                     select.appendChild(opt);
                 });
             }
         } catch (error) {
             console.error('Failed to load projects:', error);
-            showToast('Không thể tải danh sách dự án.', 'error');
         }
     }
 
     private async refreshData() {
         const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
         const projectKey = select ? select.value : '';
-        
-        let qs = '';
-        if (projectKey) {
-            qs = `?project_key=${encodeURIComponent(projectKey)}`;
-        }
-        
+        const qs = projectKey ? `?project_key=${encodeURIComponent(projectKey)}` : '';
+
         try {
-            const [statsRes, risksRes, workloadRes, staleRes, burnupRes, cfdRes, leadTimeRes, issueTypesRes, epicsRes, retroRes] = await Promise.all([
-                authFetch(`/api/pm/dashboard/stats${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/risks${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/workload${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/stale${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/burnup${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/cfd${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/lead-time${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/issue-types${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/epics${qs}`).then(r => r.ok ? r.json() : null),
-                authFetch(`/api/pm/dashboard/retrospective${qs}`).then(r => r.ok ? r.json() : null)
+            const [stats, risks, workload, stale, epics, cfd, leadTime, issueTypes, retrospective] = await Promise.all([
+                authFetch(`/api/pm/dashboard/stats${qs}`).then(r => r.ok ? r.json() : {}),
+                authFetch(`/api/pm/dashboard/at-risk${qs}`).then(r => r.ok ? r.json() : { projects: [] }),
+                authFetch(`/api/pm/dashboard/workload${qs}`).then(r => r.ok ? r.json() : { workload: {} }),
+                authFetch(`/api/pm/dashboard/stale${qs}${qs ? '&' : '?'}days=3`).then(r => r.ok ? r.json() : { tasks: [] }),
+                authFetch(`/api/pm/dashboard/epics${qs}`).then(r => r.ok ? r.json() : { epics: [] }),
+                authFetch(`/api/pm/dashboard/cfd${qs}`).then(r => r.ok ? r.json() : { cfd: [] }),
+                authFetch(`/api/pm/dashboard/lead-time${qs}`).then(r => r.ok ? r.json() : {}),
+                authFetch(`/api/pm/dashboard/issue-types${qs}`).then(r => r.ok ? r.json() : { issue_types: [] }),
+                authFetch(`/api/pm/dashboard/retrospective${qs}`).then(r => r.ok ? r.json() : { retrospectives: [] })
             ]);
-            
-            this.renderStats(statsRes);
-            if (risksRes) this.renderRisks(risksRes.risks || []);
-            if (workloadRes) this.renderWorkload(workloadRes.workload || {});
-            if (staleRes) this.renderStaleTasks(staleRes.tasks || []);
-            
-            if (burnupRes) this.renderBurnup(burnupRes.burnup || []);
-            if (cfdRes) this.renderCfd(cfdRes.cfd || []);
-            if (leadTimeRes) this.renderLeadTime(leadTimeRes);
-            if (issueTypesRes) this.renderIssueTypes(issueTypesRes.issue_types || []);
-            if (epicsRes) this.renderEpics(epicsRes.epics || []);
-            if (retroRes) this.renderRetrospectives(retroRes.retrospectives || []);
-            
+
+            this.renderStats(stats);
+            this.renderAtRisk(risks.projects || []);
+            this.renderVelocityTrend(cfd.cfd || []); // Derived from CFD
+            this.renderWorkload(workload.workload || {});
+            this.renderStaleTasks(stale.tasks || []);
+            this.renderCfd(cfd.cfd || []);
+            this.renderLeadTime(leadTime);
+            this.renderIssueTypes(issueTypes.issue_types || []);
+            this.renderEpics(epics.epics || []);
+            this.renderRisks(risks.risks || []); // Different from at-risk projects
+            this.renderRetrospectives(retrospective.retrospectives || []);
+
         } catch (error) {
             console.error('Failed to refresh PM data:', error);
-            showToast('Lỗi tải dữ liệu bảng điều khiển PM.', 'error');
+            showToast('Lỗi tải dữ liệu bảng quản trị PM.', 'error');
         }
     }
 
-    private renderStats(stats: any) {
-        if (!stats) return;
-        
-        const safeInt = (val: any) => parseInt(val) || 0;
-        
-        document.getElementById('pmStatTotal')!.textContent = safeInt(stats.total_issues).toString();
-        document.getElementById('pmStatDone')!.textContent = safeInt(stats.done_issues).toString();
-        document.getElementById('pmStatInProgress')!.textContent = safeInt(stats.in_progress_issues).toString();
-        document.getElementById('pmStatTodo')!.textContent = safeInt(stats.todo_issues).toString();
-        document.getElementById('pmStatHighRisk')!.textContent = safeInt(stats.high_priority_issues).toString();
-        
-        const rate = parseFloat(stats.completion_rate) || 0;
-        document.getElementById('pmStatCompletion')!.textContent = `${rate}%`;
+    private renderStats(s: any) {
+        this.setEl('pmStatTotal', s.total_issues || 0);
+        this.setEl('pmStatDone', s.done_issues || 0);
+        this.setEl('pmStatInProgress', s.in_progress_issues || 0);
+        this.setEl('pmStatTodo', s.todo_issues || 0);
+        this.setEl('pmStatHighRisk', s.high_priority_issues || 0);
+        this.setEl('pmStatCompletion', `${s.completion_rate || 0}%`);
     }
 
-    private renderRisks(risks: any[]) {
-        const container = document.getElementById('pmRisksContainer');
+    private renderAtRisk(projects: any[]) {
+        const container = document.getElementById('pmAtRiskList');
         if (!container) return;
         
-        if (!risks || risks.length === 0) {
-            container.innerHTML = '<div style="padding: 32px; text-align: center; color: var(--text-dim);">Chưa có báo cáo rủi ro AI cho dự án này.</div>';
+        if (!projects || projects.length === 0) {
+            container.innerHTML = `<div style="color: var(--success); text-align: center; padding: 20px; font-weight: 600; background: rgba(16, 185, 129, 0.05); border-radius: 12px; border: 1px dashed var(--success);">
+                🛡️ Vận hành ổn định. Không phát hiện rủi ro nghiêm trọng.
+            </div>`;
             return;
         }
 
-        container.innerHTML = risks.map(r => `
-            <div class="risk-card">
-                <div class="risk-card-header">
-                    <div class="risk-card-title">${this.escapeHTML(r.title)}</div>
-                    <div class="risk-card-date">${r.created_at ? formatDateTime(r.created_at) : ''}</div>
+        container.innerHTML = projects.map(p => {
+            const riskColor = p.health_status === 'critical' ? '#ef4444' : '#f59e0b';
+            return `
+                <div class="risk-card" style="display: flex; justify-content: space-between; align-items: center; padding: 14px; border-left: 4px solid ${riskColor}; background: rgba(255,255,255,0.02);">
+                    <div>
+                        <div style="font-weight: 800; font-family: 'Syne', sans-serif;">${p.project_key}</div>
+                        <div style="font-size: 0.85em; color: var(--text-dim);">Velocity: ${p.velocity_weekly} task/tuần</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.4em; font-weight: 800; color: ${riskColor};">${p.risk_score}</div>
+                        <div style="font-size: 0.7em; text-transform: uppercase; color: var(--text-dim);">Risk Index</div>
+                    </div>
                 </div>
-                <div class="risk-card-body">
-                    ${r.summary}
+            `;
+        }).join('');
+    }
+
+    private renderVelocityTrend(data: any[]) {
+        const ctx = document.getElementById('pmVelocityTrendChart') as HTMLCanvasElement;
+        if (!ctx) return;
+
+        // Velocity Trend uses the same data as Burnup/CFD but shows daily progress
+        const recent = data.slice(-7);
+        const labels = recent.map(d => d.date.split('T')[0]);
+        const values = recent.map((d, i) => i === 0 ? 0 : d.done - data[data.indexOf(d)-1].done);
+
+        if (this.velocityTrendChart) this.velocityTrendChart.destroy();
+        this.velocityTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{ 
+                    label: 'Thanh khoản (Task/Ngày)', 
+                    data: values, 
+                    borderColor: '#06b6d4', 
+                    backgroundColor: 'rgba(6, 182, 212, 0.1)', 
+                    fill: true, 
+                    tension: 0.4,
+                    pointRadius: 3
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { legend: { display: false } },
+                scales: { x: { display: false }, y: { display: false } }
+            }
+        });
+    }
+
+    private renderStaleTasks(tasks: any[]) {
+        const container = document.getElementById('pmStaleTasksList');
+        if (!container) return;
+        
+        if (tasks.length === 0) {
+            container.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-dim);">🛡️ Không có task nào bị treo quá 3 ngày.</div>';
+            return;
+        }
+
+        container.innerHTML = tasks.map(t => `
+            <a href="${t.url || '#'}" target="_blank" class="stale-task-item" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); text-decoration: none; color: inherit;">
+                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;">
+                    <span style="font-weight: 800; color: var(--accent-color); font-size: 0.9em; margin-right: 8px;">${t.key}</span>
+                    <span style="font-weight: 500;">${escapeHtml(t.title)}</span>
                 </div>
-            </div>
+                <div style="font-size: 0.8em; color: var(--text-dim); min-width: 80px; text-align: right;">
+                    ${t.assignee || 'Unassigned'}
+                </div>
+            </a>
         `).join('');
     }
 
@@ -325,112 +260,25 @@ export class PMDashboardModule {
         if (!ctx) return;
 
         const assignees = Object.keys(workload);
-        const todoData = assignees.map(a => workload[a]['to do'] || 0);
-        const inProgressData = assignees.map(a => workload[a]['in progress'] || 0);
-        const doneData = assignees.map(a => workload[a]['done'] || 0);
+        const todo = assignees.map(a => workload[a]['to do'] || 0);
+        const wip = assignees.map(a => workload[a]['in progress'] || 0);
+        const done = assignees.map(a => workload[a]['done'] || 0);
 
-        if (this.workloadChart) {
-            this.workloadChart.destroy();
-        }
-
+        if (this.workloadChart) this.workloadChart.destroy();
         this.workloadChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: assignees,
                 datasets: [
-                    { label: 'To Do', data: todoData, backgroundColor: '#94a3b8' },
-                    { label: 'In Progress', data: inProgressData, backgroundColor: '#f59e0b' },
-                    { label: 'Done', data: doneData, backgroundColor: '#10b981' }
+                    { label: 'To Do', data: todo, backgroundColor: '#94a3b8' },
+                    { label: 'WIP', data: wip, backgroundColor: '#f59e0b' },
+                    { label: 'Done', data: done, backgroundColor: '#10b981' }
                 ]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { stacked: true },
-                    y: { stacked: true, beginAtZero: true }
-                },
-                plugins: {
-                    legend: { position: 'bottom' }
-                }
-            }
-        });
-    }
-
-    private renderStaleTasks(tasks: any[]) {
-        const container = document.getElementById('pmStaleTasksList');
-        if (!container) return;
-
-        if (!tasks || tasks.length === 0) {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);">Không có task nào cần chú ý đặc biệt.</div>';
-            return;
-        }
-
-        container.innerHTML = tasks.map(t => {
-            const isStale = this.isOlderThan(t.updated_at, 3);
-            const isHighPriority = t.priority === 'High' || t.priority === 'Highest';
-            
-            let tagClass = 'tag-warning';
-            let tagText = 'Stale';
-            if (isHighPriority) {
-                tagClass = 'tag-danger';
-                tagText = 'High Priority';
-            }
-            if (isStale && isHighPriority) tagText = 'Critical';
-
-            return `
-                <a href="${t.url || '#'}" target="_blank" class="stale-task-item">
-                    <span class="stale-task-key">${t.key}</span>
-                    <span class="stale-task-title" title="${this.escapeHTML(t.title)}">${this.escapeHTML(t.title)}</span>
-                    <span class="stale-tag ${tagClass}">${tagText}</span>
-                    <span class="stale-assignee">${this.escapeHTML(t.assignee)}</span>
-                </a>
-            `;
-        }).join('');
-    }
-
-    private renderBurnup(data: any[]) {
-        const ctx = document.getElementById('pmBurnupChart') as HTMLCanvasElement;
-        if (!ctx) return;
-        
-        const labels = data.map(d => formatDateTime(d.date).split(' ')[0] || d.date);
-        const cumulative = data.map(d => d.cumulative);
-        const daily = data.map(d => d.daily_completed);
-
-        if (this.burnupChart) this.burnupChart.destroy();
-
-        this.burnupChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        type: 'bar',
-                        label: 'Số Done hằng ngày',
-                        data: daily,
-                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                        borderColor: '#10b981',
-                        borderWidth: 1,
-                        yAxisID: 'y1'
-                    },
-                    {
-                        type: 'line',
-                        label: 'Lũy kế Done (Burn-up)',
-                        data: cumulative,
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        fill: true,
-                        tension: 0.3,
-                        yAxisID: 'y'
-                    }
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: {
-                    y: { type: 'linear', display: true, position: 'left', title: {display: true, text: 'Tổng Cumulative'} },
-                    y1: { type: 'linear', display: true, position: 'right', grid: {drawOnChartArea: false}, title: {display: true, text: 'Hằng ngày'} }
-                }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } 
             }
         });
     }
@@ -440,78 +288,48 @@ export class PMDashboardModule {
         if (!ctx) return;
         
         const labels = data.map(d => d.date);
-        const doneData = data.map(d => d.done);
-        const wipData = data.map(d => d.wip);
+        const done = data.map(d => d.done);
+        const wip = data.map(d => d.wip);
 
         if (this.cfdChart) this.cfdChart.destroy();
-
         this.cfdChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels,
                 datasets: [
-                    {
-                        label: 'Done',
-                        data: doneData,
-                        borderColor: '#10b981',
-                        backgroundColor: '#10b981',
-                        fill: true,
-                        tension: 0.2,
-                        pointRadius: 0
-                    },
-                    {
-                        label: 'Trong quá trình (ToDo + WIP)',
-                        data: wipData,
-                        borderColor: '#f59e0b',
-                        backgroundColor: '#f59e0b',
-                        fill: true,
-                        tension: 0.2,
-                        pointRadius: 0
-                    }
+                    { label: 'Done', data: done, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.4)', fill: true, tension: 0.2, pointRadius: 0 },
+                    { label: 'WIP (ToDo + InProgress)', data: wip, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.4)', fill: true, tension: 0.2, pointRadius: 0 }
                 ]
             },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: {
-                    x: { type: 'category' },
-                    y: { stacked: true, beginAtZero: true }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'category' }, y: { stacked: true, beginAtZero: true } } }
         });
     }
 
     private renderLeadTime(data: any) {
-        const overallSpan = document.getElementById('pmOverallLeadTime');
-        if (overallSpan) {
-            overallSpan.textContent = (data.overall_avg_lead_time_days || 0).toString();
-        }
+        this.setEl('pmOverallLeadTime', data.overall_avg_lead_time_days || '-');
 
         const ctx = document.getElementById('pmLeadTimeChart') as HTMLCanvasElement;
         if (!ctx) return;
 
         const trend = data.trend || [];
-        const labels = trend.map((d: any) => formatDateTime(d.date).split(' ')[0] || d.date);
-        const leadTimes = trend.map((d: any) => d.avg_lead_time_days);
+        const labels = trend.map((d: any) => d.date);
+        const values = trend.map((d: any) => d.avg_lead_time_days);
 
         if (this.leadTimeChart) this.leadTimeChart.destroy();
-
         this.leadTimeChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels,
-                datasets: [{
-                    label: 'Lead Time (Ngày)',
-                    data: leadTimes,
-                    borderColor: '#8b5cf6',
-                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                    fill: true,
-                    tension: 0.3
+                datasets: [{ 
+                    label: 'Avg Days', 
+                    data: values, 
+                    borderColor: '#8b5cf6', 
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)', 
+                    fill: true, 
+                    tension: 0.3 
                 }]
             },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true } }
-            }
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
         });
     }
 
@@ -520,51 +338,51 @@ export class PMDashboardModule {
         if (!ctx) return;
 
         if (this.issueTypeChart) this.issueTypeChart.destroy();
-        
-        if (!types || types.length === 0) return;
-
-        const labels = types.map(t => t.type);
-        const data = types.map(t => t.count);
-
         this.issueTypeChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels,
+                labels: types.map(t => t.type),
                 datasets: [{
-                    data,
+                    data: types.map(t => t.count),
                     backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#64748b', '#ec4899', '#06b6d4'],
-                    borderWidth: 1
+                    borderWidth: 0
                 }]
             },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right' }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
         });
     }
 
     private renderEpics(epics: any[]) {
         const container = document.getElementById('pmEpicsList');
         if (!container) return;
-
-        if (!epics || epics.length === 0) {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);">Chưa có dữ liệu Epics cho dự án này.</div>';
+        
+        if (epics.length === 0) {
+            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);">Chưa có dữ liệu Epic.</div>';
             return;
         }
 
         container.innerHTML = epics.map(e => `
             <div style="padding: 16px; border-bottom: 1px solid var(--border-color);">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <a href="${e.url || '#'}" target="_blank" style="font-weight: 600; color: var(--text-color); text-decoration: none;">
-                        <span style="color: var(--accent-color); margin-right: 4px;">[${e.key}]</span> ${this.escapeHTML(e.title)}
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <a href="${e.url || '#'}" target="_blank" style="font-weight: 700; color: var(--text-color); text-decoration: none; font-family: 'Syne', sans-serif;">
+                        <span style="color: var(--accent-light); margin-right: 4px;">[${e.key}]</span> ${escapeHtml(e.title)}
                     </a>
-                    <span style="font-size: 0.85em; font-weight: 600; color: var(--text-dim); text-transform: uppercase;">${e.status}</span>
+                    <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,0.05); color: var(--text-dim); text-transform: uppercase; font-weight: 700;">${e.status}</span>
                 </div>
-                <div style="background: var(--bg-color); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 12px;">
-                    <div style="height: 100%; width: ${e.progress}%; background: ${e.progress === 100 ? 'var(--success)' : 'var(--accent-color)'}; transition: width 0.3s ease;"></div>
+                <div style="background: rgba(0,0,0,0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div style="height: 100%; width: ${e.progress}%; background: var(--accent-color); transition: width 0.3s;"></div>
                 </div>
+            </div>
+        `).join('');
+    }
+
+    private renderRisks(risks: any[]) {
+        const container = document.getElementById('pmRisksContainer');
+        if (!container) return;
+        container.innerHTML = risks.map(r => `
+            <div class="risk-card" style="padding: 16px; border-left: 4px solid var(--danger);">
+                <div style="font-weight: 700; margin-bottom: 6px;">${escapeHtml(r.title)}</div>
+                <div style="font-size: 0.85em; color: var(--text-dim); line-height: 1.4;">${r.summary}</div>
             </div>
         `).join('');
     }
@@ -572,44 +390,107 @@ export class PMDashboardModule {
     private renderRetrospectives(retros: any[]) {
         const container = document.getElementById('pmRetroContainer');
         if (!container) return;
-
-        if (!retros || retros.length === 0) {
-            container.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-dim);">Chưa có báo cáo AI Retrospective.</div>';
-            return;
-        }
-
         container.innerHTML = retros.map(r => `
-            <div class="risk-card" style="border-left: 4px solid #8b5cf6;">
-                <div class="risk-card-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                    <div class="risk-card-title">${this.escapeHTML(r.title)}</div>
-                    <div class="risk-card-date">${r.created_at ? formatDateTime(r.created_at) : ''}</div>
-                </div>
-                <div class="risk-card-body" style="font-size: 0.9em;">
-                    ${r.summary}
-                </div>
+            <div class="risk-card" style="padding: 16px; border-left: 4px solid var(--accent-color);">
+                <div style="font-weight: 700; margin-bottom: 6px;">${escapeHtml(r.title)}</div>
+                <div style="font-size: 0.85em; color: var(--text-dim); line-height: 1.4;">${r.summary}</div>
             </div>
         `).join('');
     }
 
-    private isOlderThan(dateStr: string, days: number): boolean {
-        if (!dateStr) return false;
-        const lastUpdate = new Date(dateStr).getTime();
-        const now = new Date().getTime();
-        const diffDays = (now - lastUpdate) / (1000 * 60 * 60 * 24);
-        return diffDays > days;
+    private setupDrillDown() {
+        document.querySelectorAll('.pm-drilldown-trigger').forEach(el => {
+            el.addEventListener('click', () => {
+                const metric = el.getAttribute('data-metric');
+                this.openDrillDownModal(metric!);
+            });
+        });
+
+        document.getElementById('closePmDrillDown')?.addEventListener('click', () => {
+            document.getElementById('pmDrillDownModal')!.style.display = 'none';
+        });
     }
 
-    private escapeHTML(str: string) {
-        if (!str) return '';
-        return str.replace(/[&<>'"]/g, 
-            tag => ({
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                "'": '&#39;',
-                '"': '&quot;'
-            }[tag] || tag)
-        );
+    private async openDrillDownModal(metric: string) {
+        const modal = document.getElementById('pmDrillDownModal');
+        const title = document.getElementById('pmDrillDownTitle');
+        const body = document.getElementById('pmDrillDownBody');
+        const loading = document.getElementById('pmDrillDownLoading');
+        const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
+        const projectKey = select?.value || '';
+
+        if (!modal || !body || !loading) return;
+
+        modal.style.display = 'block';
+        body.innerHTML = '';
+        loading.style.display = 'block';
+        if (title) title.textContent = `Danh sách: ${metric.replace('_', ' ').toUpperCase()}`;
+
+        try {
+            const res = await authFetch(`/api/pm/dashboard/details?metric=${metric}&project_key=${encodeURIComponent(projectKey)}`);
+            if (res.ok) {
+                const { issues } = await res.json();
+                if (issues.length === 0) {
+                    body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-dim);">Không tìm thấy issue nào.</td></tr>';
+                } else {
+                    body.innerHTML = issues.map((i: any) => `
+                        <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.2s;">
+                            <td style="padding: 14px 12px; font-weight: 800; color: var(--accent-color); font-family: 'Syne', sans-serif;">${i.key}</td>
+                            <td style="padding: 14px 12px; font-weight: 500; font-size: 0.9em;">${escapeHtml(i.title)}</td>
+                            <td style="padding: 14px 12px; color: var(--text-dim); font-size: 0.85em;">${i.assignee || 'Unassigned'}</td>
+                            <td style="padding: 14px 12px;"><span style="background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 8px; font-size: 0.75em; text-transform: uppercase;">${i.status}</span></td>
+                            <td style="padding: 14px 12px;"><a href="${i.url}" target="_blank" style="color: var(--accent-light); font-weight: 700; text-decoration: none;">Link ↗</a></td>
+                        </tr>
+                    `).join('');
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    private async handleGenerateCustomReport() {
+        const promptEl = document.getElementById('pmCustomPrompt') as HTMLTextAreaElement;
+        const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
+        const resultEl = document.getElementById('pmCustomResult');
+        const loadingEl = document.getElementById('pmCustomLoading');
+
+        if (!promptEl?.value || !select?.value) {
+            showToast('Vui lòng chọn dự án và nhập yêu cầu.', 'warning');
+            return;
+        }
+
+        if (loadingEl) loadingEl.style.display = 'block';
+        if (resultEl) resultEl.style.display = 'none';
+
+        try {
+            const res = await authFetch('/api/pm/dashboard/custom-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_key: select.value, prompt: promptEl.value })
+            });
+
+            if (res.ok) {
+                const { report } = await res.json();
+                if (resultEl) {
+                    resultEl.innerHTML = renderMarkdown(report);
+                    resultEl.style.display = 'block';
+                }
+                showToast('Đã tạo báo cáo AI thành công.', 'success');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Lỗi khi tạo báo cáo AI.', 'error');
+        } finally {
+            if (loadingEl) loadingEl.style.display = 'none';
+        }
+    }
+
+    private setEl(id: string, val: any) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(val);
     }
 }
 

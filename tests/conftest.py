@@ -63,9 +63,16 @@ async def db_session():
     async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     
     async with engine.begin() as conn:
-        from storage.db.db import LLMModelORM, ModelBindingORM
-        # We only create tables needed for current repository tests to avoid conflicts
-        await conn.run_sync(LLMModelORM.metadata.create_all, tables=[LLMModelORM.__table__, ModelBindingORM.__table__])
+        from storage.db.db import LLMModelORM, ModelBindingORM, AIWorkflowORM, AIWorkflowNodeORM, WorkflowRunORM
+        # Only create tables needed for the workflow and llm tests to avoid SQLite ARRAY issues
+        target_tables = [
+            LLMModelORM.__table__, 
+            ModelBindingORM.__table__,
+            AIWorkflowORM.__table__,
+            AIWorkflowNodeORM.__table__,
+            WorkflowRunORM.__table__
+        ]
+        await conn.run_sync(Base.metadata.create_all, tables=target_tables)
         
     async with async_session() as session:
         yield session

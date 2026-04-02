@@ -16,7 +16,7 @@ from sqlalchemy import (
     text,
     create_engine,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -51,7 +51,7 @@ class DocumentORM(Base):
     author = Column(String(255))
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=False, index=True)
-    metadata_ = Column("metadata", JSON, default={})
+    metadata_ = Column("metadata", JSONB, default={})
     permissions = Column(ARRAY(String), default=[])
     entities = Column(ARRAY(String), default=[])
     workspace_id = Column(String(255), index=True)
@@ -412,6 +412,50 @@ class ModelBindingORM(Base):
     task_type = Column(String(50), primary_key=True) # chat, ingestion_llm, agent, embedding
     model_id = Column(UUID(as_uuid=True), ForeignKey("llm_models.id", ondelete="CASCADE"), nullable=False)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PMMetricsDailyORM(Base):
+    __tablename__ = "pm_metrics_daily"
+    __table_args__ = (
+        Index("ix_pm_metrics_daily_lookup", "date", "project_key"),
+        {"comment": "Pre-aggregated daily snapshots of project status counts"}
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    date = Column(DateTime, nullable=False)
+    project_key = Column(String(50), nullable=False)
+    todo_count = Column(Integer, default=0)
+    in_progress_count = Column(Integer, default=0)
+    done_count = Column(Integer, default=0)
+    high_priority_count = Column(Integer, default=0)
+    avg_lead_time_days = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class PMMetricsByUserORM(Base):
+    __tablename__ = "pm_metrics_by_user"
+    __table_args__ = (
+        Index("ix_pm_metrics_user_lookup", "user_id", "project_key"),
+        {"comment": "Per-user workload and stale task metrics"}
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(255), nullable=False) # Jira accountId or name
+    display_name = Column(String(255))
+    project_key = Column(String(50), nullable=False)
+    todo_count = Column(Integer, default=0)
+    in_progress_count = Column(Integer, default=0)
+    done_count = Column(Integer, default=0)
+    stale_count = Column(Integer, default=0) # WIP but no update > 3 days
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+class PMMetricsByProjectORM(Base):
+    __tablename__ = "pm_metrics_by_project"
+    __table_args__ = {"comment": "High-level project health and velocity trends"}
+    project_key = Column(String(50), primary_key=True)
+    velocity_weekly = Column(Float, default=0.0) # items per week
+    velocity_delta_pct = Column(Float, default=0.0) # comparison with prev week
+    risk_score = Column(Float, default=0.0) # 0-100
+    health_status = Column(String(20), default="healthy") # healthy, warning, critical
+    insight = Column(Text) # Bottleneck/Velocity alerts
+    updated_at = Column(DateTime, default=datetime.utcnow)
 
 
 class SMTPSettingsORM(Base):
