@@ -51,36 +51,82 @@ async def get_pm_dashboard_stats(
         SELECT 
             todo_count, in_progress_count, done_count, high_priority_count
         FROM pm_metrics_daily
-        WHERE (:p IS NULL OR project_key = :p)
+        WHERE (:p IS NULL OR project_key ILIKE :p OR project_key ILIKE :p_br)
         ORDER BY date DESC LIMIT 1
     """)
     
     query_insights = text("""
         SELECT velocity_weekly, risk_score, health_status, insight
         FROM pm_metrics_by_project
-        WHERE (:p IS NULL OR project_key = :p)
+        WHERE (:p IS NULL OR project_key ILIKE :p OR project_key ILIKE :p_br)
         ORDER BY updated_at DESC LIMIT 1
     """)
     
-    d_res = await session.execute(query_metrics, {"p": project_key})
-    d_metrics = d_res.mappings().first()
+    res_metrics = await session.execute(query_metrics, {"p": project_key, "p_br": f"[{project_key}]" if project_key else None})
+    stats_row = res_metrics.fetchone()
     
-    p_res = await session.execute(query_insights, {"p": project_key})
-    p_metrics = p_res.mappings().first()
+    # [LIVE FALLBACK] If no daily metrics found, compute live from documents table
+    if not stats_row:
+        live_query = text("""
+            SELECT 
+                COUNT(*) FILTER (WHERE metadata->>'statusCategory' ILIKE 'to do' OR metadata->>'status' ILIKE 'open') as todo,
+                COUNT(*) FILTER (WHERE metadata->>'statusCategory' ILIKE 'in progress' OR metadata->>'status' ILIKE 'in progress' OR metadata->>'status' ILIKE 'doing') as wip,
+                COUNT(*) FILTER (WHERE metadata->>'statusCategory' ILIKE 'done' OR metadata->>'status' ILIKE 'resolved' OR metadata->>'status' ILIKE 'closed' OR metadata->>'status' ILIKE 'done') as done,
+                COUNT(*) FILTER (WHERE (metadata->>'priority' ILIKE 'high' OR metadata->>'priority' ILIKE 'critical' OR metadata->>'priority' ILIKE 'highest')) as high
+            FROM documents
+            WHERE source = 'jira' 
+              AND (
+                  :p IS NULL 
+                  OR metadata->>'project_key' ILIKE :p 
+                  OR metadata->>'project_key' ILIKE :p_br
+                  OR metadata->>'project' ILIKE :p
+                  OR metadata->>'project' ILIKE :p_br
+              )
+        """)
+        res_live = await session.execute(live_query, {"p": project_key, "p_br": f"[{project_key}]" if project_key else None})
+        live_stats = res_live.fetchone()
+        stats = {
+            "todo_count": live_stats[0] or 0,
+            "in_progress_count": live_stats[1] or 0,
+            "done_count": live_stats[2] or 0,
+            "high_priority_count": live_stats[3] or 0
+        }
+    else:
+        stats = {
+            "todo_count": stats_row[0] or 0,
+            "in_progress_count": stats_row[1] or 0,
+            "done_count": stats_row[2] or 0,
+            "high_priority_count": stats_row[3] or 0
+        }
     
-    return {
-        "project_key": project_key,
-        "velocity_weekly": p_metrics["velocity_weekly"] if p_metrics else 0,
-        "risk_score": p_metrics["risk_score"] if p_metrics else 0,
-        "health_status": p_metrics["health_status"] if p_metrics else "healthy",
-        "insight": p_metrics["insight"] if p_metrics else None,
-        "total_issues": (d_metrics["todo_count"] + d_metrics["in_progress_count"] + d_metrics["done_count"]) if d_metrics else 0,
-        "done_issues": d_metrics["done_count"] if d_metrics else 0,
-        "in_progress_issues": d_metrics["in_progress_count"] if d_metrics else 0,
-        "todo_issues": d_metrics["todo_count"] if d_metrics else 0,
-        "high_priority_issues": d_metrics["high_priority_count"] if d_metrics else 0,
-        "completion_rate": round((d_metrics["done_count"] / (d_metrics["todo_count"] + d_metrics["in_progress_count"] + d_metrics["done_count"]) * 100), 1) if d_metrics and (d_metrics["todo_count"] + d_metrics["in_progress_count"] + d_metrics["done_count"]) > 0 else 0
+    # Standardize stats for frontend
+    todo = stats.get("todo_count", 0)
+    wip = stats.get("in_progress_count", 0)
+    done = stats.get("done_count", 0)
+    high = stats.get("high_priority_count", 0)
+    total = todo + wip + done
+    rate = round((done / total * 100), 1) if total > 0 else 0
+    
+    formatted_stats = {
+        "todo_issues": todo,
+        "in_progress_issues": wip,
+        "done_issues": done,
+        "high_priority_issues": high,
+        "total_issues": total,
+        "completion_rate": rate
     }
+
+    # Optional: Merge project insights if available
+    p_res = await session.execute(query_insights, {"p": project_key, "p_br": f"[{project_key}]" if project_key else None})
+    p_metrics = p_res.mappings().first()
+    if p_metrics:
+        formatted_stats.update({
+            "velocity_weekly": p_metrics["velocity_weekly"],
+            "risk_score": p_metrics["risk_score"],
+            "health_status": p_metrics["health_status"]
+        })
+    
+    return formatted_stats
     
 @router.get("/dashboard/risks")
 async def get_pm_risks(
@@ -138,10 +184,9 @@ async def get_pm_workload(
     user: CurrentUser = Depends(get_current_user),
 ):
     query = "SELECT user_id, display_name, project_key, todo_count, in_progress_count, done_count FROM pm_metrics_by_user"
-    params = {}
     if project_key:
-        query += " WHERE project_key = :p"
-        params["p"] = project_key
+        query += " WHERE project_key ILIKE :p OR project_key ILIKE :p_br"
+        params = {"p": project_key, "p_br": f"[{project_key}]"}
         
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -156,6 +201,93 @@ async def get_pm_workload(
         workload[name]["done"] += r["done_count"]
             
     return {"workload": workload}
+
+@router.get("/dashboard/logtime")
+async def get_pm_logtime(
+    project_key: Optional[str] = None,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Aggregates total time spent (logged hours) from issue metadata by user.
+    """
+    query = """
+        SELECT 
+            metadata->'assignee'->>'displayName' as user_name,
+            SUM(CAST(COALESCE(metadata->'timetracking'->>'timeSpentSeconds', '0') AS INTEGER)) as seconds
+        FROM documents
+        WHERE source = 'jira' 
+          AND (
+              metadata->>'project_key' ILIKE :p 
+              OR metadata->>'project_key' ILIKE :p_br
+              OR metadata->>'project' ILIKE :p
+              OR metadata->>'project' ILIKE :p_br
+          )
+        GROUP BY 1
+        HAVING SUM(CAST(COALESCE(metadata->'timetracking'->>'timeSpentSeconds', '0') AS INTEGER)) > 0
+        ORDER BY seconds DESC
+    """
+    
+    params = {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {"p": "%", "p_br": "%"}
+    
+    res = await session.execute(text(query), params)
+    rows = res.fetchall()
+    
+    logtime = []
+    for r in rows:
+        logtime.append({
+            "user": r[0],
+            "hours": round(r[1] / 3600.0, 1)
+        })
+        
+    return {"logtime": logtime}
+
+@router.get("/dashboard/logtime-trend")
+async def get_pm_logtime_trend(
+    project_key: Optional[str] = None,
+    days: int = 30,
+    session: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    # Temporarily disabled to debug aggregation error
+    return {"trend": []}
+    """
+    query = f\"\"\"
+        SELECT 
+            CAST(w->>'started' AS DATE) as log_date,
+            w->>'author' as user_name,
+            SUM(CAST(COALESCE(w->>'timeSpentSeconds', '0') AS INTEGER)) as seconds
+        FROM documents,
+             jsonb_array_elements(CASE WHEN jsonb_typeof(metadata->'worklog') = 'array' THEN (metadata->'worklog') ELSE '[]'::jsonb END) w
+        WHERE source = 'jira' 
+          AND (
+              :p IS NULL
+              OR metadata->>'project_key' ILIKE :p 
+              OR metadata->>'project_key' ILIKE :p_br
+              OR metadata->>'project' ILIKE :p
+              OR metadata->>'project' ILIKE :p_br
+          )
+          AND (w->>'started') IS NOT NULL
+          AND CAST(w->>'started' AS DATE) >= CURRENT_DATE - INTERVAL '{days} days'
+        GROUP BY 1, 2
+        ORDER BY 1 ASC, 3 DESC
+    \"\"\"
+    
+    params = {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {"p": "%", "p_br": "%"}
+    
+    res = await session.execute(text(query), params)
+    rows = res.fetchall()
+    
+    trend = []
+    for r in rows:
+        trend.append({
+            "date": r[0].isoformat() if r[0] else None,
+            "user": r[1],
+            "hours": round(r[2] / 3600.0, 1)
+        })
+        
+    return {"trend": trend}
+    """
 
 
 @router.get("/dashboard/stale")
@@ -189,7 +321,10 @@ async def refresh_pm_ai_analysis(
         
         # Kiểm tra xem dự án có dữ liệu Jira không
         res = await session.execute(
-            text("SELECT COUNT(*) FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE :p OR metadata->>'project_key' ILIKE :p_br)"),
+            text("""SELECT COUNT(*) FROM documents WHERE source = 'jira' AND (
+                metadata->>'project_key' ILIKE :p OR metadata->>'project_key' ILIKE :p_br OR
+                metadata->>'project' ILIKE :p OR metadata->>'project' ILIKE :p_br
+            )"""),
             {"p": project_key, "p_br": f"[{project_key}]"}
         )
 
@@ -488,7 +623,8 @@ async def get_pm_retrospective(
 
 class CustomReportRequest(BaseModel):
     project_key: str
-    prompt: str
+    prompt: Optional[str] = None
+    action_type: Optional[str] = "custom" # bottleneck, risk, velocity, workload, custom
 
 @router.post("/dashboard/custom-report")
 async def generate_pm_custom_report(
@@ -497,12 +633,23 @@ async def generate_pm_custom_report(
     user: CurrentUser = Depends(get_current_user),
 ):
     project_key = req.project_key.strip()
-    prompt = req.prompt.strip()
+    prompt = (req.prompt or "").strip()
+    action = req.action_type or "custom"
     
-    if not project_key or not prompt:
-        raise HTTPException(status_code=400, detail="Missing project_key or prompt")
+    if not project_key:
+        raise HTTPException(status_code=400, detail="Missing project_key")
         
-    # Fetch current metrics for AI analysis
+    # Mapping quick actions to prompt templates
+    action_map = {
+        "bottleneck": "Phân tích các điểm nghẽn (bottlenecks) hiện tại. Task nào đang bị tắc nghẽn lâu nhất? Team nào đang quá tải?",
+        "risk": "Đánh giá các rủi ro quan trọng ảnh hưởng đến tiến độ dự án. Xác định các task có nguy cơ trễ hạn cao.",
+        "velocity": "Phân tích xu hướng Velocity (tốc độ hoàn thành). So sánh với các tuần trước và dự báo khả năng hoàn thành mục tiêu.",
+        "workload": "Kiểm toán khối lượng công việc theo từng thành viên. Ai đang rảnh, ai đang quá tải? Đề xuất phân bổ lại.",
+        "custom": prompt
+    }
+    final_prompt = action_map.get(action, prompt)
+
+    # 1. Fetch current status metrics
     metrics_query = """
     SELECT 
         p.velocity_weekly, p.velocity_delta_pct, p.risk_score, p.health_status,
@@ -515,33 +662,77 @@ async def generate_pm_custom_report(
     m_res = await session.execute(text(metrics_query), {"p": project_key})
     m = m_res.mappings().first() or {}
     
+    # 2. Fetch Top 10 Stale Issues (Critical Context)
+    stale_query = """
+    SELECT source_id as key, title, metadata->'assignee'->>'displayName' as assignee, updated_at
+    FROM documents 
+    WHERE source = 'jira' 
+      AND metadata->>'project_key' = :p
+      AND metadata->>'statusCategory' = 'in progress'
+      AND updated_at < NOW() - interval '3 days'
+    ORDER BY updated_at ASC LIMIT 10
+    """
+    s_res = await session.execute(text(stale_query), {"p": project_key, "p_br": f"[{project_key}]"})
+    stale_issues = s_res.mappings().all()
+    stale_str = "\n".join([f"- [{i['key']}] {i['title']} (Assignee: {i['assignee']}, Last Updated: {i['updated_at']})" for i in stale_issues])
+
+    # 3. Fetch Recent Bottleneck (WIP issues)
+    wip_query = text("""
+        SELECT source_id as key, title, metadata->'assignee'->>'displayName' as assignee, metadata->>'status' as status
+        FROM documents 
+        WHERE source = 'jira' 
+          AND (
+              metadata->>'project_key' ILIKE :p 
+              OR metadata->>'project_key' ILIKE :p_br
+              OR metadata->>'project' ILIKE :p
+              OR metadata->>'project' ILIKE :p_br
+          )
+          AND metadata->>'statusCategory' = 'in progress'
+        ORDER BY updated_at DESC LIMIT 10
+    """)
+    w_res = await session.execute(wip_query, {"p": project_key, "p_br": f"[{project_key}]"})
+    wip_items = w_res.mappings().all()
+    wip_str = "\n".join([f"- [{i['key']}] {i['title']} ({i['status']})" for i in wip_items])
+
     metrics_summary = f"""
-    THỐNG KÊ HIỆN TẠI:
+    THỐNG KÊ HIỆN TẠI ({project_key}):
     - Velocity tuần này: {m.get('velocity_weekly', 0)} task
     - So với tuần trước: {m.get('velocity_delta_pct', 0)}%
-    - Chỉ số rủi ro: {m.get('risk_score', 0)}/100
-    - Trạng thái: {m.get('health_status', 'N/A')}
+    - Chỉ số rủi ro: {m.get('risk_score', 0)}/100 (Trạng thái: {m.get('health_status', 'N/A')})
     - Phân bổ: ToDo({m.get('todo_count',0)}), InProgress({m.get('in_progress_count',0)}), Done({m.get('done_count',0)})
+
+    DANH SÁCH TASK BỊ TREO (>3 ngày):
+    {stale_str if stale_str else "Không có task nào bị treo."}
+
+    TASK ĐANG THỰC HIỆN (WIP):
+    {wip_str if wip_str else "Chưa có dữ liệu WIP."}
     """
 
-    system_prompt = f"""Bạn là một Chuyên gia Quản lý Dự án AI. Phân tích Dữ liệu Dự án Jira bên dưới để tạo Báo cáo Markdown trả lời yêu cầu của Người Dùng. 
+    system_prompt = f"""Bạn là một Chuyên gia Quản lý Dự án AI Strategic Insights. Nhiệm vụ của bạn là phân tích dữ liệu Jira và đưa ra báo cáo QUYẾT ĐỊNH (Decision-Support) cho PM.
 
-DỮ LIỆU DỰ ÁN ({project_key}):
+QUY TẮC PHẢN HỒI (BẮT BUỘC):
+1. CẤU TRÚC BÁO CÁO: Luôn bắt đầu bằng phần tóm tắt cực ngắn gọn (Summary), sau đó là bảng Đề xuất hành động (Action Items), cuối cùng là phần Giải trình (Evidence).
+2. TÍNH CHÍNH XÁC: Bạn phải trích dẫn mã ISSUE KEY cụ thể (ví dụ: PROJ-123) khi nói về rủi ro hoặc rào cản. Không nói chung chung.
+3. ĐỀ XUẤT HÀNH ĐỘNG: Mỗi hành động phải có độ ưu tiên (High/Med/Low) và đề xuất người phụ trách (Owner) dựa trên dữ liệu Assignee.
+4. TÍNH CHUYÊN NGHIỆP: Sử dụng ngôn ngữ PM sắc bén (ví dụ: "Bottleneck", "Risk Mitigation", "Log-Time Audit").
+5. ĐỊNH DẠNG: Trả về Markdown chuyên nghiệp. 
+6. BIỂU ĐỒ: Khi cần minh họa dữ liệu (phân bổ Assignee, rủi ro, Log-time theo User, v.v.), hãy xuất mã biểu đồ theo format:
+```
+[[CHART:{"type":"pie|bar|line", "title": "...", "labels": [], "data": []}]]
+```
+7. SUMMARY JSON: Cuối cùng, hãy luôn xuất một khối JSON nhỏ chứa thông tin tóm tắt.
+
+DỮ LIỆU BỔ SUNG:
+Mỗi Issue hiện có thêm trường `timetracking` (chứa `originalEstimate`, `timeSpent`) và `worklog` (danh sách các lần log thời gian chi tiết gồm: `author`, `timeSpent`, `started`). Hãy sử dụng dữ liệu này nếu User yêu cầu báo cáo về Log-time hoặc Effort.
+
+DỮ LIỆU DỰ ÁN:
 {metrics_summary}
-
-{context_str}
-
-QUY TẮC PHẢN HỒI:
-1. Bạn phải dựa trên con số cụ thể trong THỐNG KÊ HIỆN TẠI để giải thích. Không nói chung chung. 
-Ví dụ: "Dự án chậm do Velocity giảm 15% so với tuần trước và 80% task đang bị nghẽn (In Progress > 3 ngày)".
-2. Phải đưa ra nhận định PM sắc bén: Team nào bottleneck? Sprint này ổn hay trễ? Cần xử lý ngay task nào?
-3. Trả lời bằng Markdown chuyên nghiệp.
-4. Xuất biểu đồ JSON nếu cần (Pie/Bar/Line)."""
+"""
 
     llm = LLMService(task_type="pm_report")
     try:
-        reply = await llm.chat(system=system_prompt, user=f"Yêu cầu: {prompt}", max_tokens=1500)
-        return {"report": reply}
+        reply = await llm.chat(system=system_prompt, user=f"Yêu cầu PM: {final_prompt}", max_tokens=2000)
+        return {"report": reply, "project": project_key, "action": action}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
 

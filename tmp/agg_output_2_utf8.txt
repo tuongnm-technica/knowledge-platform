@@ -1,0 +1,53 @@
+﻿Fetching unique project keys from documents...
+Found 8 projects: ['BAPP', 'ECOS2025', 'AA', 'AC', 'AFW', 'ZEN', 'AD', 'AIKNOW']
+Aggregating metrics for project: BAPP
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=BAPP
+  Failed to aggregate BAPP: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedFunctionError'>: operator does not exist: text ->> unknown
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('BAPP', '[BAPP]')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Aggregating metrics for project: ECOS2025
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=ECOS2025
+  Failed to aggregate ECOS2025: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('ECOS2025', '[ECOS2025]')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Aggregating metrics for project: AA
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=AA
+  Failed to aggregate AA: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('AA', '[AA]')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Aggregating metrics for project: AC
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=AC
+  Failed to aggregate AC: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('AC', '[AC]')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Aggregating metrics for project: AFW
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=AFW
+  Failed to aggregate AFW: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('AFW', '[AFW]')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Aggregating metrics for project: ZEN
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=ZEN
+  Failed to aggregate ZEN: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('ZEN', '[ZEN]')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Aggregating metrics for project: AD
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=AD
+  Failed to aggregate AD: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('AD', '[AD]')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Aggregating metrics for project: AIKNOW
+2026-04-02 13:53:47 [info     ] pm_metrics.aggregation.start   project=AIKNOW
+  Failed to aggregate AIKNOW: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT metadata->>'statusCategory' as cat, metadata->>'priority' as priority, metadata->>'assignee'->>'accountId' as account_id, metadata->>'assignee'->>'displayName' as display_name, metadata->>'sprint' as sprint_json, metadata->>'epic' as epic_json, updated_at, created_at, metadata->>'resolved_date' as resolved_date FROM documents WHERE source = 'jira' AND (metadata->>'project_key' ILIKE $1 OR metadata->>'project_key' ILIKE $2 OR metadata->>'project' ILIKE $1 OR metadata->>'project' ILIKE $2)]
+[parameters: ('AIKNOW', '[AIKNOW]')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+Aggregation complete.
+

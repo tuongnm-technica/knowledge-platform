@@ -195,6 +195,13 @@ class JiraConnector(BaseConnector):
                 "comment_count": self._comment_count(fields.get("comment") or {}),
                 "image_attachments": image_attachments,
                 "resolved_date": self._parse_dt(fields.get("resolutiondate")).isoformat() if fields.get("resolutiondate") else None,
+                "timetracking": {
+                    "originalEstimate": fields.get("timetracking", {}).get("originalEstimate"),
+                    "remainingEstimate": fields.get("timetracking", {}).get("remainingEstimate"),
+                    "timeSpent": fields.get("timetracking", {}).get("timeSpent"),
+                    "timeSpentSeconds": fields.get("timetracking", {}).get("timeSpentSeconds", 0)
+                },
+                "worklog": self._extract_recent_worklogs(fields.get("worklog") or {})
             },
             permissions=permissions,
             workspace_id=workspace_id,
@@ -205,6 +212,25 @@ class JiraConnector(BaseConnector):
 
     async def get_permissions(self, source_id: str) -> list[str]:
         return [f"group_jira_project_{str(source_id or '').strip().lower()}"]
+
+    def _extract_recent_worklogs(self, worklog: dict) -> list[dict]:
+        """Extract the most recent worklogs, keeping metadata lean."""
+        entries = worklog.get("worklogs") or []
+        if not isinstance(entries, list):
+            return []
+        
+        # Sort by started date DESC and take recent 50
+        sorted_entries = sorted(entries, key=lambda x: x.get("started", ""), reverse=True)
+        return [
+            {
+                "author": (w.get("author") or {}).get("displayName", "Unknown"),
+                "timeSpent": w.get("timeSpent"),
+                "timeSpentSeconds": w.get("timeSpentSeconds", 0),
+                "started": w.get("started"),
+                "comment": w.get("comment") if isinstance(w.get("comment"), str) else ""
+            }
+            for w in sorted_entries[:50]
+        ]
 
     def _extract_adf_text(self, adf: dict) -> str:
         """

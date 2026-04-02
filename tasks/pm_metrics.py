@@ -26,18 +26,23 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
     
     query = text("""
         SELECT 
-            metadata->>'statusCategory' as cat,
-            metadata->>'priority' as priority,
-            metadata->>'assignee'->>'accountId' as account_id,
-            metadata->>'assignee'->>'displayName' as display_name,
-            metadata->>'sprint' as sprint_json,
-            metadata->>'epic' as epic_json,
-            updated_at,
-            created_at,
-            metadata->>'resolved_date' as resolved_date
-        FROM documents
+            (metadata)::jsonb->>'statusCategory' as cat, 
+            (metadata)::jsonb->>'priority' as priority, 
+            (metadata)::jsonb->'assignee'->>'accountId' as account_id, 
+            (metadata)::jsonb->'assignee'->>'displayName' as display_name, 
+            (metadata)::jsonb->>'sprint' as sprint_json, 
+            (metadata)::jsonb->>'epic' as epic_json, 
+            updated_at, 
+            created_at, 
+            (metadata)::jsonb->>'resolved_date' as resolved_date 
+        FROM documents 
         WHERE source = 'jira' 
-          AND (metadata->>'project_key' = :p OR metadata->>'project_key' = :p_br)
+          AND (
+              metadata->>'project_key' ILIKE :p 
+              OR metadata->>'project_key' ILIKE :p_br 
+              OR metadata->>'project' ILIKE :p 
+              OR metadata->>'project' ILIKE :p_br
+          )
     """)
     res = await session.execute(query, {"p": project_key, "p_br": f"[{project_key}]"})
     issues = res.mappings().fetchall()
@@ -61,12 +66,18 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
     # Scope Issues to Active Sprint if found, otherwise keep all
     sprint_issues = issues
     if active_sprint_id:
-        sprint_issues = [i for i in issues if i['sprint_json'] and f"id={active_sprint_id}" in str(i['sprint_json'])]
+        def issue_in_sprint(i):
+            sj = i['sprint_json']
+            if not sj: return False
+            s_str = str(sj)
+            return f"id={active_sprint_id}," in s_str or f"id={active_sprint_id}]" in s_str or f"\"id\":{active_sprint_id}" in s_str or f"\"id\": \"{active_sprint_id}\"" in s_str
 
-    todo = [i for i in sprint_issues if i['cat'] == 'to do']
-    wip = [i for i in sprint_issues if i['cat'] == 'in progress']
-    done = [i for i in sprint_issues if i['cat'] == 'done']
-    high_pri = [i for i in sprint_issues if i['priority'] in ('High', 'Highest')]
+        sprint_issues = [i for i in issues if issue_in_sprint(i)]
+
+    todo = [i for i in sprint_issues if str(i['cat']).lower() in ('to do', 'open', 'new', 'todo')]
+    wip = [i for i in sprint_issues if str(i['cat']).lower() in ('in progress', 'doing', 'wip', 'indeterminate')]
+    done = [i for i in sprint_issues if str(i['cat']).lower() in ('done', 'resolved', 'closed', 'completed')]
+    high_pri = [i for i in sprint_issues if str(i['priority']).lower() in ('high', 'highest', 'critical', 'urgent')]
     
     # Calculate MEDIAN Lead Time
     lead_times = []

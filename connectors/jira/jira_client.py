@@ -72,6 +72,13 @@ class JiraClient:
             "updated",
             "comment",
             "attachment",
+            "resolutiondate",
+            "worklog",
+            "timetracking",
+            "customfield_10020", # Standard Sprint field
+            "customfield_10001", # Standard Epic field
+            "customfield_11201", # Alternative Epic field (Next-gen)
+            "epic"
         ]
 
     def get_projects(self, filter_allowed: bool = False) -> list[dict]:

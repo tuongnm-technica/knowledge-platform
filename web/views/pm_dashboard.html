@@ -114,7 +114,13 @@
           <span style="font-size: 1.2em;">📈</span> Tốc độ Hoàn Thành (Burn-up)
         </h3>
         <div style="height: 300px; position: relative;">
-    <div class="pm-quality-reports" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; margin-bottom: 32px;">
+          <canvas id="pmBurnupChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUALITY ROW -->
+    <div class="pm-quality-reports" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; margin-bottom: 32px;">
       <!-- LEAD TIME -->
       <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
         <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
@@ -131,6 +137,27 @@
         </h3>
         <div style="height: 300px; position: relative; display: flex; justify-content: center;">
           <canvas id="pmIssueTypesChart"></canvas>
+        </div>
+      </div>
+      <!-- LOG TIME -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">🕒</span> Phân bổ Thời gian (Log-time)
+        </h3>
+        <div style="height: 300px; position: relative; display: flex; justify-content: center;">
+          <canvas id="pmLogTimeChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="pm-quality-reports" style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 32px;">
+      <!-- DAILY EFFORT TREND -->
+      <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
+        <h3 style="font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: var(--text-color); display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2em;">📊</span> Xu hướng Log-time theo Ngày (Daily Effort)
+        </h3>
+        <div style="height: 350px; position: relative;">
+          <canvas id="pmLogTimeTrendChart"></canvas>
         </div>
       </div>
     </div>
@@ -173,8 +200,15 @@
       <div class="stat-card premium-card" style="padding: 24px; text-align: left;">
         <h3 style="font-size: 1.2em; font-weight: 600; margin-bottom: 16px;">Tạo Báo Cáo Tùy Chỉnh (Dữ liệu: 150 tickets gần nhất)</h3>
         <textarea id="pmCustomPrompt" class="form-control" rows="4" style="width: 100%; border-radius: 8px; padding: 12px; font-family: inherit; margin-bottom: 16px; border: 1px solid var(--border-color); resize: vertical; background: var(--bg-color); color: var(--text-color);" placeholder="Nhập yêu cầu báo cáo... Ví dụ: Thống kê và đánh giá rủi ro các task In Progress lâu hơn 5 ngày. Yêu cầu vẽ thêm biểu đồ tròn (Pie) hiển thị tỷ trọng theo Assignee."></textarea>
-        <div style="display: flex; justify-content: flex-end;">
-            <button id="pmGenerateCustomBtn" class="primary-btn" style="padding: 10px 24px; font-weight: 600;">Sinh Báo Cáo Khách Hàng 🚀</button>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
+            <button class="pm-quick-action secondary-btn glass-btn" data-type="bottleneck" style="padding: 8px 16px; border-radius: 20px; font-size: 0.85em; font-weight: 600;">🔥 Bottleneck Analysis</button>
+            <button class="pm-quick-action secondary-btn glass-btn" data-type="risk" style="padding: 8px 16px; border-radius: 20px; font-size: 0.85em; font-weight: 600;">🛡️ Risk Assessment</button>
+            <button class="pm-quick-action secondary-btn glass-btn" data-type="velocity" style="padding: 8px 16px; border-radius: 20px; font-size: 0.85em; font-weight: 600;">📈 Velocity Trend</button>
+            <button class="pm-quick-action secondary-btn glass-btn" data-type="workload" style="padding: 8px 16px; border-radius: 20px; font-size: 0.85em; font-weight: 600;">👥 Workload Audit</button>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px; align-items: center;">
+            <span style="font-size: 0.8em; color: var(--text-dim);">Dữ liệu: 150 tickets mới nhất</span>
+            <button id="pmGenerateCustomBtn" class="primary-btn pulse-glow" style="padding: 10px 24px; font-weight: 700; border-radius: 12px;">Sinh Báo Cáo 🚀</button>
         </div>
       </div>
       
@@ -182,8 +216,19 @@
          <div style="margin-top: 16px; font-weight: 600; font-size: 1.1em;">🪄 Đang cào dữ liệu Jira và yêu cầu AI phân tích (Mất khoảng 20-30s)...</div>
       </div>
 
-      <div id="pmCustomResult" class="markdown-body" style="margin-top: 24px; padding: 32px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; display: none; line-height: 1.6; color: var(--text-color);">
-         <!-- Markdown & Charts injected here -->
+      <div id="pmCustomResult" style="margin-top: 24px; display: none;">
+         <div class="premium-card" style="padding: 0; border-radius: 16px; background: var(--bg-color); border: 1px solid var(--border-color); overflow: hidden;">
+            <div id="pmCustomResultHeader" style="padding: 20px 32px; background: rgba(59, 130, 246, 0.1); border-bottom: 1px solid rgba(59, 130, 246, 0.2); display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="margin:0; font-family: 'Syne', sans-serif;">Report: <span id="pmCustomActionLabel">Custom Analysis</span></h4>
+                <div id="pmCustomMeta" style="font-size: 0.8em; color: var(--text-dim);"></div>
+            </div>
+            <div id="pmCustomResultContent" class="markdown-body" style="padding: 32px; line-height: 1.7; color: var(--text-color);">
+                <!-- Markdown content here -->
+            </div>
+            <div style="padding: 20px 32px; background: rgba(255,255,255,0.02); border-top: 1px solid var(--border-color); font-size: 0.85em; color: var(--text-dim); display: flex; align-items: center; gap: 8px;">
+                <span class="nav-icon" style="margin:0">🔍</span> Data Sources: Jira tickets (Stale + WIP + Recent Resolved).
+            </div>
+         </div>
       </div>
     </div>
 
@@ -191,8 +236,13 @@
 </div>
 
 <!-- DRILL-DOWN MODAL -->
-<div id="pmDrillDownModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);">
-    <div class="modal-content premium-card" style="position: relative; background-color: var(--surface-color); margin: 5% auto; padding: 0; border: 1px solid var(--border-color); width: 80%; max-width: 1000px; border-radius: 16px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,0.5);">
+<div id="pmDrillDownModal" class="modal" style="display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); backdrop-filter: blur(12px);">
+    <div class="modal-content premium-card" style="position: relative; margin: 3% auto; padding: 0; width: 85%; max-width: 1100px; border-radius: 20px; overflow: hidden; box-shadow: 0 50px 100px rgba(0,0,0,0.8); background-color: #ffffff !important; border: 2px solid #3b82f6;">
+        <!-- Support Dark Mode via CSS variable if available, but default to SOLID white -->
+        <style>
+            #pmDrillDownModal .modal-content { background-color: #ffffff !important; color: #1e293b !important; }
+            [data-theme='dark'] #pmDrillDownModal .modal-content { background-color: #0f172a !important; color: #f8fafc !important; }
+        </style>
         <div class="modal-header" style="padding: 24px 32px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02);">
             <h2 id="pmDrillDownTitle" style="margin: 0; font-size: 1.4em; font-weight: 700; font-family: 'Syne', sans-serif; color: var(--text-color);">Issue List</h2>
             <span class="close-modal" id="closePmDrillDown" style="font-size: 32px; font-weight: bold; cursor: pointer; color: var(--text-dim);">&times;</span>
@@ -262,6 +312,31 @@
 .glass-btn:hover {
     background: rgba(255,255,255,0.1);
     border-color: var(--accent-color);
+}
+
+.glass-select-container {
+    transition: all 0.3s ease;
+}
+
+body.light-mode .glass-select-container,
+body:not(.dark-mode) .glass-select-container {
+    background: rgba(0, 0, 0, 0.04) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-mode .glass-btn,
+body:not(.dark-mode) .glass-btn {
+    background: rgba(0, 0, 0, 0.04) !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    color: var(--text-color) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+body.light-mode .pulse-glow,
+body:not(.dark-mode) .pulse-glow {
+    filter: saturate(1.2) brightness(0.9);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+    color: white !important;
 }
 
 .pulse-glow {
