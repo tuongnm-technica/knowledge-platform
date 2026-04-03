@@ -1,3 +1,5 @@
+import { i18n } from './i18n';
+
 export async function readApiError(response: Response): Promise<string> {
     const payload = await response.json().catch(() => ({}));
     return payload.detail || payload.message || `${(window as any).$t('common.err_request_failed')} (${response.status})`;
@@ -17,8 +19,8 @@ export function formatDateTime(value: string | number | Date | null | undefined)
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
     
-    // Use current i18next language or fallback to vi-VN
-    const currentLang = (window as any).i18next?.language || 'vi';
+    // Dùng i18n module thay vì window.i18next (tránh bị undefined)
+    const currentLang = i18n.language || 'vi';
     const localeMapping: Record<string, string> = {
         'vi': 'vi-VN',
         'en': 'en-US',
@@ -36,7 +38,7 @@ export function formatDateTime(value: string | number | Date | null | undefined)
 }
 
 export function formatNumber(value: number | string | null | undefined): string {
-    const currentLang = (window as any).i18next?.language || 'vi';
+    const currentLang = i18n.language || 'vi';
     const localeMapping: Record<string, string> = {
         'vi': 'vi-VN',
         'en': 'en-US',

@@ -102,6 +102,134 @@ const WORKFLOW_TEMPLATES = [
             }
         ]
     },
+    {
+        icon: '💰',
+        name: (window as any).$t('workflows.tpl_bidding_name', { defaultValue: 'Soạn Đề xuất Dự án (Bidding)' }),
+        description: (window as any).$t('workflows.tpl_bidding_desc', { defaultValue: 'Tự động tạo hồ sơ năng lực và đề xuất giải pháp cho khách hàng.' }),
+        trigger_type: 'manual',
+        nodes: [
+            {
+                step_order: 1, name: 'RAG Search', node_type: 'rag',
+                system_prompt: 'Tìm kiếm hồ sơ năng lực và các dự án tương tự của công ty liên quan đến: {{START}}. Trích xuất các thế mạnh và case study thành công.',
+            },
+            {
+                step_order: 2, name: 'Value Prop', node_type: 'llm',
+                system_prompt: 'Dựa trên yêu cầu của khách hàng tại {{START}} và kinh nghiệm tại {{node_1_output}}, hãy xác định 3 giá trị cốt lõi (USP) mà chúng ta có thể mang lại.',
+            },
+            {
+                step_order: 3, name: 'Proposal Draft', node_type: 'doc_writer',
+                system_prompt: 'Viết bản đề xuất dự án hoàn chỉnh cho {{START}}. Cấu trúc: 1. Giới thiệu, 2. Giải pháp kỹ thuật dựa trên {{node_2_output}}, 3. Năng lực kinh nghiệm, 4. Lộ trình triển khai.',
+            },
+            {
+                step_order: 4, name: 'Export to PPTX', node_type: 'pptx_export',
+                system_prompt: '## Đề xuất dự án\n{{node_3_output}}',
+            }
+        ]
+    },
+    {
+        icon: '🧪',
+        name: (window as any).$t('workflows.tpl_qa_name', { defaultValue: 'QA Analysis & Test Plan' }),
+        description: (window as any).$t('workflows.tpl_qa_desc', { defaultValue: 'Phân tích mã nguồn/nghiệp vụ và tự động lập kế hoạch kiểm thử.' }),
+        trigger_type: 'manual',
+        nodes: [
+            {
+                step_order: 1, name: 'Logic Breakdown', node_type: 'llm',
+                system_prompt: 'Phân tích luồng xử lý và logic nghiệp vụ chi tiết của nội dung sau: {{START}}. Liệt kê các điều kiện rẽ nhánh và ràng buộc.',
+            },
+            {
+                step_order: 2, name: 'Edge Case Analysis', node_type: 'llm',
+                system_prompt: 'Dựa trên phân tích {{node_1_output}}, hãy xác định các trường hợp biên (edge cases) và các rủi ro bảo mật tiềm ẩn.',
+            },
+            {
+                step_order: 3, name: 'Test Spec Table', node_type: 'doc_writer',
+                system_prompt: 'Tạo tài liệu Test Specification hoàn chỉnh dưới dạng bảng (ID, Scenario, Input, Expected Result) dựa trên {{node_1_output}} và {{node_2_output}}.',
+            },
+            {
+                step_order: 4, name: 'Export to Word', node_type: 'docx_export',
+                system_prompt: '# Kế hoạch kiểm thử chi tiết\n{{node_3_output}}',
+            }
+        ]
+    },
+    {
+        icon: '🏗️',
+        name: (window as any).$t('workflows.tpl_sa_name', { defaultValue: 'SA System Design' }),
+        description: (window as any).$t('workflows.tpl_sa_desc', { defaultValue: 'Tư vấn kiến trúc hệ thống và thiết kế Database Schema.' }),
+        trigger_type: 'manual',
+        nodes: [
+            {
+                step_order: 1, name: 'Arch Suggestion', node_type: 'llm',
+                system_prompt: 'Đề xuất kiến trúc (Monolith/Microservices) và công nghệ (DB, Cache, Queue) phù hợp cho yêu cầu: {{START}}.',
+            },
+            {
+                step_order: 2, name: 'DB Schema Designer', node_type: 'llm',
+                system_prompt: 'Thiết kế lược đồ cơ sở dữ liệu chi tiết cho hệ thống tại {{node_1_output}}. Bao gồm bảng, trường và quan hệ.',
+            },
+            {
+                step_order: 3, name: 'Full Design Doc', node_type: 'doc_writer',
+                system_prompt: 'Xuất bản tài liệu Solution Design đầy đủ bao gồm Kiến trúc, Database Schema ({{node_2_output}}) và Đặc tả 5 API quan trọng nhất.',
+            }
+        ]
+    },
+    {
+        icon: '✉️',
+        name: (window as any).$t('workflows.tpl_email_name', { defaultValue: 'Professional Email Responder' }),
+        description: (window as any).$t('workflows.tpl_email_desc', { defaultValue: 'Soạn thảo email phản hồi khách hàng thông minh dựa trên dữ liệu thật.' }),
+        trigger_type: 'manual',
+        nodes: [
+            {
+                step_order: 1, name: 'Context Analysis', node_type: 'llm',
+                system_prompt: 'Phân tích email tại {{START}}. Xác định vấn đề cốt lõi, tâm trạng người gửi và tông giọng phản hồi phù hợp.',
+            },
+            {
+                step_order: 2, name: 'RAG Context', node_type: 'rag',
+                system_prompt: 'Tìm kiếm thông tin tiến độ dự án hoặc chính sách liên quan đến nội dung email tại {{START}} từ Knowledge Base.',
+            },
+            {
+                step_order: 3, name: 'Email Draft', node_type: 'doc_writer',
+                system_prompt: 'Viết một email phản hồi chuyên nghiệp và tinh tế dựa trên phân tích {{node_1_output}} và dữ liệu thực tế {{node_2_output}}.',
+            }
+        ]
+    },
+    {
+        icon: '📅',
+        name: (window as any).$t('workflows.tpl_secretary_name', { defaultValue: 'AI Secretary (Daily Briefing)' }),
+        description: (window as any).$t('workflows.tpl_secretary_desc', { defaultValue: 'Tự động tổng hợp thông tin công việc và gửi thông báo nhắc nhở đầu ngày.' }),
+        trigger_type: 'scheduled',
+        nodes: [
+            {
+                step_order: 1, name: 'Search Tasks', node_type: 'rag',
+                system_prompt: 'Tìm kiếm các task Jira, tin nhắn Slack quan trọng và lịch họp trong 24h tới liên quan đến tôi.',
+            },
+            {
+                step_order: 2, name: 'Daily Summary', node_type: 'llm',
+                system_prompt: 'Dựa trên {{node_1_output}}, hãy tóm tắt ngắn gọn 3 đầu việc quan trọng nhất tôi cần làm hôm nay. Định dạng: - Việc 1: ...',
+            },
+            {
+                step_order: 3, name: 'Notify Slack', node_type: 'slack_notify',
+                system_prompt: 'C03J3ABC123', // Placeholder Channel ID
+            }
+        ]
+    },
+    {
+        icon: '📈',
+        name: (window as any).$t('workflows.tpl_progress_name', { defaultValue: 'Báo cáo Tiến độ Dự án (Email)' }),
+        description: (window as any).$t('workflows.tpl_progress_desc', { defaultValue: 'Tự động thu thập dữ liệu Jira/Slack và gửi báo cáo tiến độ qua Email cho quản lý.' }),
+        trigger_type: 'scheduled',
+        nodes: [
+            {
+                step_order: 1, name: 'Project Status Sync', node_type: 'rag',
+                system_prompt: 'Lấy thông tin tiến độ, các công việc đã hoàn thành và các vấn đề còn tồn đọng của dự án: {{START}} từ Jira và Slack.',
+            },
+            {
+                step_order: 2, name: 'Executive Summary', node_type: 'llm',
+                system_prompt: 'Dựa trên {{node_1_output}}, hãy viết báo cáo tiến độ dự án ngắn gọn cho quản lý. Bao gồm: 1. Tổng quát, 2. Rủi ro, 3. Kế hoạch tuần tới.',
+            },
+            {
+                step_order: 3, name: 'Send to Manager', node_type: 'email_notify',
+                system_prompt: 'manager@company.com', // Placeholder Email
+            }
+        ]
+    },
 ];
 
 // ── Main Module ────────────────────────────────────────────────────────────────
@@ -327,6 +455,10 @@ export class WorkflowsModule {
                         <option value="llm" ${(node as any).node_type === 'llm' || !(node as any).node_type ? 'selected' : ''}>${(window as any).$t('workflows.node_type_llm')}</option>
                         <option value="rag" ${(node as any).node_type === 'rag' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_rag')}</option>
                         <option value="doc_writer" ${(node as any).node_type === 'doc_writer' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_doc_writer')}</option>
+                        <option value="docx_export" ${(node as any).node_type === 'docx_export' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_docx_export')}</option>
+                        <option value="pptx_export" ${(node as any).node_type === 'pptx_export' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_pptx_export')}</option>
+                        <option value="slack_notify" ${(node as any).node_type === 'slack_notify' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_slack_notify')}</option>
+                        <option value="email_notify" ${(node as any).node_type === 'email_notify' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_email_notify')}</option>
                     </select>
                     <button class="wf-btn-icon wf-btn-remove" data-remove="${idx}" title="${(window as any).$t('workflows.node_remove_tooltip')}">✕</button>
                 </div>
@@ -510,7 +642,7 @@ export class WorkflowsModule {
                         <div class="wf-pipeline-step-num">${i + 1}</div>
                         <div class="wf-pipeline-step-info">
                             <div class="wf-pipeline-step-name">${escapeHtml(n.name)}</div>
-                            <div class="wf-pipeline-step-type">${(n as any).node_type === 'rag' ? '🔍 RAG' : (n as any).node_type === 'doc_writer' ? '✍️ Doc Writer' : '🧠 LLM'}</div>
+                            <div class="wf-pipeline-step-type">${(n as any).node_type === 'rag' ? '🔍 RAG' : (n as any).node_type === 'doc_writer' ? '✍️ Doc Writer' : (n as any).node_type === 'slack_notify' ? '🔔 Slack' : (n as any).node_type === 'email_notify' ? '📧 Email' : '🧠 LLM'}</div>
                         </div>
                         <div class="wf-pipeline-step-status wf-step-pending" id="pipeStepStatus_${i}">${(window as any).$t('workflows.run_step_pending')}</div>
                     </div>`).join('<div class="wf-pipeline-arrow">↓</div>')}
@@ -532,7 +664,7 @@ export class WorkflowsModule {
                         <div class="wf-exec-node-header">
                             <div class="wf-exec-node-num">${i + 1}</div>
                             <div class="wf-exec-node-name">${escapeHtml(n.name)}</div>
-                            <div class="wf-exec-node-badge ${(n as any).node_type === 'rag' ? 'badge-rag' : 'badge-llm'}">${(n as any).node_type === 'rag' ? '🔍 RAG' : (n as any).node_type === 'doc_writer' ? '✍️ Doc Writer' : '🧠 LLM'}</div>
+                            <div class="wf-exec-node-badge ${(n as any).node_type === 'rag' ? 'badge-rag' : 'badge-llm'}">${(n as any).node_type === 'rag' ? '🔍 RAG' : (n as any).node_type === 'doc_writer' ? '✍️ Doc Writer' : (n as any).node_type === 'slack_notify' ? '🔔 Slack' : (n as any).node_type === 'email_notify' ? '📧 Email' : '🧠 LLM'}</div>
                             <div class="wf-exec-node-status" id="execNodeStatus_${i}">⏳</div>
                         </div>
                         <div class="wf-exec-node-output" id="execNodeOutput_${i}" style="display:none"></div>
@@ -544,6 +676,46 @@ export class WorkflowsModule {
                 </div>
             </div>
         </div>`;
+
+        (window as any).showDocumentPreview = (type: string, content: string, title: string) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'wf-preview-overlay';
+            
+            let bodyContent = '';
+            if (type === 'docx_export') {
+                bodyContent = `<div class="preview-page-a4 markdown-body">${(window as any).marked.parse(content)}</div>`;
+            } else {
+                // Parse PPTX slides by splitting at ##
+                const slides = content.split('\n## ').map((s, i) => i === 0 && !s.startsWith('## ') ? s : '## ' + s);
+                bodyContent = `<div class="preview-slide-deck">
+                    ${slides.map(s => {
+                        const lines = s.split('\n');
+                        const sTitle = lines[0].replace('## ', '').trim();
+                        const sBody = lines.slice(1).join('\n');
+                        return `
+                        <div class="preview-slide-169 slide-theme-midnight">
+                            <div class="slide-title">${escapeHtml(sTitle)}</div>
+                            <div class="slide-accent"></div>
+                            <div class="slide-content markdown-body">${(window as any).marked.parse(sBody)}</div>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+            }
+
+            overlay.innerHTML = `
+                <div class="wf-preview-header">
+                    <div class="wf-preview-info">
+                        <h2 style="margin:0">${escapeHtml(title)}</h2>
+                        <small style="opacity:0.7">${type === 'docx_export' ? 'Microsoft Word Mockup' : 'PowerPoint Slide Deck'}</small>
+                    </div>
+                    <button class="wf-preview-close" onclick="this.parentElement.parentElement.remove()">✕</button>
+                </div>
+                <div class="wf-preview-body">
+                    ${bodyContent}
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        };
 
         let jobId: string | null = null;
         let isRunning = false;
@@ -581,7 +753,7 @@ export class WorkflowsModule {
                     // run_id available in data.run_id for future use
 
                     // Start polling for status
-                    this.startExecutionPolling(jobId!, nodes, wrapper, () => {
+                    this.startExecutionPolling(jobId!, nodes, wrapper, w.name, () => {
                         if (okBtn) { okBtn.textContent = (window as any).$t('workflows.run_btn_close'); okBtn.disabled = false; }
                     });
                     return null; // Keep modal open
@@ -596,7 +768,7 @@ export class WorkflowsModule {
         });
     }
 
-    private startExecutionPolling(jobId: string, nodes: AIWorkflowNode[], wrapper: HTMLElement, onDone: () => void): void {
+    private startExecutionPolling(jobId: string, nodes: AIWorkflowNode[], wrapper: HTMLElement, workflowName: string, onDone: () => void): void {
         if (this.activePollingInterval) clearInterval(this.activePollingInterval);
 
         let attempts = 0;
@@ -651,6 +823,16 @@ export class WorkflowsModule {
                     if (nodeEl) nodeEl.classList.add('exec-node-running');
                 }
 
+                // Show/Update live preview if answer is available
+                if (data.result && data.result.answer) {
+                    const finalSection = wrapper.querySelector('#wfExecFinal') as HTMLElement;
+                    const finalContent = wrapper.querySelector('#wfExecFinalContent') as HTMLElement;
+                    if (finalSection && finalContent) {
+                        finalSection.style.display = 'block';
+                        finalContent.innerHTML = renderMarkdown(data.result.answer);
+                    }
+                }
+
                 if (data.status === 'completed') {
                     clearInterval(interval);
                     const bar = wrapper.querySelector('#wfProgressBar') as HTMLElement;
@@ -664,15 +846,31 @@ export class WorkflowsModule {
                         if (nodeEl) { nodeEl.classList.remove('exec-node-running'); nodeEl.classList.add('exec-node-complete'); }
                     });
 
-                    // Show final output
-                    const result = data.result;
-                    const answer = typeof result === 'string' ? result : (result?.answer || '');
-                    const finalSection = wrapper.querySelector('#wfExecFinal') as HTMLElement;
-                    const finalContent = wrapper.querySelector('#wfExecFinalContent') as HTMLElement;
-                    if (finalSection) finalSection.style.display = 'block';
-                    if (finalContent) finalContent.innerHTML = renderMarkdown(answer);
-
                     showToast((window as any).$t('workflows.toast_exec_complete'), 'success');
+
+                    // Check if final result contains document links to add Preview button
+                    if (data.result && data.result.answer && data.result.answer.includes('[📥 Tải xuống')) {
+                        const finalContent = wrapper.querySelector('#wfExecFinalContent') as HTMLElement;
+                        if (finalContent) {
+                            // Find the last doc_writer output to use as preview source
+                            const completedNodes = JSON.parse(data.thoughts || '[]').filter((t:any) => t.step === 'node_complete');
+                            const lastDocNode = nodes.slice().reverse().find(n => n.node_type === 'doc_writer' || n.node_type === 'llm');
+                            const lastDocIdx = lastDocNode ? lastDocNode.step_order : 0;
+                            const previewSource = completedNodes.find((t:any) => t.step_order === lastDocIdx)?.output_preview || "";
+                            const lastNodeType = (nodes[nodes.length - 1] as any).node_type;
+
+                            const btnWrap = document.createElement('div');
+                            btnWrap.style.marginTop = '20px';
+                            btnWrap.innerHTML = `<button class="wf-btn wf-btn-secondary" style="width:100%; padding:12px; font-weight:600; border:1px solid var(--accent-primary)">
+                                👁️ ${(window as any).$t('workflows.btn_preview', { defaultValue: 'Xem trước bản in/trình chiếu' })}
+                            </button>`;
+                            btnWrap.querySelector('button')!.onclick = () => {
+                                (window as any).showDocumentPreview(lastNodeType, data.result.answer_raw || previewSource, workflowName);
+                            };
+                            finalContent.appendChild(btnWrap);
+                        }
+                    }
+
                     onDone();
 
                 } else if (data.status === 'failed') {

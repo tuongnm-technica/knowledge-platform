@@ -14,7 +14,8 @@
     "models": "AIモデル管理",
     "integrations": "統合設定",
     "pm_dashboard": "PMダッシュボード",
-    "ba_suite": "Auto Work"
+    "ba_suite": "Auto Work",
+    "history": "チャット履歴"
   },
   "common": {
     "logout": "ログアウト",
@@ -55,7 +56,11 @@
     "start": "開始",
     "save_changes": "変更を保存",
     "load_success": "正常に読み込みました",
-    "error_with_msg": "エラー: {{message}}"
+    "error_with_msg": "エラー: {{message}}",
+    "topbar_badge": "グラフ認識検索",
+    "toggle_theme": "テーマの切り替え",
+    "loading_model": "モデルを読み込み中...",
+    "member": "メンバー"
   },
   "chat": {
     "new_chat": "新規チャット",
@@ -87,7 +92,8 @@
     "tooltip_helpful": "役に立った",
     "tooltip_unhelpful": "役に立たなかった",
     "btn_copy": "コピー",
-    "btn_copied": "コピーしました！"
+    "btn_copied": "コピーしました！",
+    "copied": "コピーしました！"
   },
   "search": {
     "intro_title": "迅速な検索、明確なソース",
@@ -131,6 +137,9 @@
     "err_load_list": "ドキュメントリストの読み込みに失敗しました",
     "page": "ページ",
     "empty_hint": "ドキュメントが見つかりませんでした。",
+    "col_title": "タイトル",
+    "col_source": "ソース",
+    "col_updated": "更新日",
     "col_actions": "操作",
     "btn_view": "内容を表示",
     "btn_view_source": "ソース表示",
@@ -149,7 +158,9 @@
     "err_batch_delete_failed": "一括削除に失敗しました",
     "batch_delete_success": "{{count}}件のドキュメントを削除しました",
     "untitled": "無題",
-    "source_na": "N/A"
+    "source_na": "N/A",
+    "filter_source": "光源で絞り込む",
+    "source_all": "すべてのソース"
   },
   "pm": {
     "title": "PMステータスダッシュボード",
@@ -212,7 +223,8 @@
     "unassigned": "未割り当て",
     "link_external": "詳細を表示 ↗",
     "ai_analysis_label": "AI分析",
-    "chart_data_label": "データ"
+    "chart_data_label": "データ",
+    "custom_prompt_placeholder": "カスタム分析のプロンプトを入力..."
   },
   "connectors": {
     "title": "コネクタコントロールルーム",
@@ -610,6 +622,9 @@
     "test_body_type": "本文タイプ",
     "test_body": "メール本文",
     "btn_test": "テスト送信",
+    "smtp_checking": "確認中...",
+    "smtp_user": "SMTPユーザー名",
+    "smtp_pass": "SMTPパスワード",
     "err_no_permission": "このページにアクセスする権限がありません。",
     "status_saved": "保存済み",
     "status_no_config": "未テスト / 設定なし",
@@ -687,7 +702,8 @@
     "graph_hint": "ヒント: ホイールでズーム、背景をドラッグでパン、ノードをドラッグで固定。",
     "btn_reset_view": "表示をリセット",
     "search_entity": "エンティティを検索...",
-    "err_load_data_failed": "グラフデータの読み込みに失敗しました"
+    "err_load_data_failed": "グラフデータの読み込みに失敗しました",
+    "interactive_graph_sub": "ノードをドラッグして探索します。検索を使用してエンティティをハイライトします。"
   },
   "prompts": {
     "loading": "AIスキルを読み込み中...",
@@ -797,5 +813,20 @@
     "tpl_sdlc_desc": "ビジネス要件からBA、SA、QAドキュメントを自動的に生成します。",
     "tpl_daily_name": "日次サマリー",
     "tpl_daily_desc": "さまざまなデータソースから日々の活動を要約します。"
+  },
+  "history": {
+    "intro_sub": "過去のAIチャットセッションとクエリを確認します。",
+    "loading": "履歴を読み込み中..."
+  },
+  "auth": {
+    "login_failed": "ログインに失敗しました。認証情報を確認してください。",
+    "enter_credentials": "メールアドレスとパスワードを入力してください"
+  },
+  "editor": {
+    "err_no_selection": "AIに処理させるテキストを選択してください。",
+    "err_no_draft_id": "下書きIDがありません。先に下書きを保存してください。",
+    "processing": "AIが処理中: {{skill}}...",
+    "success": "AIの処理が完了しました！",
+    "error": "AIの処理中にエラーが発生しました。"
   }
 }

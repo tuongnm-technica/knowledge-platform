@@ -39,6 +39,13 @@ graph TD
         Context --> LLM[Ollama/LLM Agent]
     end
 
+    subgraph "Pipeline Tự động hóa & Phân phối (Workflow)"
+        Workflow[Workflow Orchestrator] --> Bridge[Node.js Export Bridge]
+        Bridge --> DOCX[.docx / .pptx File]
+        Workflow --> Notify[Notification Agent]
+        Notify --> Channels[Slack / Email / Attachments]
+    end
+
     subgraph "SDLC Suite (Auto Work)"
         BA[BA Agent] --> SA[SA Agent]
         SA --> QA[QA Agent]
@@ -48,6 +55,8 @@ graph TD
     Slack & Conf & Jira & Files --> Fetch
     VectorDB & GraphDB --> Hybrid
     LLM --> User
+    LLM --> Workflow
+    DOCX --> Notify
 ```
 
 ---
@@ -118,6 +127,18 @@ Hệ thống điều phối 9 Agent chuyên biệt thông qua 9 bước:
 Trong quá trình xử lý, nếu thông tin đầu vào thiếu, các Agent được yêu cầu không tự ý bịa đặt mà phải đặt câu hỏi ngược lại (TBD placeholders + Clarification Questions) để người dùng bổ sung.
 
 ---
+
+## 6. Pipeline 5: Tự động hóa Tài liệu & Phân phối (Export & Notification)
+
+Đây là pipeline mới nhất, giúp hiện thực hóa vai trò "Thư ký ảo" của hệ thống.
+
+### Cơ chế hoạt động:
+1.  **Node.js Bridge**: Khi một node Export (`docx_export` hoặc `pptx_export`) được kích hoạt, hệ thống Python sẽ gọi một kịch bản Node.js riêng biệt sử dụng thư viện `docx` hoặc `pptxgenjs`. Việc tách biệt này đảm bảo chất lượng định dạng tài liệu cao nhất (vượt xa các thư viện Python thuần túy).
+2.  **Premium CSS Preview**: Hệ thống tạo ra một bản mô phỏng trực quan ngay trên web (Mockup) bằng CSS cho cả khổ giấy A4 và Slide 16:9, giúp người dùng kiểm tra nhanh mà không cần tải file.
+3.  **Hệ thống Phân phối (Notification)**:
+    *   **Slack**: Gửi trực tiếp vào channel thông qua Bot Token.
+    *   **Email (SMTP)**: Gửi báo cáo định kỳ. Nếu trước đó có bước tạo tài liệu, hệ thống sẽ tự động quét và **đính kèm (Attach)** file tệp tin vào email một cách thông minh.
+4.  **Scheduled Triggers (Cron)**: Hỗ trợ đặt lịch chạy tự động bằng cú pháp Cron tiêu chuẩn, phù hợp cho các báo cáo định kỳ hàng ngày/hàng tuần.
 
 ---
 

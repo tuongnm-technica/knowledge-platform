@@ -143,9 +143,9 @@ class ConfluenceConnector(BaseConnector):
             log.info("confluence.fetch.space", space=space_key, name=space_name)
 
             if last_sync:
-                pages = await asyncio.to_thread(self._client.get_pages_since, space_key, last_sync, 200)
+                pages = await asyncio.to_thread(self._client.get_pages_since, space_key, last_sync, 50)
             else:
-                pages = await asyncio.to_thread(self._client.get_pages, space_key, 200)
+                pages = await asyncio.to_thread(self._client.get_pages, space_key, 50)
             log.info("confluence.fetch.pages", space=space_key, count=len(pages))
 
             sem = asyncio.Semaphore(6)

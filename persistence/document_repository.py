@@ -152,12 +152,17 @@ class DocumentRepository:
         )
         return [dict(row) for row in result.mappings().all()]
 
-    async def list_documents(self, limit: int = 50, offset: int = 0, query: str | None = None) -> list[dict]:
-        where_clause = ""
+    async def list_documents(self, limit: int = 50, offset: int = 0, query: str | None = None, source: str | None = None) -> list[dict]:
+        conditions = []
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if query:
-            where_clause = "WHERE title ILIKE :q OR author ILIKE :q"
+            conditions.append("(title ILIKE :q OR author ILIKE :q)")
             params["q"] = f"%{query}%"
+        if source:
+            conditions.append("source = :source")
+            params["source"] = source
+
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         result = await self._session.execute(
             text(f"""
@@ -177,12 +182,17 @@ class DocumentRepository:
         )
         return [dict(row) for row in result.mappings().all()]
 
-    async def count_total(self, query: str | None = None) -> int:
-        where_clause = ""
+    async def count_total(self, query: str | None = None, source: str | None = None) -> int:
+        conditions = []
         params = {}
         if query:
-            where_clause = "WHERE title ILIKE :q OR author ILIKE :q"
+            conditions.append("(title ILIKE :q OR author ILIKE :q)")
             params["q"] = f"%{query}%"
+        if source:
+            conditions.append("source = :source")
+            params["source"] = source
+
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         result = await self._session.execute(
             text(f"SELECT COUNT(*) FROM documents {where_clause}"),

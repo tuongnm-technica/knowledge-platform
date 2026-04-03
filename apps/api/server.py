@@ -138,6 +138,11 @@ async def proxy_get_sdlc_job(job_id: str):
 if WEB_DIR.exists():
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
+# Mount generated assets for workflow downloads
+GEN_DIR = Path("assets/generated")
+GEN_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/assets/generated", StaticFiles(directory=GEN_DIR), name="generated_assets")
+
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(request: Request, full_path: str):
     # Bỏ qua nếu đây là request gọi API nhưng bị sai đường dẫn

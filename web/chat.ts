@@ -556,8 +556,8 @@ export class ChatModule {
         if (copyBtn) {
             copyBtn.addEventListener('click', () => {
                 navigator.clipboard.writeText(msg.content).then(() => {
-                    (copyBtn as HTMLElement).textContent = '✅ Copied!';
-                    setTimeout(() => { (copyBtn as HTMLElement).textContent = '📋 Copy'; }, 1500);
+                    (copyBtn as HTMLElement).textContent = `✅ ${(window as any).$t('chat.copied', { defaultValue: 'Copied!' })}`;
+                    setTimeout(() => { (copyBtn as HTMLElement).textContent = `📋 ${(window as any).$t('chat.btn_copy', { defaultValue: 'Copy' })}`; }, 1500);
                 });
             });
         }

@@ -251,7 +251,7 @@ export class AIEditor {
         }
 
         if (!selectedText.trim()) {
-            showToast('Vui lòng bôi đen một số chữ/đoạn văn để AI xử lý.', 'warning');
+            showToast((window as any).$t('editor.err_no_selection', { defaultValue: 'Vui lòng bôi đen một số chữ/đoạn văn để AI xử lý.' }), 'warning');
             return;
         }
 
@@ -259,11 +259,11 @@ export class AIEditor {
         let instruction = `Áp dụng skill: ${skill.name}. Mẫu: ${skill.template}`;
 
         if (!this.currentDraftId) {
-            showToast('Chưa có Draft ID. Hãy lưu bài nháp trước.', 'error');
+            showToast((window as any).$t('editor.err_no_draft_id', { defaultValue: 'Chưa có Draft ID. Hãy lưu bài nháp trước.' }), 'error');
             return;
         }
 
-        showToast(`AI đang xử lý: ${skill.name}...`, 'info');
+        showToast((window as any).$t('editor.processing', { skill: skill.name, defaultValue: `AI đang xử lý: ${skill.name}...` }), 'info');
         
         // Cập nhật giao diện: thay thế văn bản đang chọn bằng khối Loading
         // (Đây là phiên bản đơn giản: ta sẽ ghi đè lên text sau khi có kết quả)
@@ -283,11 +283,11 @@ export class AIEditor {
             if (data.refined_text) {
                 // Ghi đè AI result vào editor
                 this.editor.chain().focus().insertContentAt({ from, to }, data.refined_text).run();
-                showToast('AI đã hoàn thành!', 'success');
+                showToast((window as any).$t('editor.success', { defaultValue: 'AI đã hoàn thành!' }), 'success');
             }
         } catch (err) {
             console.error(err);
-            showToast('AI gặp lỗi khi xử lý.', 'error');
+            showToast((window as any).$t('editor.error', { defaultValue: 'AI gặp lỗi khi xử lý.' }), 'error');
         }
     }
 

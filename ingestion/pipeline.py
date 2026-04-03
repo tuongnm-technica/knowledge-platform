@@ -174,8 +174,12 @@ class IngestionPipeline:
         should_summarize = summarize
         if should_summarize is None:
             words = doc.content.split()
+            # Allow summarization for Jira and Slack if content is long enough (helpful for long tickets/threads).
+            is_long_content = len(words) >= 300
             should_summarize = settings.INGESTION_AI_SUMMARIZE_ENABLED and (
-                doc.source in (SourceType.ZOOM, SourceType.GOOGLE_MEET) or (doc.source == SourceType.CONFLUENCE and len(words) >= 500)
+                doc.source in (SourceType.ZOOM, SourceType.GOOGLE_MEET, SourceType.JIRA, SourceType.SLACK) or 
+                (doc.source == SourceType.CONFLUENCE and is_long_content) or
+                is_long_content
             )
 
         if should_summarize:
@@ -261,8 +265,9 @@ class IngestionPipeline:
         # AI Relations logic with overrides
         should_run_relations = relations
         if should_run_relations is None:
-            _SKIP_RELATIONS_FOR = {SourceType.JIRA, SourceType.SLACK, SourceType.CONFLUENCE}
-            should_run_relations = settings.INGESTION_AI_RELATIONS_ENABLED and doc.source not in _SKIP_RELATIONS_FOR
+            # Previously we skipped Jira/Slack/Confluence by default to avoid noise, 
+            # but users want these high-level features enabled.
+            should_run_relations = settings.INGESTION_AI_RELATIONS_ENABLED
         
         if should_run_relations:
             try:

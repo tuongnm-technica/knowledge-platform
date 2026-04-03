@@ -19,6 +19,15 @@
                 </div>
                 <div class="documents-controls">
                     <div class="search-box">
+                        <select id="docSourceFilter" class="admin-input" style="width: 160px; margin-right: 8px;">
+                            <option value="" x-text="$t('docs.source_all')">Tất cả các nguồn</option>
+                            <option value="confluence">Confluence</option>
+                            <option value="jira">Jira</option>
+                            <option value="slack">Slack</option>
+                            <option value="google_meet">Google Meet</option>
+                            <option value="zoom">Zoom</option>
+                            <option value="file_server">File Server</option>
+                        </select>
                         <input type="text" id="docSearchInput" class="admin-input" :placeholder="$t('docs.search_placeholder')">
                         <button class="secondary-btn" id="docSearchBtn">🔍 <span x-text="$t('docs.btn_search')">Tìm</span></button>
                     </div>

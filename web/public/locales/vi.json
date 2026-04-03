@@ -14,7 +14,8 @@
     "models": "Quản lý AI Models",
     "integrations": "Tích hợp",
     "pm_dashboard": "Bảng điều khiển PM",
-    "ba_suite": "Auto Work"
+    "ba_suite": "Auto Work",
+    "history": "Lịch sử Chat"
   },
   "common": {
     "logout": "Đăng xuất",
@@ -55,7 +56,11 @@
     "start": "Bắt đầu",
     "save_changes": "Lưu thay đổi",
     "load_success": "Đã tải thành công",
-    "error_with_msg": "Lỗi: {{message}}"
+    "error_with_msg": "Lỗi: {{message}}",
+    "topbar_badge": "Truy xuất nhận thức đồ thị",
+    "toggle_theme": "Đổi giao diện",
+    "loading_model": "Đang tải model...",
+    "member": "Thành viên"
   },
   "chat": {
     "new_chat": "Cuộc hội thoại mới",
@@ -87,7 +92,8 @@
     "tooltip_helpful": "Hữu ích",
     "tooltip_unhelpful": "Không hữu ích",
     "btn_copy": "Copy",
-    "btn_copied": "Đã copy!"
+    "btn_copied": "Đã copy!",
+    "copied": "Đã copy!"
   },
   "search": {
     "intro_title": "Tìm nhanh, xem nguồn rõ ràng",
@@ -131,6 +137,9 @@
     "err_load_list": "Không thể tải danh sách tài liệu",
     "page": "Trang",
     "empty_hint": "Không tìm thấy tài liệu nào.",
+    "col_title": "Tiêu đề",
+    "col_source": "Nguồn",
+    "col_updated": "Cập nhật",
     "col_actions": "Thao tác",
     "btn_view": "Xem nội dung",
     "btn_view_source": "Xem nguồn",
@@ -149,7 +158,9 @@
     "err_batch_delete_failed": "Xóa hàng loạt thất bại",
     "batch_delete_success": "Đã xóa {{count}} tài liệu",
     "untitled": "Chưa có tiêu đề",
-    "source_na": "N/A"
+    "source_na": "N/A",
+    "filter_source": "Lọc theo nguồn",
+    "source_all": "Tất cả các nguồn"
   },
   "pm": {
     "title": "Bảng điều khiển PM",
@@ -212,7 +223,8 @@
     "unassigned": "Chưa phân công",
     "link_external": "Xem chi tiết ↗",
     "ai_analysis_label": "Phân tích AI",
-    "chart_data_label": "Dữ liệu"
+    "chart_data_label": "Dữ liệu",
+    "custom_prompt_placeholder": "Nhập yêu cầu báo cáo..."
   },
   "connectors": {
     "title": "Kết nối dữ liệu",
@@ -609,6 +621,9 @@
     "test_body_type": "Loại nội dung",
     "test_body": "Nội dung Email",
     "btn_test": "Gửi thử",
+    "smtp_checking": "Đang kiểm tra...",
+    "smtp_user": "Tên đăng nhập SMTP",
+    "smtp_pass": "Mật khẩu SMTP",
     "err_no_permission": "Bạn không có quyền truy cập trang này.",
     "status_saved": "Đã lưu",
     "status_no_config": "Chưa kiểm tra / Chưa có cấu hình",
@@ -686,7 +701,8 @@
     "graph_hint": "Mẹo: Cuộn để zoom, kéo nền để pan, kéo node để ghim.",
     "btn_reset_view": "Reset khung hình",
     "search_entity": "Tìm thực thể...",
-    "err_load_data_failed": "Lỗi tải dữ liệu đồ thị"
+    "err_load_data_failed": "Lỗi tải dữ liệu đồ thị",
+    "interactive_graph_sub": "Kéo node để khám phá. Dùng search để highlight thực thể."
   },
   "prompts": {
     "loading": "Đang tải danh sách Skill Prompts...",
@@ -753,6 +769,10 @@
     "node_type_llm": "🧠 LLM",
     "node_type_rag": "🔍 RAG",
     "node_type_doc_writer": "✍️ Doc Writer",
+    "node_type_docx_export": "📄 DOCX Export",
+    "node_type_pptx_export": "📊 PPTX Export",
+    "node_type_slack_notify": "🔔 Thông báo Slack",
+    "node_type_email_notify": "📧 Gửi Email",
     "node_remove_tooltip": "Xóa node",
     "node_prompt_label": "System Prompt / Instructions",
     "node_prompt_placeholder": "Hướng dẫn cho AI. Dùng {{START}} cho dữ liệu ban đầu, {{node_1_output}} cho kết quả bước 1...",
@@ -780,6 +800,7 @@
     "exec_final_title": "✅ Kết quả cuối cùng",
     "toast_exec_complete": "Workflow hoàn thành!",
     "toast_exec_failed": "Workflow thất bại: ",
+    "btn_preview": "Xem trước phong cách Offline",
     "history_title": "📋 Lịch sử runs: {{name}}",
     "history_loading": "Đang tải lịch sử...",
     "history_empty": "Chưa có lần chạy nào",
@@ -796,5 +817,20 @@
     "tpl_sdlc_desc": "Từ yêu cầu nghiệp vụ → tự động tạo tài liệu BA, SA, QA.",
     "tpl_daily_name": "Daily Summary",
     "tpl_daily_desc": "Tóm tắt hoạt động hàng ngày từ các nguồn dữ liệu."
+  },
+  "history": {
+    "intro_sub": "Xem lại các phiên thảo luận và truy vấn AI trước đây.",
+    "loading": "Đang tải lịch sử..."
+  },
+  "auth": {
+    "login_failed": "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.",
+    "enter_credentials": "Vui lòng nhập đầy đủ email và mật khẩu"
+  },
+  "editor": {
+    "err_no_selection": "Vui lòng bôi đen một số chữ/đoạn văn để AI xử lý.",
+    "err_no_draft_id": "Chưa có Draft ID. Hãy lưu bài nháp trước.",
+    "processing": "AI đang xử lý: {{skill}}...",
+    "success": "AI đã hoàn thành!",
+    "error": "AI gặp lỗi khi xử lý."
   }
 }

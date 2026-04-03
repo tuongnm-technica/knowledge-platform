@@ -1,4 +1,11 @@
-<div id="login-screen" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
+<div id="login-screen" x-data="{ lang: (localStorage.getItem('i18nextLng') || 'vi').substring(0, 2) }" @kp-lang-changed.window="lang = $event.detail">
+  <div class="login-lang-selector">
+    <select onchange="window.changeLanguage(this.value)" x-model="lang" class="login-lang-select">
+      <option value="vi">🇻🇳 Tiếng Việt</option>
+      <option value="en">🇬🇧 English</option>
+      <option value="jp">🇯🇵 日本語</option>
+    </select>
+  </div>
   <div class="login-card">
     <div class="login-logo">
       <div class="login-logo-icon">&#129504;</div>

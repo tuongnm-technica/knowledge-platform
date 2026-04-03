@@ -208,12 +208,14 @@ Những thông tin này được inject vào context của các draft tiếp the
 
 ---
 
-### 3.10 AI Workflows — Tự động hóa quy trình AI
+### 3.10 AI Workflows — Tự động hóa & Thư ký ảo
 
-Module cho phép người dùng định nghĩa các luồng xử lý văn bản nhiều bước:
-1. **Thiết kế Workflow**: Tạo chuỗi các "Nodes" (LLM call, RAG search, Document Writer).
-2. **Biến số (Variables)**: Truyền dữ liệu giữa các bước một cách thông minh.
-3. **Trigger**: Chạy thủ công, đặt lịch (Cron), hoặc gọi qua Webhook.
+Module cho phép người dùng định nghĩa các luồng xử lý văn bản và tài liệu nhiều bước:
+1. **Thiết kế Workflow**: Tạo chuỗi các "Nodes" thông minh bao gồm: LLM, RAG Search, Doc Writer, **DOCX/PPTX Export**, và **Notification** (Slack/Email).
+2. **Biến số (Variables)**: Truyền dữ liệu linh hoạt giữa các bước (ví dụ: lấy kết quả node 1 làm đầu vào cho node 2).
+3. **Trigger**: Hỗ trợ chạy thủ công, đặt lịch tự động (**Scheduled/Cron**) và Webhook.
+4. **Virtual Secretary**: Khả năng tự động tổng hợp dữ liệu định kỳ và gửi báo cáo đính kèm file Word/Slide trực tiếp vào Email hoặc Slack của người dùng.
+5. **Premium Preview**: Tính năng xem trước tài liệu văn phòng (A4/Slide) ngay trên giao diện web với độ trung thực cao.
 
 ### 3.11 Managed Models — Quản lý Model tập trung
 

@@ -4,6 +4,7 @@
  * và điều phối các module chức năng (Chat, Search, Graph, Documents, v.v.).
  */
 import './css/main.css';
+import Alpine from 'alpinejs';
 import Navigo from 'navigo';
 import { AuthModule } from './auth';
 import { isAllowed } from './permissions';
@@ -26,7 +27,14 @@ import { ThemeModule } from './theme';
 import { ModelsModule } from './models_page';
 import { integrationModule } from './integration';
 import { pmDashboardModule } from './pm_dashboard';
-import { initI18n } from './i18n';
+import { initI18n, i18n } from './i18n';
+import { renderMarkdown } from './format';
+
+// --- Alpine.js Setup ---
+(window as any).Alpine = Alpine;
+// Magic $t can be used as $t('key') in Alpine templates
+Alpine.magic('t', () => (window as any).$t);
+// Alpine.start() will be called after i18n is ready inside initApp/DOMContentLoaded
 
 // --- Initialization ---
 
@@ -74,6 +82,16 @@ async function initApp() {
     const appShell = document.getElementById('app-shell');
     if (loginScreen) loginScreen.style.display = 'none';
     if (appShell) appShell.style.display = 'flex';
+
+    // Set language from user profile before initializing the rest of the UI
+    try {
+        const user = await AuthModule.getCurrentUser();
+        if (user.language) {
+            i18n.changeLanguage(user.language);
+        }
+    } catch (e) {
+        console.error("Could not set user language on init", e);
+    }
 
     // Global Events
     document.addEventListener('kp-navigate', (e: any) => {
@@ -245,7 +263,15 @@ async function renderPage(target: string, initFn?: () => void) {
 
 // Start
 document.addEventListener('DOMContentLoaded', async () => {
-    await initI18n();
+    try {
+        await initI18n();
+    } catch (e) {
+        console.warn('i18n initialization failed, fallback to default:', e);
+    }
+    
+    // Start Alpine only after i18n is ready so $t magic works during initial scan
+    Alpine.start();
+    
     ThemeModule.initTheme();
     initApp();
 });
@@ -309,47 +335,96 @@ async function pollSDLCStatus(jobId: string) {
     const progressDiv = document.getElementById('sdlc-progress');
     const resultsDiv = document.getElementById('sdlc-results');
     
-    let attempts = 0;
+    let currentAgent = '';
 
     const interval = setInterval(async () => {
         try {
             const res = await fetch(`/api/sdlc/jobs/${jobId}`);
+            if (!res.ok) return;
             const data = await res.json();
-            attempts++;
 
             if (data.status === "completed") {
                 clearInterval(interval);
                 if (progressDiv) progressDiv.innerHTML += `<b>✅ ${(window as any).$t('ba.complete')}</b><br/>`;
                 
-                if (resultsDiv) resultsDiv.style.display = "block";
+                if (resultsDiv) {
+                    resultsDiv.style.display = "block";
+                    renderSDLCResults(data.result);
+                }
                 markAllStepsComplete();
-                
-                ;(window as any).showSdlcTab('ba-result');
-                const baResult = document.getElementById('ba-result');
-                const saResult = document.getElementById('sa-result');
-                const qaResult = document.getElementById('qa-result');
-                
-                if (baResult) baResult.textContent = JSON.stringify(data.result.ba_document_json, null, 2);
-                if (saResult) saResult.textContent = JSON.stringify(data.result.sa_document_json, null, 2);
-                if (qaResult) qaResult.textContent = JSON.stringify(data.result.qa_document_json, null, 2);
+                (window as any).showSdlcTab('ba-result');
 
             } else if (data.status === "failed") {
                 clearInterval(interval);
                 if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">❌ ${(window as any).$t('common.error')}: ${data.error}</span>`;
             } else {
-                // Đang xử lý
-                if (progressDiv && attempts % 5 === 0) {
-                    progressDiv.innerHTML += `... ${(window as any).$t('ba.still_analyzing')} (${attempts}s)<br/>`;
-                    progressDiv.scrollTop = progressDiv.scrollHeight;
+                // Phân tích status từ backend: AGENT_BA_START, AGENT_SA_START, AGENT_QA_START
+                const status = data.status || '';
+                
+                if (status === 'AGENT_BA_START' && currentAgent !== 'BA') {
+                    currentAgent = 'BA';
+                    addStepCard((window as any).$t('ba.agent_ba'), (window as any).$t('ba.step_ba_desc'));
+                } else if (status === 'AGENT_SA_START' && currentAgent !== 'SA') {
+                    currentAgent = 'SA';
+                    addStepCard((window as any).$t('ba.agent_sa'), (window as any).$t('ba.step_sa_desc'), (window as any).$t('ba.agent_ba'));
+                } else if (status === 'AGENT_QA_START' && currentAgent !== 'QA') {
+                    currentAgent = 'QA';
+                    addStepCard((window as any).$t('ba.agent_qa'), (window as any).$t('ba.step_qa_desc'), (window as any).$t('ba.agent_sa'));
                 }
                 
-                // Giả lập cập nhật cards dựa trên thời gian
-                if (attempts === 5) addStepCard((window as any).$t('ba.agent_ba'), (window as any).$t('ba.step_ba_desc'));
-                if (attempts === 15) addStepCard((window as any).$t('ba.agent_sa'), (window as any).$t('ba.step_sa_desc'), (window as any).$t('ba.agent_ba'));
-                if (attempts === 25) addStepCard((window as any).$t('ba.agent_qa'), (window as any).$t('ba.step_qa_desc'), (window as any).$t('ba.agent_sa'));
+                if (progressDiv) {
+                    progressDiv.scrollTop = progressDiv.scrollHeight;
+                }
             }
         } catch (e) {
             console.error("Polling error:", e);
         }
-    }, 1000);
+    }, 2000);
+}
+
+function renderSDLCResults(result: any) {
+    const baResult = document.getElementById('ba-result');
+    const saResult = document.getElementById('sa-result');
+    const qaResult = document.getElementById('qa-result');
+
+    if (result.ba_document_json) {
+        const doc = result.ba_document_json;
+        let md = `## 📋 Business Requirements: ${doc.doc_id || 'SRS'}\n\n`;
+        (doc.use_cases || []).forEach((uc: any) => {
+            md += `### 🏷️ ${uc.id}: ${uc.name}\n`;
+            md += `- **Actor**: ${uc.actor}\n`;
+            md += `- **Trigger**: ${uc.trigger}\n`;
+            md += `- **Preconditions**: ${uc.preconditions?.join(', ') || 'None'}\n\n`;
+            md += `#### 🔄 Main Flow:\n`;
+            (uc.main_flow || []).forEach((step: string, i: number) => {
+                md += `${i + 1}. ${step}\n`;
+            });
+            md += `\n> **Technical Note**: ${uc.fe_technical_note || 'N/A'}\n\n---\n`;
+        });
+        if (baResult) baResult.innerHTML = renderMarkdown(md);
+    }
+
+    if (result.sa_document_json) {
+        const doc = result.sa_document_json;
+        let md = `## 🛠️ Solution Design: ${doc.design_id || 'SA'}\n\n`;
+        md += `### 🏛️ Architecture Overview\n${doc.architecture_overview || 'N/A'}\n\n`;
+        md += `### 🔌 API Contracts\n`;
+        (doc.api_contracts || []).forEach((api: any) => {
+            md += `#### \`${api.method || 'GET'}\` ${api.path || '/'}\n`;
+            md += `- **Description**: ${api.description || ''}\n`;
+            md += `- **Payload**: \`${JSON.stringify(api.payload || {})}\` \n`;
+            md += `- **Response**: \`${JSON.stringify(api.response || {})}\` \n\n`;
+        });
+        if (saResult) saResult.innerHTML = renderMarkdown(md);
+    }
+
+    if (result.qa_document_json) {
+        const doc = result.qa_document_json;
+        let md = `## 🧪 Quality Assurance: ${doc.test_plan_id || 'QA'}\n\n`;
+        md += `| Test ID | Type | Scenario | Expected Result |\n|---|---|---|---|\n`;
+        (doc.test_cases || []).forEach((tc: any) => {
+            md += `| **${tc.tc_id}** | ${tc.type} | ${tc.steps?.join('; ') || ''} | ${tc.expected_result || ''} |\n`;
+        });
+        if (qaResult) qaResult.innerHTML = renderMarkdown(md);
+    }
 }

@@ -1,0 +1,28 @@
+{
+  "name": "knowledge-platform",
+  "version": "1.0.0",
+  "description": "Hệ thống quản trị tri thức và tự động hóa quy trình phần mềm (SDLC) dựa trên Multi-Agent Orchestration. Dự án đã được chuẩn hóa sang mô hình **Production-Ready** với quy trình 9 bước (Step 1-9) và kiến trúc tách lớp tri thức.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuongnm-technica/knowledge-platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tuongnm-technica/knowledge-platform/issues"
+  },
+  "homepage": "https://github.com/tuongnm-technica/knowledge-platform#readme",
+  "dependencies": {
+    "docx": "^9.6.1",
+    "pptxgenjs": "^4.0.1"
+  }
+}

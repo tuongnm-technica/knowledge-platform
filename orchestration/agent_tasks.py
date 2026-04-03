@@ -156,6 +156,8 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
     Tracks execution in workflow_runs table if run_id is provided.
     """
     log.info("worker.run_workflow_job.started", job_id=job_id, workflow_id=workflow_id, run_id=run_id)
+    import re
+    import traceback
 
     async with AsyncSessionLocal() as session:
         await session.execute(
@@ -203,15 +205,17 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
             for node in workflow["nodes"]:
                 step_name = node.get("name", "Step")
                 step_order = node.get("step_order", 1)
-                node_type = node.get("node_type", "llm")
 
                 await update_thought(step_name, step_order)
 
+                node_type = node.get("node_type", "llm")
+
                 prompt_template = node.get("system_prompt", "")
 
-                # Simple templating {{k}}
+                # Robust templating using regex to handle {{var}} or {{ var }}
                 for k, v in payloads.items():
-                    prompt_template = prompt_template.replace(f"{{{{{k}}}}}", str(v))
+                    pattern = r"\{\{\s*" + re.escape(k) + r"\s*\}\}"
+                    prompt_template = re.sub(pattern, str(v), prompt_template)
 
                 sys_prompt = "You are an AI assistant executing a systematic workflow step. Respond exactly as instructed."
                 if node_type == "doc_writer":
@@ -231,8 +235,8 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
                     try:
                         from retrieval.hybrid.hybrid_search import HybridSearch
                         searcher = HybridSearch(session)
-                        # Use the previous node's interpolated output as search query if available, 
-                        # otherwise fallback to initial context
+                        # Identify search query: defaults to initial_context or any specific var if configured
+                        # Fallback order: node_{N-1}_output -> initial_context
                         prev_node_key = f"node_{step_order - 1}_output"
                         search_query = payloads.get(prev_node_key, initial_context)[:500]
                         results = await searcher.search(search_query, top_k=5, allowed_document_ids=None)
@@ -251,33 +255,127 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
                 if model_override:
                     kw["model"] = model_override
 
-                output = await llm.chat(system=sys_prompt, user=prompt_template, max_tokens=4000, **kw)
-                output = (output or "").strip()
+                # Execute LLM/Notification/Export logic
+                output = ""
+                if node_type not in ["docx_export", "pptx_export", "slack_notify", "email_notify"]:
+                    output = await llm.chat(system=sys_prompt, user=prompt_template, max_tokens=4000, **kw)
+                    output = (output or "").strip()
+                elif node_type == "slack_notify":
+                    # ── Slack Notification Node ──────────────────────────────
+                    from connectors.slack.slack_client import SlackClient
+                    try:
+                        channel_id = prompt_template.strip()
+                        # Default content is the output of previous node
+                        prev_node_key = f"node_{step_order - 1}_output"
+                        message = payloads.get(prev_node_key, "Workflow Notification")
+                        
+                        client = SlackClient()
+                        import asyncio
+                        # Using chat_postMessage via the internal sdk client
+                        await client._client.chat_postMessage(channel=channel_id, text=message)
+                        log.info("worker.slack_notify.success", channel=channel_id)
+                        output = f"✅ Đã gửi thông báo tới Slack (Channel: {channel_id})"
+                    except Exception as e:
+                        log.error("worker.slack_notify.failed", error=str(e))
+                        output = f"❌ Lỗi gửi Slack: {str(e)}"
+                elif node_type == "email_notify":
+                    # ── Email Notification Node ──────────────────────────────
+                    from services.email_service import send_email_async
+                    try:
+                        target_email = prompt_template.strip()
+                        prev_node_key = f"node_{step_order - 1}_output"
+                        message = payloads.get(prev_node_key, "Workflow Notification")
+                        
+                        # Check for attachment if previous node was an export OR we have a file
+                        attachment_paths = []
+                        last_file = payloads.get("last_generated_file")
+                        if last_file:
+                            attachment_paths.append(last_file)
+
+                        await send_email_async(
+                            to_email=target_email,
+                            subject=f"AI Workflow Reminder: {workflow['name']}",
+                            body=message,
+                            is_html=False,
+                            attachment_paths=attachment_paths if attachment_paths else None
+                        )
+                        log.info("worker.email_notify.success", to=target_email)
+                        output = f"✅ Đã gửi Email tới: {target_email}"
+                    except Exception as e:
+                        log.error("worker.email_notify.failed", error=str(e))
+                        output = f"❌ Lỗi gửi Email: {str(e)}"
+                else:
+                    # ── Export Nodes: Call Node.js Bridges ─────────────────────
+                    import subprocess
+                    import tempfile
+                    from pathlib import Path
+
+                    # Ensure assets/generated directory exists
+                    gen_dir = Path("assets/generated")
+                    gen_dir.mkdir(parents=True, exist_ok=True)
+
+                    file_ext = "docx" if node_type == "docx_export" else "pptx"
+                    bridge_script = "scripts/docx_bridge.js" if node_type == "docx_export" else "scripts/pptx_bridge.js"
+                    
+                    filename = f"workflow_{job_id}_{step_order}.{file_ext}"
+                    filepath = gen_dir / filename
+                    
+                    # Preparation for bridge: input JSON
+                    bridge_input = {
+                        "content": prompt_template, # This has variables already replaced
+                        "outputPath": str(filepath.absolute()),
+                        "title": workflow["name"],
+                        "theme": "midnight" if node_type == "pptx_export" else "default"
+                    }
+
+                    try:
+                        proc = subprocess.run(
+                            ["node", bridge_script],
+                            input=json.dumps(bridge_input),
+                            text=True,
+                            capture_output=True,
+                            check=True
+                        )
+                        log.info("worker.export_node.success", node_type=node_type, path=str(filepath))
+                        # Store the physical path for potential email attachments
+                        payloads["last_generated_file"] = str(filepath)
+                        # The output of an export node is a Markdown link to the file
+                        # Note: we assume /assets/generated is served statically
+                        download_url = f"/assets/generated/{filename}"
+                        output = f"### ✅ Tài liệu đã được tạo thành công!\n\n[📥 Tải xuống bản {file_ext.upper()} tại đây]({download_url})"
+                    except subprocess.CalledProcessError as e:
+                        log.error("worker.export_node.failed", error=e.stderr)
+                        output = f"❌ Lỗi khi tạo tài liệu: {e.stderr}"
 
                 node_key = f"node_{step_order}_output"
                 payloads[node_key] = output
                 node_outputs[node_key] = output
                 final_output = output
 
-                # Save node output to chat job thoughts for live tracking
+                # Update node output to chat job thoughts AND result for live preview
                 async with AsyncSessionLocal() as s_inner:
                     await s_inner.execute(
                         text("""
                             UPDATE chat_jobs
                             SET thoughts = COALESCE(thoughts, '[]'::jsonb) || :t::jsonb,
+                                result = jsonb_set(COALESCE(result, '{}'::jsonb), '{answer}', to_jsonb(:ans)),
                                 updated_at = NOW()
                             WHERE id = :id
                         """),
-                        {"id": job_id, "t": json.dumps([{
-                            "step": "node_complete",
-                            "node": step_name,
-                            "step_order": step_order,
-                            "output_preview": output[:200],
-                        }])}
+                        {
+                            "id": job_id, 
+                            "t": json.dumps([{
+                                "step": "node_complete",
+                                "node": step_name,
+                                "step_order": step_order,
+                                "output_preview": output[:300],
+                            }]),
+                            "ans": output
+                        }
                     )
                     await s_inner.commit()
 
-            # ── Save ChatMessage ─────────────────────────────────────────────
+            # ── Save Final ChatMessage ─────────────────────────────────────────────
             if session_id:
                 new_msg = ChatMessage(
                     session_id=session_id,
@@ -320,23 +418,22 @@ async def run_workflow_job(ctx: Dict[str, Any], job_id: str, user_id: str, workf
             log.info("worker.run_workflow_job.completed", job_id=job_id, nodes=len(node_outputs))
 
         except Exception as e:
-            import traceback
             trace_err = traceback.format_exc()
             log.exception("worker.run_workflow_job.failed", job_id=job_id, error=str(e), trace=trace_err)
-            err_msg = f"{str(e)}\n\n{trace_err}"
+            err_msg = f"{str(e)}"
+            
             await session.execute(
                 text("UPDATE chat_jobs SET status = 'failed', error = :err, updated_at = NOW() WHERE id = :id"),
                 {"id": job_id, "err": err_msg}
             )
             await session.commit()
-            # Update run record to failed
+            
+            # Update run record to failed with full trace in a private field if needed or just error
             if run_id:
                 try:
                     run_repo = WorkflowRepository(session)
-                    await run_repo.update_run_status(run_id, status="failed", error=str(e))
+                    await run_repo.update_run_status(run_id, status="failed", error=f"{str(e)}\n\n{trace_err}")
                 except Exception:
                     pass
 
             await session.commit()
-
-

@@ -8,12 +8,17 @@ from apps.api.services.connectors_service import start_connector_sync
 from storage.db.db import get_db
 
 
+
+
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
 class IngestRequest(BaseModel):
     connector: str
     instance_id: str | None = None
+    summarize: bool | None = None
+    relations: bool | None = None
+    vision: bool | None = None
 
 
 @router.post("")
@@ -53,6 +58,9 @@ async def ingest(
         connector_type,
         instance_id,
         incremental=True,
+        summarize=req.summarize,
+        relations=req.relations,
+        vision=req.vision,
     )
     payload["triggered_by"] = current_user.email
     return payload

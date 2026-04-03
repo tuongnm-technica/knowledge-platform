@@ -59,8 +59,15 @@ Ví dụ:
             # max_tokens=300 là đủ cho một list json ngắn
             raw_response = await self._llm.chat(sys_prompt, safe_text, max_tokens=300)
             
-            # Extract JSON array using regex
-            match = re.search(r"\[.*\]", raw_response, re.DOTALL)
+            # Xử lý trường hợp LLM bọc kết quả trong markdown ```json ... ```
+            cleaned_response = raw_response.strip()
+            if "```json" in cleaned_response:
+                cleaned_response = cleaned_response.split("```json").split("```")[0].strip()
+            elif "```" in cleaned_response:
+                cleaned_response = cleaned_response.split("```")[1].split("```").strip()
+
+            # Trích xuất mảng JSON bằng regex để loại bỏ các text dư thừa ở đầu/cuối
+            match = re.search(r"\[.*\]", cleaned_response, re.DOTALL)
             if match:
                 json_str = match.group(0)
                 relations = json.loads(json_str)

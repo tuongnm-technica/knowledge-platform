@@ -701,51 +701,57 @@ export class PMDashboardModule {
 
     /**
      * Renders a report by separating charts from markdown, rendering markdown, 
-     * and then injecting chart containers into placeholders.
+     * and then injecting chart containers into placeholders using a Two-Pass strategy.
      */
     private renderReportWithCharts(container: HTMLElement, reportText: string) {
-        const chartRegex = /\[\[CHART:([\s\S]*?)\]\]/g;
+        // Regex to find chart pattern, handling optional surrounding markdown code blocks
+        const chartRegex = /(?:```\s*)?\[\[CHART:([\s\S]*?)\]\](?:\s*```)?/g;
         const charts: { id: string, config: any }[] = [];
         let index = 0;
 
-        // 1. Replace charts with placeholders in the raw text
+        // --- FIRST PASS: Extract Charts & Inject Unique Placeholders ---
         const processedText = reportText.replace(chartRegex, (match, jsonStr) => {
             try {
                 const config = JSON.parse(jsonStr);
-                const chartId = `ai-chart-${Date.now()}-${index++}`;
+                const chartId = `aichart-${Date.now()}-${index++}`;
                 charts.push({ id: chartId, config });
-                return `\n\n<div id="container-${chartId}" class="ai-chart-placeholder"></div>\n\n`;
+                // We use a very unique token that markdown won't mess with
+                return `\n\n__AI_CHART_HOLDER_${chartId}__\n\n`;
             } catch (e) {
-                console.error("Failed to parse chart JSON:", e);
+                console.error("Failed to parse chart JSON in report:", e);
                 return match;
             }
         });
 
-        // 2. Render Markdown
-        container.innerHTML = renderMarkdown(processedText);
+        // --- RENDER MARKDOWN ---
+        let html = renderMarkdown(processedText);
 
-        // 3. Inject actual chart UI into placeholders and render
+        // --- SECOND PASS: Replace Placeholders with Actual Chart Containers ---
         charts.forEach(c => {
-            const placeholder = document.getElementById(`container-${c.id}`);
-            if (!placeholder) return;
-
-            const chartType = (c.config.type || 'pie') as any;
-            placeholder.innerHTML = `
-                <div class="stat-card premium-card" style="margin: 24px 0; padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px;">
-                    <h5 style="margin-bottom: 20px; font-family: 'Syne', sans-serif; text-align: center; color: var(--accent-light); font-weight: 700;">
+            const chartHtml = `
+                <div class="stat-card premium-card" style="margin: 24px 0; padding: 24px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 16px;">
+                    <h5 style="margin-bottom: 20px; font-family: 'Syne', sans-serif; text-align: center; color: var(--accent-light); font-weight: 700; font-size: 14px;">
                         ${c.config.title || (window as any).$t('pm.visual_analysis')}
                     </h5>
-                    <div style="height: 250px; position: relative;">
+                    <div style="height: 280px; position: relative;">
                         <canvas id="${c.id}"></canvas>
                     </div>
                 </div>
             `;
+            // We search for the unique token. Note: marked might wrap it in <p> labels, which is fine as replace works on the string
+            html = html.replace(`__AI_CHART_HOLDER_${c.id}__`, chartHtml);
+        });
 
-            // Wait a bit for DOM to settle
-            setTimeout(() => {
+        container.innerHTML = html;
+
+        // --- INITIALIZE CHART.JS INSTANCES ---
+        // We wait for the browser to finish rendering the HTML into the DOM
+        setTimeout(() => {
+            charts.forEach(c => {
                 const ctx = document.getElementById(c.id) as HTMLCanvasElement;
                 if (!ctx) return;
 
+                const chartType = (c.config.type || 'pie') as any;
                 new Chart(ctx, {
                     type: chartType,
                     data: {
@@ -766,17 +772,24 @@ export class PMDashboardModule {
                         plugins: { 
                             legend: { 
                                 position: chartType === 'pie' || chartType === 'doughnut' ? 'right' : 'top',
-                                labels: { color: 'rgba(255,255,255,0.7)', font: { size: 11 } }
+                                labels: { color: 'rgba(255,255,255,0.7)', font: { size: 10 } }
                             } 
                         },
                         scales: chartType === 'bar' || chartType === 'line' ? {
-                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.5)' } },
-                            x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.5)' } }
+                            y: { 
+                                beginAtZero: true, 
+                                grid: { color: 'rgba(255,255,255,0.05)' }, 
+                                ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 10 } } 
+                            },
+                            x: { 
+                                grid: { display: false }, 
+                                ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 10 } } 
+                            }
                         } : {}
                     }
                 });
-            }, 0);
-        });
+            });
+        }, 100);
     }
 
     private setEl(id: string, val: any) {

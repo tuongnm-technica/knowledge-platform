@@ -1,4 +1,5 @@
-<div class="topbar" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
+<div class="topbar" x-data="{ lang: 'vi' }" 
+     x-init="lang = (window.i18n?.language || 'vi'); document.addEventListener('kp-lang-changed', (e) => { lang = e.detail; })">
   <div class="page-context">
     <div class="page-eyebrow">Technica Internal</div>
     <div style="display: flex; align-items: center; gap: 12px;">
@@ -10,11 +11,12 @@
     <div class="status-dot" id="statusDot"></div>
     <div class="status-text" id="statusText" x-text="$t('common.status_connecting')">Đang kết nối...</div>
   </div>
-  <div class="language-switcher">
-    <select onchange="window.changeLanguage(this.value)" :value="lang" style="background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 4px 8px; font-size: 13px; cursor: pointer;">
-      <option value="vi">Tiếng Việt</option>
-      <option value="en">English</option>
-      <option value="jp">日本語</option>
+  <div class="language-switcher" style="display: flex; align-items: center;">
+    <label style="font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; margin-right: 4px;" x-text="$t('common.language')"></label>
+    <select @change="window.changeLanguage($event.target.value)" x-model="lang" class="lang-select">
+      <option value="vi">VIE</option>
+      <option value="en">ENG</option>
+      <option value="jp">JPN</option>
     </select>
   </div>
   <button class="theme-toggle" id="themeToggle" :title="$t('common.toggle_theme', { defaultValue: 'Đổi giao diện' })">🌙</button>

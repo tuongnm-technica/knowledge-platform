@@ -97,8 +97,7 @@ async def search_agent_node(state: SDLCState) -> dict:
     permissions = PermissionFilter(session)
     repo = DocumentRepository(session)
     
-    # 2. Extract Entities (Keyword focus: take Uppercase words or quoted terms)
-    # Simple regex for capitalized words / specific project patterns
+    # 2. Extract Entities
     entities = re.findall(r'[A-Z][A-Z0-9]+', state["user_request"])
     
     try:
@@ -140,11 +139,11 @@ async def search_agent_node(state: SDLCState) -> dict:
         log.info("agent.search_agent.done", found_docs=len(docs), found_drafts=len(recent_drafts))
         return {
             "context_documents": context_str,
-            "current_status": f"Found {len(docs)} knowledge units and {len(recent_drafts)} recent drafts."
+            "current_status": "AGENT_BA_START"  # Signal to UI that we are moving to BA
         }
     except Exception as e:
         log.error("agent.search_agent.error", error=str(e))
-        return {"current_status": "Search error, proceeding with limited context."}
+        return {"current_status": "AGENT_BA_START"} # Fallback to start BA anyway
 
 import re # Needed for simple entity extraction
 
@@ -182,7 +181,7 @@ def ba_agent_node(state: SDLCState) -> dict:
     # Trả về các field cần update trong State
     return {
         "ba_document_json": result.model_dump(),
-        "current_status": "BA Document Created"
+        "current_status": "AGENT_SA_START" # Signal to SA
     }
 
 def sa_agent_node(state: SDLCState) -> dict:
@@ -203,7 +202,7 @@ def sa_agent_node(state: SDLCState) -> dict:
     log.info("agent.sa_designer.done")
     return {
         "sa_document_json": result.model_dump(),
-        "current_status": "SA Design Created"
+        "current_status": "AGENT_QA_START" # Signal to QA
     }
 
 def qa_agent_node(state: SDLCState) -> dict:
@@ -211,7 +210,6 @@ def qa_agent_node(state: SDLCState) -> dict:
     ba_json = state.get("ba_document_json", {})
     
     structured_llm = llm.with_structured_output(QADocumentOutput)
-    # Sử dụng đúng mẫu QA-01 trong SDLC_Prompt_Library_v1.md của bạn
     system_prompt = build_doc_system_prompt(doc_type="qa_test_spec")
 
     prompt = ChatPromptTemplate.from_messages([
@@ -225,7 +223,7 @@ def qa_agent_node(state: SDLCState) -> dict:
     log.info("agent.qa_engineer.done")
     return {
         "qa_document_json": result.model_dump(),
-        "current_status": "QA Test Cases Created"
+        "current_status": "COMPLETED"
     }
 
 # ==========================================

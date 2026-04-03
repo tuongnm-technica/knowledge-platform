@@ -31,7 +31,7 @@ def _verify_password(plain_text: str, password_hash: str | None) -> bool:
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 

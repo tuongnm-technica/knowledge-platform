@@ -380,7 +380,7 @@ export class ConnectorsModule {
                 </label>
             </div>
 
-            <div class="sync-advanced-options" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+            <div class="sync-advanced-options" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-strong);">
                 <div class="advanced-options-header" style="font-weight: 600; margin-bottom: 12px; font-size: 0.9rem; color: var(--text-muted);">
                     ${(window as any).$t('connectors.label_advanced_ai')}
                 </div>
@@ -391,11 +391,11 @@ export class ConnectorsModule {
                     </label>
                     <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
                         <span style="font-size: 0.95rem;">${(window as any).$t('connectors.sync_opt_ai_relations')}</span>
-                        <input type="checkbox" id="syncRelations" ${['confluence', 'jira', 'slack'].includes(type) ? '' : 'checked'} style="width: 18px; height: 18px; cursor: pointer;">
+                        <input type="checkbox" id="syncRelations" checked style="width: 18px; height: 18px; cursor: pointer;">
                     </label>
                     <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
                         <span style="font-size: 0.95rem;">${(window as any).$t('connectors.sync_opt_ai_vision')}</span>
-                        <input type="checkbox" id="syncVision" style="width: 18px; height: 18px; cursor: pointer;">
+                        <input type="checkbox" id="syncVision" ${['confluence', 'jira', 'slack'].includes(type) ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
                     </label>
                 </div>
             </div>

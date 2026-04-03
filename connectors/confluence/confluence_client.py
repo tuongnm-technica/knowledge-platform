@@ -123,7 +123,7 @@ class ConfluenceClient:
             log.error("confluence.get_spaces.failed", error=str(e))
             return []
 
-    def get_pages(self, space_key: str, limit: int = 500) -> list[dict]:
+    def get_pages(self, space_key: str, limit: int = 50) -> list[dict]:
         """Full sync — lấy toàn bộ pages trong space."""
         try:
             start = 0
@@ -138,15 +138,13 @@ class ConfluenceClient:
                 if not batch:
                     break
                 pages.extend(batch)
-                if len(batch) < limit:
-                    break
-                start += limit
+                start += len(batch)
             return pages
         except Exception as e:
             log.error("confluence.get_pages.failed", space=space_key, error=str(e))
             return []
 
-    def get_pages_since(self, space_key: str, since: datetime, limit: int = 500) -> list[dict]:
+    def get_pages_since(self, space_key: str, since: datetime, limit: int = 50) -> list[dict]:
         """
         Incremental sync — chỉ lấy pages được sửa SAU thời điểm since.
         Dùng Confluence CQL: lastModified > "yyyy-MM-dd HH:mm"
@@ -172,9 +170,7 @@ class ConfluenceClient:
                 if not batch:
                     break
                 pages.extend(batch)
-                if len(batch) < limit:
-                    break
-                start += limit
+                start += len(batch)
 
             # CQL wrap content — normalize về cùng format với get_pages
             normalized = [p.get("content", p) for p in pages if isinstance(p, dict)]

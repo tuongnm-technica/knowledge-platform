@@ -110,3 +110,36 @@
       radial-gradient(circle at bottom right, rgba(139,92,246,0.1), transparent 40%),
       var(--bg);
   }
+
+  /* ── Language Selector ── */
+  .login-lang-selector {
+    position: absolute; 
+    top: 24px; 
+    left: 24px; 
+    z-index: 10000;
+  }
+  .login-lang-select {
+    appearance: none;
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    padding: 8px 16px;
+    padding-right: 32px;
+    border-radius: 12px;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.2s ease;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='Length 19 9l-7 7-7-7' /%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+  }
+  .login-lang-select:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }

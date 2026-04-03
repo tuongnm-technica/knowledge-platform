@@ -891,10 +891,8 @@ QUY TẮC PHẢN HỒI (BẮT BUỘC):
 3. ĐỀ XUẤT HÀNH ĐỘNG: Mỗi hành động phải có độ ưu tiên (High/Med/Low) và đề xuất người phụ trách (Owner) dựa trên dữ liệu Assignee.
 4. TÍNH CHUYÊN NGHIỆP: Sử dụng ngôn ngữ PM sắc bén (ví dụ: "Bottleneck", "Risk Mitigation", "Log-Time Audit").
 5. ĐỊNH DẠNG: Trả về Markdown chuyên nghiệp. 
-6. BIỂU ĐỒ: Khi cần minh họa dữ liệu (phân bổ Assignee, rủi ro, Log-time theo User, v.v.), hãy xuất mã biểu đồ theo format:
-```
-[[CHART:{{ "type":"pie|bar|line", "title": "...", "labels": [], "data": [] }}]]
-```
+6. BIỂU ĐỒ: Khi phân tích dữ liệu cần minh họa (phân bổ Assignee, rủi ro, Log-time, v.v.), hãy xuất mã biểu đồ theo định dạng sau (KHÔNG dùng dấu ``` bao quanh mã này): 
+[[CHART:{{"type":"pie|bar|line", "title": "Tên biểu đồ", "labels": ["Nhãn A", "Nhãn B"], "data": [10, 20] }}]]
 7. SUMMARY JSON: Cuối cùng, hãy luôn xuất một khối JSON nhỏ chứa thông tin tóm tắt.
 
 DỮ LIỆU BỔ SUNG:

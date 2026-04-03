@@ -14,7 +14,8 @@
     "models": "AI Models",
     "integrations": "Integrations",
     "pm_dashboard": "PM Dashboard",
-    "ba_suite": "Auto Work"
+    "ba_suite": "Auto Work",
+    "history": "Chat History"
   },
   "common": {
     "logout": "Logout",
@@ -55,7 +56,11 @@
     "start": "Start",
     "save_changes": "Save changes",
     "load_success": "Loaded successfully",
-    "error_with_msg": "Error: {{message}}"
+    "error_with_msg": "Error: {{message}}",
+    "topbar_badge": "Graph-aware retrieval",
+    "toggle_theme": "Toggle theme",
+    "loading_model": "Loading models...",
+    "member": "Member"
   },
   "chat": {
     "new_chat": "New Conversation",
@@ -87,7 +92,8 @@
     "tooltip_helpful": "Helpful",
     "tooltip_unhelpful": "Not helpful",
     "btn_copy": "Copy",
-    "btn_copied": "Copied!"
+    "btn_copied": "Copied!",
+    "copied": "Copied!"
   },
   "search": {
     "intro_title": "Quick search, clear sources",
@@ -131,6 +137,9 @@
     "err_load_list": "Failed to load document list",
     "page": "Page",
     "empty_hint": "No documents found.",
+    "col_title": "Title",
+    "col_source": "Source",
+    "col_updated": "Updated",
     "col_actions": "Actions",
     "btn_view": "View Content",
     "btn_view_source": "View Source",
@@ -149,7 +158,9 @@
     "err_batch_delete_failed": "Bulk delete failed",
     "batch_delete_success": "Deleted {{count}} documents",
     "untitled": "Untitled",
-    "source_na": "N/A"
+    "source_na": "N/A",
+    "filter_source": "Filter by Source",
+    "source_all": "All Sources"
   },
   "pm": {
     "title": "PM Status Dashboard",
@@ -212,7 +223,8 @@
     "unassigned": "Unassigned",
     "link_external": "View Details ↗",
     "ai_analysis_label": "AI Analysis",
-    "chart_data_label": "Data"
+    "chart_data_label": "Data",
+    "custom_prompt_placeholder": "Enter custom analysis prompt..."
   },
   "connectors": {
     "title": "Connector Control Room",
@@ -610,6 +622,9 @@
     "test_body_type": "Body Type",
     "test_body": "Email Body",
     "btn_test": "Send Test",
+    "smtp_checking": "Checking...",
+    "smtp_user": "SMTP Username",
+    "smtp_pass": "SMTP Password",
     "err_no_permission": "You do not have permission to access this page.",
     "status_saved": "Saved",
     "status_no_config": "Never Tested / No Config",
@@ -687,7 +702,8 @@
     "graph_hint": "Tip: Wheel to zoom, drag background to pan, drag node to pin.",
     "btn_reset_view": "Reset View",
     "search_entity": "Search entity...",
-    "err_load_data_failed": "Failed to load graph data"
+    "err_load_data_failed": "Failed to load graph data",
+    "interactive_graph_sub": "Drag nodes to explore. Use search to highlight entities."
   },
   "prompts": {
     "loading": "Loading Skill Prompts...",
@@ -754,6 +770,10 @@
     "node_type_llm": "🧠 LLM",
     "node_type_rag": "🔍 RAG",
     "node_type_doc_writer": "✍️ Doc Writer",
+    "node_type_docx_export": "📄 DOCX Export",
+    "node_type_pptx_export": "📊 PPTX Export",
+    "node_type_slack_notify": "🔔 Slack Notification",
+    "node_type_email_notify": "📧 Send Email",
     "node_remove_tooltip": "Remove node",
     "node_prompt_label": "System Prompt / Instructions",
     "node_prompt_placeholder": "Instructions for AI. Use {{START}} for initial data, {{node_1_output}} for step 1 results...",
@@ -781,6 +801,7 @@
     "exec_final_title": "✅ Final Results",
     "toast_exec_complete": "Workflow completed!",
     "toast_exec_failed": "Workflow failed: ",
+    "btn_preview": "Premium Preview",
     "history_title": "📋 Run History: {{name}}",
     "history_loading": "Loading history...",
     "history_empty": "No runs yet",
@@ -797,5 +818,20 @@
     "tpl_sdlc_desc": "Generate BA, SA, and QA documents from business requirements automatically.",
     "tpl_daily_name": "Daily Summary",
     "tpl_daily_desc": "Summarize daily activities from various data sources."
+  },
+  "history": {
+    "intro_sub": "Review your past AI chat sessions and queries.",
+    "loading": "Loading history..."
+  },
+  "auth": {
+    "login_failed": "Login failed. Please check your credentials.",
+    "enter_credentials": "Please enter both email and password"
+  },
+  "editor": {
+    "err_no_selection": "Please select some text for AI to process.",
+    "err_no_draft_id": "No Draft ID found. Please save the draft first.",
+    "processing": "AI is processing: {{skill}}...",
+    "success": "AI processing completed!",
+    "error": "An error occurred during AI processing."
   }
 }

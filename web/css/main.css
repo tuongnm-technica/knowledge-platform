@@ -445,6 +445,37 @@ body {
   white-space: nowrap; 
 }
 
+.language-switcher {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.language-switcher select {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  font-family: var(--font-family-body);
+}
+
+.language-switcher select:hover {
+  background: var(--bg4);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+
+.language-switcher select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+
 .theme-toggle {
   width: 44px; height: 44px;
   border-radius: 12px;
@@ -979,7 +1010,7 @@ body {
   .topbar .status-panel,
   div.topbar-badge,
   div.status-panel,
-  .topbar > div:not(.page-context):not(.theme-toggle) { 
+  .topbar > div:not(.page-context):not(.theme-toggle):not(.language-switcher) { 
     display: none !important; 
     visibility: hidden !important;
     width: 0 !important;
@@ -1041,3 +1072,79 @@ body {
   .nav-item { flex: 0 0 60px !important; min-width: 60px !important; }
   .nav-item span:not(.nav-icon):not(.nav-badge) { display: none !important; }
 }
+
+/* ==========================================
+   PREMIUM DOCUMENT & SLIDE MOCKUP
+   ========================================== */
+.wf-preview-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(12px);
+  z-index: 10000;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 40px; overflow-y: auto;
+}
+
+.wf-preview-header {
+  width: 100%; max-width: 1000px;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 30px; color: white;
+}
+
+.wf-preview-actions { display: flex; gap: 12px; }
+
+.wf-preview-body {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 40px;
+  padding-bottom: 60px;
+}
+
+/* A4 Mockup (DOCX) */
+.preview-page-a4 {
+  width: 210mm; min-height: 297mm;
+  background: white; color: #1e293b;
+  padding: 25mm 20mm;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1);
+  border-radius: 4px;
+  position: relative;
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+.preview-page-a4::after {
+  content: ""; position: absolute; top: 0; right: 0;
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%);
+}
+
+/* Slide Mockup (PPTX) */
+.preview-slide-169 {
+  width: 960px; height: 540px;
+  background: #ffffff; color: #333;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  border-radius: 8px;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+  padding: 40px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.slide-theme-midnight { background: #1e2761; color: #ffffff; }
+.slide-theme-midnight .slide-accent { background: #cadcfc; height: 4px; width: 100px; margin: 15px 0; }
+
+.slide-title { font-size: 36px; font-weight: 800; margin-bottom: 20px; line-height: 1.2; }
+.slide-content { font-size: 18px; color: inherit; opacity: 0.9; }
+.slide-content ul { padding-left: 25px; }
+.slide-content li { margin-bottom: 12px; }
+
+.preview-slide-deck {
+  display: flex; flex-direction: column; gap: 50px; align-items: center;
+}
+
+.wf-preview-close {
+  background: rgba(255,255,255,0.1); border: none; color: white;
+  width: 40px; height: 40px; border-radius: 50%;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; transition: all 0.2s;
+}
+
+.wf-preview-close:hover { background: #ef4444; transform: rotate(90deg); }

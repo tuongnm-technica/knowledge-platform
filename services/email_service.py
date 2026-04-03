@@ -34,7 +34,8 @@ async def send_email_async(
     to_email: str | list[str],
     subject: str,
     body: str,
-    is_html: bool = False
+    is_html: bool = False,
+    attachment_paths: list[str] | None = None
 ) -> bool:
     """
     Sends an email using the system's SMTP configuration asynchronously.
@@ -69,6 +70,30 @@ async def send_email_async(
         msg.add_alternative(body, subtype='html')
     else:
         msg.set_content(body)
+
+    # Handle attachments
+    if attachment_paths:
+        import mimetypes
+        from pathlib import Path
+        for path_str in attachment_paths:
+            path = Path(path_str)
+            if not path.exists():
+                log.warning("email_service.attachment_not_found", path=path_str)
+                continue
+            
+            ctype, encoding = mimetypes.guess_type(str(path))
+            if ctype is None or encoding is not None:
+                ctype = 'application/octet-stream'
+            maintype, subtype = ctype.split('/', 1)
+            
+            with open(path, 'rb') as f:
+                msg.add_attachment(
+                    f.read(),
+                    maintype=maintype,
+                    subtype=subtype,
+                    filename=path.name
+                )
+            log.info("email_service.attachment_added", file=path.name)
 
     mode = config.get("security_mode")
     use_tls = (mode == "SSL")

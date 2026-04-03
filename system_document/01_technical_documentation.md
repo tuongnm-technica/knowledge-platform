@@ -38,6 +38,8 @@ Knowledge Platform là công cụ nội bộ phục vụ hai mục tiêu:
 | Logging | structlog | JSON-format structured logging |
 | Auth | PyJWT + bcrypt | JWT tự implement |
 | Connectors | Jira, Confluence, Slack, SMB, **Zoom, Drive** | Tích hợp đa nguồn |
+| Document Export | Node.js Bridge (`docx`, `pptxgenjs`) | Xuất file Word/Slide cao cấp |
+| Email Service | aiosmtplib | SMTP với hỗ trợ file đính kèm |
 
 ### 2.2 Frontend
 
@@ -164,6 +166,12 @@ knowledge-platform/
 │   └── SDLC_Prompt_Library_v1.md
 ├── knowledge_base/                # Tài liệu tiêu chuẩn nội bộ (BE, FE, QA, Ops)
 ├── web/                           # Frontend TypeScript SPA (Vite)
+├── scripts/
+│   ├── docx_bridge.js             # Node.js bridge for DOCX generation
+│   ├── pptx_bridge.js             # Node.js bridge for PPTX generation
+│   └── cron_worker.py             # Scheduled jobs runner
+├── assets/
+│   └── generated/                 # Tệp tin tạm được sinh ra từ workflow
 ├── run.py                         # Khởi động API (uvicorn)
 ├── run_worker.py                  # Khởi động arq worker
 ├── arq_worker.py                  # arq WorkerSettings + job registration
@@ -433,14 +441,16 @@ Sync Jira status về DB (manual: /tasks/sync-jira-status)
 |---|---|---|---|
 | `arq:default` | worker_default | Misc tasks | 120s |
 | `arq:ingestion` | worker_ingestion | Connector sync jobs | 21600s (6h) |
-| `arq:ai` | worker_ai | Document drafting | 1500s (25min) |
+| `arq:ai` | worker_ai | Document drafting, AI Workflows (Export/Notify) | 1500s (25min) |
 
-**AI Drafting flow (async)**:
-1. API tạo "stub" draft (status=`processing`)
-2. Enqueue `run_doc_drafting_job` vào `arq:ai`
-3. `worker_ai` pick up → gọi `DocOrchestrator.generate_document_pipeline()` → Ollama LLM
-4. Update draft content trong DB (status=`done` hoặc `failed`)
-5. Frontend polling `/api/docs/drafts/{id}` kiểm tra status
+**AI Workflow & Automation Flow (async)**:
+1. API tạo "stub" job (status=`processing`)
+2. Enqueue `run_workflow_job` vào `arq:ai`
+3. `worker_ai` pick up → Duyệt từng Node trong Workflow
+    * **Export Node**: Gọi subprocess `node scripts/xxx_bridge.js`
+    * **Notification Node**: Gọi Slack API hoặc `send_email_async` (tự động đính kèm file)
+4. Update result trả về Markdown chuỗi kết quả hoặc Link download
+5. Frontend polling hiển thị tiến độ và nút **Premium Preview**
 
 ---
 

@@ -29,7 +29,18 @@ export class AuthModule {
         });
 
         if (!response.ok) {
-            throw new Error('Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
+            let errorMsg = (window as any).$t('auth.login_failed', { defaultValue: 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.' });
+            try {
+                const errData = await response.json();
+                if (errData.detail) {
+                    if (Array.isArray(errData.detail)) {
+                        errorMsg = errData.detail.map((e: any) => e.msg).join(', ');
+                    } else {
+                        errorMsg = errData.detail;
+                    }
+                }
+            } catch (e) {}
+            throw new Error(errorMsg);
         }
 
         const data: AuthResponse = await response.json();
@@ -53,9 +64,6 @@ export class AuthModule {
         const response = await authFetch(`${API}/auth/me`);
         if (!response.ok) throw new Error('Không thể lấy thông tin user');
         const user = (await response.json()) as User;
-        if (user.language) {
-            i18n.changeLanguage(user.language);
-        }
         return user;
     }
     
@@ -69,17 +77,34 @@ export class AuthModule {
         const loginBtn = document.getElementById('loginBtn');
         if (!loginBtn || !emailInput || !passwordInput) return;
 
-        const handleEnter = (e: KeyboardEvent) => {
-            if (e.key === 'Enter') loginBtn.click();
-        };
-        emailInput.addEventListener('keyup', handleEnter);
-        passwordInput.addEventListener('keyup', handleEnter);
+        // Tránh bind sự kiện nhiều lần nếu hàm được gọi lại bởi Router
+        if (loginBtn.hasAttribute('data-hooked')) return;
+        loginBtn.setAttribute('data-hooked', 'true');
 
-        loginBtn.addEventListener('click', async () => {
+        const handleEnter = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                loginBtn.click();
+            }
+        };
+        emailInput.addEventListener('keydown', handleEnter);
+        passwordInput.addEventListener('keydown', handleEnter);
+
+        loginBtn.addEventListener('click', async (e) => {
+            e.preventDefault(); // Ngăn hành vi submit form mặc định làm reload trang
             if (errorDiv) errorDiv.style.display = 'none';
+            
+            if (!emailInput.value.trim() || !passwordInput.value) {
+                if (errorDiv) {
+                    errorDiv.textContent = (window as any).$t('auth.enter_credentials', { defaultValue: 'Vui lòng nhập đầy đủ email và mật khẩu' });
+                    errorDiv.style.display = 'block';
+                }
+                return;
+            }
+
             loginBtn.classList.add('loading');
             try {
-                await this.login(emailInput.value, passwordInput.value);
+                await AuthModule.login(emailInput.value, passwordInput.value);
                 window.location.href = window.location.origin; 
             } catch (err) {
                 const error = err as Error;
@@ -92,4 +117,4 @@ export class AuthModule {
             }
         });
     }
-}
+}

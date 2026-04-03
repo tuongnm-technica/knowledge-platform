@@ -83,12 +83,13 @@ async def update_prompt(
         raise HTTPException(status_code=400, detail="system_prompt must not be empty.")
 
     repo = SkillPromptRepository(db)
-    updated = await repo.upsert(
+    updated = await repo.update_prompt(
         doc_type=doc_type,
         system_prompt=system_prompt,
-        group=req.group,
         updated_by=user.user_id,
     )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Prompt '{doc_type}' not found.")
     return {"ok": True, "doc_type": doc_type}
 
 

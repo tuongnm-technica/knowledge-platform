@@ -21,13 +21,14 @@ async def list_documents(
     limit: int = 50,
     page: int = 1,
     q: str | None = None,
+    source: str | None = None,
     session: AsyncSession = Depends(get_db),
     _: CurrentUser = Depends(get_current_user),
 ):
     offset = (max(1, page) - 1) * limit
     repo = DocumentRepository(session)
-    docs = await repo.list_documents(limit=limit, offset=offset, query=q)
-    total = await repo.count_total(query=q)
+    docs = await repo.list_documents(limit=limit, offset=offset, query=q, source=source)
+    total = await repo.count_total(query=q, source=source)
 
     return {
         "documents": docs,
