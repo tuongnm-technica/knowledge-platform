@@ -52,7 +52,7 @@ export class PMDashboardModule {
         }
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                showToast('Đang cập nhật dữ liệu PM...', 'info');
+                showToast((window as any).$t('pm.updating_data'), 'info');
                 this.refreshData();
             });
         }
@@ -107,17 +107,17 @@ export class PMDashboardModule {
         const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
         const projectKey = select?.value;
         if (!projectKey) {
-            showToast('Vui lòng chọn 1 dự án để AI phân tích chuyên sâu.', 'warning');
+            showToast((window as any).$t('pm.err_select_project'), 'warning');
             return;
         }
 
         try {
-            showToast('Đang yêu cầu AI phân tích dữ liệu dự án...', 'info');
+            showToast((window as any).$t('pm.requesting_ai_analysis'), 'info');
             const res = await authFetch(`/api/pm/dashboard/refresh-ai?project_key=${encodeURIComponent(projectKey)}`, { method: 'POST' });
             if (res.ok) {
-                showToast('Yêu cầu thành công! AI đang làm việc. Vui lòng quay lại sau 20s.', 'success');
+                showToast((window as any).$t('pm.ai_request_success'), 'success');
             } else {
-                showToast('Không thể kích hoạt AI ngay lúc này.', 'error');
+                showToast((window as any).$t('pm.err_ai_failed'), 'error');
             }
         } catch (e) {
             console.error(e);
@@ -133,7 +133,8 @@ export class PMDashboardModule {
                 const select = document.getElementById('pmProjectFilter') as HTMLSelectElement;
                 if (!select) return;
 
-                select.innerHTML = '<option value="">-- Global View --</option>';
+                const currentVal = select.value;
+                select.innerHTML = `<option value="">-- ${(window as any).$t('pm.global_view')} --</option>`;
                 projects.forEach((p: any) => {
                     const opt = document.createElement('option');
                     opt.value = p.key;
@@ -142,6 +143,13 @@ export class PMDashboardModule {
                     opt.style.color = 'var(--text-color)';
                     select.appendChild(opt);
                 });
+                
+                // Khôi phục giá trị đã chọn nếu còn tồn tại trong danh sách mới
+                if (currentVal && projects.find((p: any) => p.key === currentVal)) {
+                    select.value = currentVal;
+                }
+            } else if (res.status === 403) {
+                showToast((window as any).$t('pm.err_no_permission_list'), 'error');
             }
         } catch (error) {
             console.error('Failed to load projects:', error);
@@ -156,20 +164,31 @@ export class PMDashboardModule {
         const logRangeSelector = document.getElementById('pmLogtimeRange') as HTMLSelectElement;
         const days = logRangeSelector ? parseInt(logRangeSelector.value) : this.logtimeDays;
 
+        const fetchWithCheck = async (url: string) => {
+            const r = await authFetch(url);
+            if (r.status === 403) {
+                throw new Error('403');
+            }
+            if (r.status === 401) {
+                throw new Error('401');
+            }
+            return r.ok ? r.json() : {};
+        };
+
         try {
             const [stats, risks, workload, stale, epics, cfd, leadTime, issueTypes, retrospective, burnup, logtime, logtimeTrend] = await Promise.all([
-                authFetch(`/api/pm/dashboard/stats${qs}`).then(r => r.ok ? r.json() : {}),
-                authFetch(`/api/pm/dashboard/at-risk${qs}`).then(r => r.ok ? r.json() : { projects: [] }),
-                authFetch(`/api/pm/dashboard/workload${qs}`).then(r => r.ok ? r.json() : { workload: {} }),
-                authFetch(`/api/pm/dashboard/stale${qs}${qs ? '&' : '?'}days=3`).then(r => r.ok ? r.json() : { tasks: [] }),
-                authFetch(`/api/pm/dashboard/epics${qs}`).then(r => r.ok ? r.json() : { epics: [] }),
-                authFetch(`/api/pm/dashboard/cfd${qs}`).then(r => r.ok ? r.json() : { cfd: [] }),
-                authFetch(`/api/pm/dashboard/lead-time${qs}`).then(r => r.ok ? r.json() : {}),
-                authFetch(`/api/pm/dashboard/issue-types${qs}`).then(r => r.ok ? r.json() : { issue_types: [] }),
-                authFetch(`/api/pm/dashboard/retrospective${qs}`).then(r => r.ok ? r.json() : { retrospectives: [] }),
-                authFetch(`/api/pm/dashboard/burnup${qs}`).then(r => r.ok ? r.json() : { burnup: [] }),
-                authFetch(`/api/pm/dashboard/logtime${qs}`).then(r => r.ok ? r.json() : { logtime: [] }),
-                authFetch(`/api/pm/dashboard/logtime-trend${qs}${qs ? '&' : '?'}days=${days}`).then(r => r.ok ? r.json() : { trend: [] })
+                fetchWithCheck(`/api/pm/dashboard/stats${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/at-risk${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/workload${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/stale${qs}${qs ? '&' : '?'}days=3`),
+                fetchWithCheck(`/api/pm/dashboard/epics${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/cfd${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/lead-time${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/issue-types${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/retrospective${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/burnup${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/logtime${qs}`),
+                fetchWithCheck(`/api/pm/dashboard/logtime-trend${qs}${qs ? '&' : '?'}days=${days}`)
             ]);
 
             this.renderStats(stats);
@@ -187,9 +206,15 @@ export class PMDashboardModule {
             this.renderRetrospectives(retrospective.retrospectives || []);
             this.renderBurnup(burnup.burnup || []);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to refresh PM data:', error);
-            showToast('Lỗi tải dữ liệu bảng quản trị PM.', 'error');
+            if (error.message === '403') {
+                showToast((window as any).$t('pm.err_no_permission_project'), 'error');
+            } else if (error.message === '401') {
+                showToast((window as any).$t('common.session_expired'), 'warning');
+            } else {
+                showToast((window as any).$t('pm.err_load_data'), 'error');
+            }
         }
     }
 
@@ -208,7 +233,7 @@ export class PMDashboardModule {
         
         if (!projects || projects.length === 0) {
             container.innerHTML = `<div style="color: var(--success); text-align: center; padding: 20px; font-weight: 600; background: rgba(16, 185, 129, 0.05); border-radius: 12px; border: 1px dashed var(--success);">
-                🛡️ Vận hành ổn định. Không phát hiện rủi ro nghiêm trọng.
+                🛡️ ${(window as any).$t('pm.no_risks_detected')}
             </div>`;
             return;
         }
@@ -219,11 +244,11 @@ export class PMDashboardModule {
                 <div class="risk-card" style="display: flex; justify-content: space-between; align-items: center; padding: 14px; border-left: 4px solid ${riskColor}; background: rgba(255,255,255,0.02); margin-bottom: 8px;">
                     <div>
                         <div style="font-weight: 800; font-family: 'Syne', sans-serif;">${p.project_key}</div>
-                        <div style="font-size: 0.85em; color: var(--text-dim);">Velocity: ${p.velocity_weekly} task/tuần</div>
+                        <div style="font-size: 0.85em; color: var(--text-dim);">Velocity: ${p.velocity_weekly} ${(window as any).$t('pm.tasks_per_week')}</div>
                     </div>
                     <div style="text-align: right;">
                         <div style="font-size: 1.4em; font-weight: 800; color: ${riskColor};">${formatNumber(p.risk_score)}</div>
-                        <div style="font-size: 0.7em; text-transform: uppercase; color: var(--text-dim);">Risk Index</div>
+                        <div style="font-size: 0.7em; text-transform: uppercase; color: var(--text-dim);">${(window as any).$t('pm.risk_index')}</div>
                     </div>
                 </div>
             `;
@@ -244,7 +269,7 @@ export class PMDashboardModule {
             data: {
                 labels,
                 datasets: [{ 
-                    label: 'Task/Ngày', 
+                    label: (window as any).$t('pm.tasks_per_day'), 
                     data: values, 
                     borderColor: '#06b6d4', 
                     backgroundColor: 'rgba(6, 182, 212, 0.1)', 
@@ -267,7 +292,7 @@ export class PMDashboardModule {
         if (!container) return;
         
         if (tasks.length === 0) {
-            container.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-dim);">🛡️ Không có task nào bị treo quá 3 ngày.</div>';
+            container.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-dim);">🛡️ ${(window as any).$t('pm.no_stale_tasks')}</div>`;
             return;
         }
 
@@ -278,7 +303,7 @@ export class PMDashboardModule {
                     <span style="font-weight: 500;">${escapeHtml(t.title)}</span>
                 </div>
                 <div style="font-size: 0.8em; color: var(--text-dim); min-width: 80px; text-align: right;">
-                    ${t.assignee || 'Unassigned'}
+                    ${t.assignee || (window as any).$t('pm.unassigned')}
                 </div>
             </a>
         `).join('');
@@ -299,9 +324,9 @@ export class PMDashboardModule {
             data: {
                 labels: assignees,
                 datasets: [
-                    { label: 'To Do', data: todo, backgroundColor: '#94a3b8' },
-                    { label: 'WIP', data: wip, backgroundColor: '#f59e0b' },
-                    { label: 'Done', data: done, backgroundColor: '#10b981' }
+                    { label: (window as any).$t('pm.tab_todo', { defaultValue: 'To Do' }), data: todo, backgroundColor: '#94a3b8' },
+                    { label: (window as any).$t('pm.tab_wip', { defaultValue: 'WIP' }), data: wip, backgroundColor: '#f59e0b' },
+                    { label: (window as any).$t('pm.tab_done', { defaultValue: 'Done' }), data: done, backgroundColor: '#10b981' }
                 ]
             },
             options: { 
@@ -350,7 +375,7 @@ export class PMDashboardModule {
             data: {
                 labels,
                 datasets: [{ 
-                    label: 'Avg Days', 
+                    label: (window as any).$t('pm.avg_days', { defaultValue: 'Avg Days' }), 
                     data: values, 
                     borderColor: '#8b5cf6', 
                     backgroundColor: 'rgba(139, 92, 246, 0.1)', 
@@ -391,7 +416,7 @@ export class PMDashboardModule {
             data: {
                 labels: data.map(d => d.user),
                 datasets: [{
-                    label: 'Giờ (Hours)',
+                    label: (window as any).$t('pm.label_hours'),
                     data: data.map(d => d.hours),
                     backgroundColor: 'rgba(59, 130, 246, 0.6)',
                     borderColor: '#3b82f6',
@@ -454,8 +479,8 @@ export class PMDashboardModule {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { stacked: true, title: { display: true, text: 'Ngày' } },
-                    y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Tổng giờ (Hours)' } }
+                    x: { stacked: true, title: { display: true, text: (window as any).$t('pm.col_date') } },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: (window as any).$t('pm.label_total_hours') } }
                 },
                 plugins: { legend: { position: 'top' } }
             }
@@ -467,7 +492,7 @@ export class PMDashboardModule {
         if (!container) return;
         
         if (epics.length === 0) {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-dim);">Chưa có dữ liệu Epic.</div>';
+            container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-dim);">${(window as any).$t('pm.no_epics_data')}</div>`;
             return;
         }
 
@@ -560,23 +585,23 @@ export class PMDashboardModule {
         modal.style.display = 'block';
         body.innerHTML = '';
         loading.style.display = 'block';
-        if (title) title.textContent = `Danh sách: ${metric.replace('_', ' ').toUpperCase()}`;
+        if (title) title.textContent = `${(window as any).$t('pm.drilldown_title')}: ${metric.replace('_', ' ').toUpperCase()}`;
 
         try {
             const res = await authFetch(`/api/pm/dashboard/details?metric=${metric}&project_key=${encodeURIComponent(projectKey)}`);
             if (res.ok) {
                 const { issues } = await res.json();
                 if (issues.length === 0) {
-                    body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-dim);">Không tìm thấy issue nào.</td></tr>';
+                    body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-dim);">${(window as any).$t('pm.no_issues_found')}</td></tr>`;
                 } else {
                     body.innerHTML = issues.map((i: any) => `
                         <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.2s;">
                             <td style="padding: 14px 12px; font-weight: 800; color: var(--accent-color); font-family: 'Syne', sans-serif;">${i.key}</td>
                             <td style="padding: 14px 12px; font-weight: 500; font-size: 0.9em;">${escapeHtml(i.title)}</td>
-                            <td style="padding: 14px 12px; color: var(--text-dim); font-size: 0.85em;">${i.assignee || 'Unassigned'}</td>
+                            <td style="padding: 14px 12px; color: var(--text-dim); font-size: 0.85em;">${i.assignee || (window as any).$t('pm.unassigned')}</td>
                             <td style="padding: 14px 12px;"><span style="background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 8px; font-size: 0.75em; text-transform: uppercase;">${i.status}</span></td>
                             <td style="padding: 14px 12px; font-size: 0.85em; color: var(--text-dim);">${formatDateTime(i.updated_at)}</td>
-                            <td style="padding: 14px 12px;"><a href="${i.url}" target="_blank" style="color: var(--accent-light); font-weight: 700; text-decoration: none;">Link ↗</a></td>
+                            <td style="padding: 14px 12px;"><a href="${i.url}" target="_blank" style="color: var(--accent-light); font-weight: 700; text-decoration: none;">${(window as any).$t('pm.link_external')}</a></td>
                         </tr>
                     `).join('');
                 }
@@ -598,12 +623,12 @@ export class PMDashboardModule {
         const metaEl = document.getElementById('pmCustomMeta');
 
         if (!select?.value) {
-            showToast('Vui lòng chọn dự án.', 'warning');
+            showToast((window as any).$t('pm.err_select_project_custom'), 'warning');
             return;
         }
 
         if (actionType === 'custom' && !promptEl?.value) {
-            showToast('Vui lòng nhập yêu cầu phân tích.', 'warning');
+            showToast((window as any).$t('pm.err_enter_custom_prompt'), 'warning');
             return;
         }
 
@@ -627,13 +652,13 @@ export class PMDashboardModule {
                 // Set Label
                 if (actionLabel) {
                     const labels: Record<string, string> = {
-                        'bottleneck': 'Phân tích Điểm nghẽn',
-                        'risk': 'Đánh giá Rủi ro',
-                        'velocity': 'Xu hướng Velocity',
-                        'workload': 'Audit Khối lượng công việc',
-                        'custom': 'Phân tích Tùy chỉnh'
+                        'bottleneck': (window as any).$t('pm.action_bottleneck'),
+                        'risk': (window as any).$t('pm.action_risk'),
+                        'velocity': (window as any).$t('pm.action_velocity'),
+                        'workload': (window as any).$t('pm.action_workload'),
+                        'custom': (window as any).$t('pm.action_custom')
                     };
-                    actionLabel.textContent = labels[action] || 'AI Analysis';
+                    actionLabel.textContent = labels[action] || (window as any).$t('pm.ai_analysis_label');
                 }
 
                 // Process Report (Extract JSON metadata if present)
@@ -657,79 +682,79 @@ export class PMDashboardModule {
                 }
 
                 if (resultContent) {
-                    resultContent.innerHTML = renderMarkdown(cleanReport);
-                    this.renderInlineCharts(resultContent, cleanReport);
+                    this.renderReportWithCharts(resultContent, cleanReport);
                 }
                 if (resultWrapper) resultWrapper.style.display = 'block';
                 
-                showToast('Đã tạo báo cáo AI thành công.', 'success');
+                showToast((window as any).$t('pm.ai_report_success'), 'success');
                 
                 // Clear prompt if it was a quick action
                 if (actionType !== 'custom' && promptEl) promptEl.value = '';
             }
         } catch (e) {
             console.error(e);
-            showToast('Lỗi khi tạo báo cáo AI.', 'error');
+            showToast((window as any).$t('pm.err_ai_report_failed'), 'error');
         } finally {
             if (loadingEl) loadingEl.style.display = 'none';
         }
     }
 
     /**
-     * Finds [[CHART:json]] tags and renders them as live Chart.js objects.
+     * Renders a report by separating charts from markdown, rendering markdown, 
+     * and then injecting chart containers into placeholders.
      */
-    private renderInlineCharts(container: HTMLElement, content: string) {
+    private renderReportWithCharts(container: HTMLElement, reportText: string) {
         const chartRegex = /\[\[CHART:([\s\S]*?)\]\]/g;
-        let match;
-        const chartsToRender: { id: string, config: any }[] = [];
-
-        // 1. Identify charts and inject containers
-        let html = container.innerHTML;
+        const charts: { id: string, config: any }[] = [];
         let index = 0;
-        
-        while ((match = chartRegex.exec(content)) !== null) {
-            try {
-                const config = JSON.parse(match[1]);
-                const chartId = `ai-chart-${Date.now()}-${index++}`;
-                
-                // Replace the bracketed tag in the rendered HTML with a canvas container
-                const replacement = `
-                    <div class="stat-card premium-card" style="margin: 24px 0; padding: 20px; background: rgba(255,255,255,0.02); min-height: 250px;">
-                        <h5 style="margin-bottom: 16px; font-family: 'Syne', sans-serif; text-align: center;">${config.title || 'Analysis Visualization'}</h5>
-                        <div style="height: 200px; position: relative;">
-                            <canvas id="${chartId}"></canvas>
-                        </div>
-                    </div>
-                `;
-                
-                // Since marked might have escaped some chars or added tags, 
-                // we'll try a more robust approach: find the raw match[0] text in the container
-                // Actually, just searching for the raw string usually works if it wasn't modified much
-                html = html.replace(match[0], replacement);
-                chartsToRender.push({ id: chartId, config });
-            } catch (e) {
-                console.error("Failed to parse inline chart JSON:", e);
-            }
-        }
-        
-        container.innerHTML = html;
 
-        // 2. Initialize Chart.js
-        setTimeout(() => {
-            chartsToRender.forEach(c => {
+        // 1. Replace charts with placeholders in the raw text
+        const processedText = reportText.replace(chartRegex, (match, jsonStr) => {
+            try {
+                const config = JSON.parse(jsonStr);
+                const chartId = `ai-chart-${Date.now()}-${index++}`;
+                charts.push({ id: chartId, config });
+                return `\n\n<div id="container-${chartId}" class="ai-chart-placeholder"></div>\n\n`;
+            } catch (e) {
+                console.error("Failed to parse chart JSON:", e);
+                return match;
+            }
+        });
+
+        // 2. Render Markdown
+        container.innerHTML = renderMarkdown(processedText);
+
+        // 3. Inject actual chart UI into placeholders and render
+        charts.forEach(c => {
+            const placeholder = document.getElementById(`container-${c.id}`);
+            if (!placeholder) return;
+
+            const chartType = (c.config.type || 'pie') as any;
+            placeholder.innerHTML = `
+                <div class="stat-card premium-card" style="margin: 24px 0; padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px;">
+                    <h5 style="margin-bottom: 20px; font-family: 'Syne', sans-serif; text-align: center; color: var(--accent-light); font-weight: 700;">
+                        ${c.config.title || (window as any).$t('pm.visual_analysis')}
+                    </h5>
+                    <div style="height: 250px; position: relative;">
+                        <canvas id="${c.id}"></canvas>
+                    </div>
+                </div>
+            `;
+
+            // Wait a bit for DOM to settle
+            setTimeout(() => {
                 const ctx = document.getElementById(c.id) as HTMLCanvasElement;
                 if (!ctx) return;
 
-                const chartType = (c.config.type || 'pie') as any;
                 new Chart(ctx, {
                     type: chartType,
                     data: {
                         labels: c.config.labels || [],
                         datasets: [{
-                            label: c.config.title || 'Dữ liệu',
+                            label: c.config.title || (window as any).$t('pm.chart_data_label'),
                             data: c.config.data || [],
                             backgroundColor: chartType === 'pie' || chartType === 'doughnut' 
-                                ? ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#64748b']
+                                ? ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#64748b', '#ec4899', '#06b6d4']
                                 : 'rgba(59, 130, 246, 0.5)',
                             borderColor: '#3b82f6',
                             borderWidth: 1
@@ -738,11 +763,20 @@ export class PMDashboardModule {
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { position: chartType === 'pie' ? 'right' : 'top' } }
+                        plugins: { 
+                            legend: { 
+                                position: chartType === 'pie' || chartType === 'doughnut' ? 'right' : 'top',
+                                labels: { color: 'rgba(255,255,255,0.7)', font: { size: 11 } }
+                            } 
+                        },
+                        scales: chartType === 'bar' || chartType === 'line' ? {
+                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.5)' } },
+                            x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.5)' } }
+                        } : {}
                     }
                 });
-            });
-        }, 50);
+            }, 0);
+        });
     }
 
     private setEl(id: string, val: any) {

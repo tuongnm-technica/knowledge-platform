@@ -1,15 +1,21 @@
-<!-- ── TOPBAR ── -->
-<div class="topbar">
+<div class="topbar" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="page-context">
     <div class="page-eyebrow">Technica Internal</div>
     <div style="display: flex; align-items: center; gap: 12px;">
       <div class="page-title" id="pageTitle">Chat AI</div>
     </div>
   </div>
-  <div class="topbar-badge">Graph-aware retrieval</div>
+  <div class="topbar-badge" x-text="$t('common.topbar_badge', { defaultValue: 'Graph-aware retrieval' })">Graph-aware retrieval</div>
   <div class="status-panel">
     <div class="status-dot" id="statusDot"></div>
-    <div class="status-text" id="statusText">Đang kết nối...</div>
+    <div class="status-text" id="statusText" x-text="$t('common.status_connecting')">Đang kết nối...</div>
   </div>
-  <button class="theme-toggle" id="themeToggle" title="Đổi theme">🌙</button>
+  <div class="language-switcher">
+    <select onchange="window.changeLanguage(this.value)" :value="lang" style="background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 4px 8px; font-size: 13px; cursor: pointer;">
+      <option value="vi">Tiếng Việt</option>
+      <option value="en">English</option>
+      <option value="jp">日本語</option>
+    </select>
+  </div>
+  <button class="theme-toggle" id="themeToggle" :title="$t('common.toggle_theme', { defaultValue: 'Đổi giao diện' })">🌙</button>
 </div>

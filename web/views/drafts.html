@@ -1,17 +1,16 @@
-<!-- ── DRAFTS PAGE (REFAC) ── -->
-<div class="page" id="page-drafts">
+<div class="page" id="page-drafts" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   
   <!-- Danh sách Drafts Container -->
   <div id="drafts-list-view" class="connectors-content" style="padding: 24px; max-width: 1200px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; height: 100%;">
     <div class="page-intro" style="margin-bottom: 24px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap;">
       <div>
         <div class="intro-kicker">Draft management</div>
-        <div class="intro-title">Drafts</div>
-        <div class="intro-sub">Danh sách tài liệu nháp do AI sinh ra. Bạn có thể mở để edit hoặc xóa.</div>
+        <div class="intro-title" x-text="$t('drafts.title')">Drafts</div>
+        <div class="intro-sub" x-text="$t('drafts.intro_sub')">Danh sách tài liệu nháp do AI sinh ra. Bạn có thể mở để edit hoặc xóa.</div>
       </div>
       <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
         <select id="drafts-filter" class="admin-input" style="padding: 8px 12px; min-width: 160px;">
-          <option value="">All types</option>
+          <option value="" x-text="$t('drafts.filter_all')">All types</option>
           <option value="srs">SRS</option>
           <option value="brd">BRD</option>
           <option value="api_spec">API Spec</option>
@@ -23,18 +22,18 @@
           <option value="deployment_spec">Deployment Spec</option>
           <option value="change_request">Change Request</option>
         </select>
-        <button id="drafts-refresh-btn" class="secondary-btn">🔄 Refresh</button>
-        <button id="drafts-open-basket" class="primary-btn" style="background: var(--accent); color: white;">📌 Giỏ ngữ cảnh</button>
+        <button id="drafts-refresh-btn" class="secondary-btn">🔄 <span x-text="$t('common.refresh')">Refresh</span></button>
+        <button id="drafts-open-basket" class="primary-btn" style="background: var(--accent); color: white;" x-text="$t('drafts.btn_basket')">📌 Giỏ ngữ cảnh</button>
       </div>
     </div>
 
     <div style="flex: 1; overflow-y: auto; padding-right: 8px; padding-bottom: 24px;">
-      <div id="drafts-loading" style="padding: 40px; text-align: center; color: var(--text-muted); display: none;"><span class="spin">🔄</span> Đang tải dữ liệu...</div>
+      <div id="drafts-loading" style="padding: 40px; text-align: center; color: var(--text-muted); display: none;"><span class="spin">🔄</span> <span x-text="$t('common.loading')">Đang tải dữ liệu...</span></div>
       
       <div id="drafts-empty-state" style="padding: 60px 20px; text-align: center; display: none; flex-direction: column; align-items: center;">
         <div style="font-size: 40px; margin-bottom: 12px; opacity: 0.5;">📝</div>
-        <div style="color: var(--text); font-weight: 500;">Chưa có bản nháp nào.</div>
-        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Dùng Giỏ ngữ cảnh (Context Basket) để tạo tài liệu mới.</div>
+        <div style="color: var(--text); font-weight: 500;" x-text="$t('drafts.empty_title')">Chưa có bản nháp nào.</div>
+        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;" x-text="$t('drafts.empty_sub')">Dùng Giỏ ngữ cảnh (Context Basket) để tạo tài liệu mới.</div>
       </div>
       
       <div class="drafts-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
@@ -49,12 +48,12 @@
         
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--bg2); border-bottom: 1px solid var(--border-strong); flex-shrink: 0; gap: 16px;">
            <div style="display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0;">
-              <button id="drafts-close-editor" class="secondary-btn" style="padding: 8px 12px;">← Quay lại</button>
-              <input type="text" id="draft-editor-title" class="admin-input" style="flex: 1; font-size: 16px; font-weight: 700; max-width: 600px; padding: 8px 16px; background: var(--bg);" placeholder="Nhập tiêu đề...">
+              <button id="drafts-close-editor" class="secondary-btn" style="padding: 8px 12px;">← <span x-text="$t('drafts.editor_back')">Quay lại</span></button>
+              <input type="text" id="draft-editor-title" class="admin-input" style="flex: 1; font-size: 16px; font-weight: 700; max-width: 600px; padding: 8px 16px; background: var(--bg);" :placeholder="$t('drafts.editor_title_placeholder')">
            </div>
           
            <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
-              <button id="drafts-save-btn" class="primary-btn" style="padding: 8px 20px;">💾 Lưu thay đổi</button>
+              <button id="drafts-save-btn" class="primary-btn" style="padding: 8px 20px;">💾 <span x-text="$t('drafts.editor_save')">Lưu thay đổi</span></button>
            </div>
         </div>
 

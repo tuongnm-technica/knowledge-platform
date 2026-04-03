@@ -170,7 +170,10 @@ class ConfluenceConnector(BaseConnector):
 
     async def _process_page(self, page: dict, space_key: str, space_name: str) -> Document | None:
         page_id = page["id"]
-        body_html = await asyncio.to_thread(self._client.get_page_body, page_id)
+        # Use pre-fetched body if available to save redundant API calls
+        body_html = page.get("body", {}).get("storage", {}).get("value", "")
+        if not body_html:
+            body_html = await asyncio.to_thread(self._client.get_page_body, page_id)
         content = self._parser.parse(body_html)
 
         if not content or len(content.strip()) < 20:

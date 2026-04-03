@@ -147,56 +147,13 @@ def _parse_llm_response(text: str) -> tuple[str, dict]:
 
 
 def _build_memory_prompt(memory_grouped: dict) -> str:
-    if not memory_grouped:
-        return ""
-    
-    lines = [
-        "\n\n--- PROJECT MEMORY ---",
-        "You MUST adhere to these previously defined concepts and roles. Do not redefine them differently."
-    ]
-    
-    for mtype, items in memory_grouped.items():
-        lines.append(f"\n## {mtype.upper()}:")
-        # Giới hạn 50 items mỗi loại, cắt ngắn content để tránh nổ token
-        for item in items[:50]:
-            key = str(item.get("key") or "").strip()
-            content = str(item.get("content") or "").strip()[:400]
-            if key and content:
-                lines.append(f"- {key}: {content}")
-    
-    lines.append("------------------------\n")
-    return "\n".join(lines)
+    # Vô hiệu hoá Project Memory theo yêu cầu người dùng
+    return ""
 
 
 async def _extract_and_save_memory(structured_data: dict, repo: ProjectMemoryRepository, user_id: str):
-    if not structured_data:
-        return
-        
-    # 1. Trích xuất Glossary
-    for item in structured_data.get("glossary", []):
-        if isinstance(item, dict):
-            k = item.get("term")
-            v = item.get("definition")
-            if k and v:
-                await repo.upsert(memory_type="glossary", key=k[:255], content=v[:1000], created_by=user_id)
-                
-    # 2. Trích xuất Stakeholders / Actors (Tương thích chuẩn JSON Schema mới)
-    stakeholders = structured_data.get("stakeholders") or structured_data.get("actors") or []
-    for item in stakeholders:
-        if isinstance(item, dict):
-            k = item.get("name") or item.get("actor")
-            v = item.get("role") or item.get("description")
-            if k and v:
-                await repo.upsert(memory_type="actor", key=k[:255], content=v[:1000], created_by=user_id)
-
-    # 3. Trích xuất Business Rules (Dự phòng nếu AI có sinh ra field này)
-    rules = structured_data.get("business_rules") or structured_data.get("rules") or []
-    for item in rules:
-        if isinstance(item, dict):
-            k = item.get("id") or item.get("rule")
-            v = item.get("description") or item.get("desc")
-            if k and v:
-                await repo.upsert(memory_type="rule", key=k[:255], content=v[:1000], created_by=user_id)
+    # Tạm dừng tự động trích xuất memory cho đến khi người dùng sẵn sàng
+    return
 
 
 @router.get("/supported-types")

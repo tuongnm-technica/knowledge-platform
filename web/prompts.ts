@@ -10,17 +10,17 @@ export class PromptsModule {
 
     public async loadPromptsPage(): Promise<void> {
         const container = document.getElementById('page-prompts');
-        if (container) container.innerHTML = '<div style="padding:40px; text-align:center;">Đang tải danh sách Skill Prompts...</div>';
+        if (container) container.innerHTML = `<div style="padding:40px; text-align:center;">${(window as any).$t('prompts.loading')}</div>`;
 
         try {
             const res = await authFetch(`${API}/prompts`);
-            if (!res.ok) throw new Error('Không thể tải prompts');
+            if (!res.ok) throw new Error((window as any).$t('prompts.err_load_list'));
             const data = await res.json() as { prompts: PromptSkill[] };
             const prompts: PromptSkill[] = data.prompts || [];
             this.renderPrompts(prompts);
         } catch(err) {
             const error = err as Error;
-            if (container) container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--danger)">Lỗi tải Skills API: ${escapeHtml(error.message)}</div>`;
+            if (container) container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--danger)">${(window as any).$t('prompts.err_load_api')} ${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -32,9 +32,9 @@ export class PromptsModule {
         <div class="connectors-content">
             <div class="page-intro">
                 <div>
-                    <div class="intro-kicker">AI Skills</div>
-                    <div class="intro-title">Skill Prompts Library</div>
-                    <div class="intro-sub">Quản lý các mẫu AI Agents dùng cho việc phân tích và tạo tài liệu (chọn trong Giỏ ngữ cảnh).</div>
+                    <div class="intro-kicker">${(window as any).$t('prompts.intro_kicker')}</div>
+                    <div class="intro-title">${(window as any).$t('prompts.intro_title')}</div>
+                    <div class="intro-sub">${(window as any).$t('prompts.intro_sub')}</div>
                 </div>
             </div>
             <div id="skillsGroupsContainer" style="padding: 0 20px;"></div>
@@ -44,14 +44,14 @@ export class PromptsModule {
         if (!groupsContainer) return;
 
         if (!prompts || prompts.length === 0) {
-            groupsContainer.innerHTML = '<div class="search-empty">Chưa cấu hình skill prompt nào trên backend.</div>';
+            groupsContainer.innerHTML = `<div class="search-empty">${(window as any).$t('prompts.empty_hint')}</div>`;
             return;
         }
 
         // 1. Group prompts
         const groups: { [key: string]: PromptSkill[] } = {};
         prompts.forEach(p => {
-            const g = (p as any).group || 'Other';
+            const g = (p as any).group || (window as any).$t('prompts.fallback_group');
             if (!groups[g]) groups[g] = [];
             groups[g].push(p);
         });
@@ -82,8 +82,8 @@ export class PromptsModule {
 
             groupPrompts.forEach(p => {
                 const type = p.doc_type || p.type || 'System';
-                const label = p.label || p.name || 'Untitled Agent';
-                const desc = p.description || 'Hỗ trợ viết tự động tài liệu SDLC';
+                const label = p.label || p.name || (window as any).$t('prompts.fallback_label');
+                const desc = p.description || (window as any).$t('prompts.fallback_desc');
                 
                 const card = document.createElement('div');
                 card.className = 'connector-card-rich';
@@ -95,8 +95,8 @@ export class PromptsModule {
                         <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:12px">
                             <div style="font-size:10px; font-weight:700; color:var(--text-muted); background:var(--bg3); padding:3px 8px; border-radius:4px; text-transform:uppercase">${escapeHtml(type)}</div>
                             <div class="connector-actions-row" style="margin-top:0; border:none; padding:0; gap:8px">
-                                <button class="secondary-btn mini" data-action="edit" data-type="${escapeHtml(type)}" title="Chỉnh sửa instructions">✏️</button>
-                                <button class="secondary-btn mini" data-action="reset" data-type="${escapeHtml(type)}" title="Khôi phục mặc định">🔄</button>
+                                <button class="secondary-btn mini" data-action="edit" data-type="${escapeHtml(type)}" title="${(window as any).$t('prompts.tooltip_edit')}">✏️</button>
+                                <button class="secondary-btn mini" data-action="reset" data-type="${escapeHtml(type)}" title="${(window as any).$t('prompts.tooltip_reset')}">🔄</button>
                             </div>
                         </div>
                     </div>
@@ -123,10 +123,10 @@ export class PromptsModule {
     }
 
     private async openEditModal(docType: string): Promise<void> {
-        showToast('Đang tải thông tin prompt...', 'info');
+        showToast((window as any).$t('prompts.toast_loading_detail'), 'info');
         try {
             const res = await authFetch(`${API}/prompts/${docType}`);
-            if (!res.ok) throw new Error('Không tải được chi tiết prompt');
+            if (!res.ok) throw new Error((window as any).$t('prompts.err_load_detail'));
             const data = await res.json() as PromptSkill & { default_prompt?: string };
 
             const body = document.createElement('div');
@@ -139,9 +139,9 @@ export class PromptsModule {
             rightPanel.className = 'prompt-edit-modal-panel';
 
             const { wrap: areaWrap, input: areaInput } = _kpBuildModalField({
-                id: 'promptContent', label: 'System Instructions (Editor)', type: 'textarea', 
+                id: 'promptContent', label: (window as any).$t('prompts.label_instructions'), type: 'textarea', 
                 value: data.system_prompt || data.template || '', 
-                placeholder: 'Enter the AI instructions here...'
+                placeholder: (window as any).$t('prompts.placeholder_instructions')
             });
             areaWrap.classList.add('prompt-edit-modal-editor-wrap');
             const ta = areaInput as HTMLTextAreaElement;
@@ -160,7 +160,7 @@ export class PromptsModule {
 
             const previewLabel = document.createElement('label');
             previewLabel.className = 'kp-modal-label';
-            previewLabel.textContent = 'Live Preview (Rendered)';
+            previewLabel.textContent = (window as any).$t('prompts.label_preview');
             
             const previewBox = document.createElement('div');
             previewBox.className = 'markdown-body premium-scrollbar prompt-edit-modal-preview';
@@ -184,15 +184,15 @@ export class PromptsModule {
             body.appendChild(rightPanel);
 
             await kpOpenModal({
-                title: `✏️ Chỉnh sửa Skill: ${data.label || docType}`,
-                subtitle: 'Thay đổi các hướng dẫn (instructions) mà AI sử dụng khi thực hiện skill này.',
+                title: (window as any).$t('prompts.modal_edit_title', { label: data.label || docType }),
+                subtitle: (window as any).$t('prompts.modal_edit_sub'),
                 content: body,
                 modalClass: 'kp-modal-lg',
                 contentStyles: { maxWidth: '1200px', width: '95vw' }, // Ultra-wide modal for IDE feel
-                okText: 'Cập nhật Prompt',
+                okText: (window as any).$t('prompts.btn_update'),
                 onOk: async () => {
                     const content = ta.value.trim();
-                    if (!content) return { error: 'Nội dung prompt không được để trống' };
+                    if (!content) return { error: (window as any).$t('prompts.err_empty_content') };
 
                     try {
                         const upd = await authFetch(`${API}/prompts/${docType}`, {
@@ -200,8 +200,8 @@ export class PromptsModule {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ system_prompt: content })
                         });
-                        if (!upd.ok) throw new Error('Cập nhật thất bại');
-                        showToast('Đã cập nhật prompt thành công', 'success');
+                        if (!upd.ok) throw new Error((window as any).$t('prompts.err_update_failed'));
+                        showToast((window as any).$t('prompts.update_success'), 'success');
                         return true;
                     } catch (e) {
                         return { error: (e as Error).message };
@@ -215,16 +215,16 @@ export class PromptsModule {
 
     private async resetPrompt(docType: string): Promise<void> {
         const confirmed = await kpConfirm({
-            title: 'Khôi phục mặc định',
-            message: `Bạn có chắc muốn khôi phục prompt mang tên "${docType}" về giá trị mặc định của hệ thống?`,
-            okText: 'Khôi phục ngay'
+            title: (window as any).$t('prompts.confirm_reset_title'),
+            message: (window as any).$t('prompts.confirm_reset_msg', { type: docType }),
+            okText: (window as any).$t('prompts.btn_reset_confirm')
         });
         if (!confirmed) return;
 
         try {
             const res = await authFetch(`${API}/prompts/${docType}/reset`, { method: 'POST' });
-            if (!res.ok) throw new Error('Reset thất bại');
-            showToast('Đã khôi phục prompt mặc định', 'success');
+            if (!res.ok) throw new Error((window as any).$t('prompts.err_reset_failed'));
+            showToast((window as any).$t('prompts.reset_success'), 'success');
             this.loadPromptsPage();
         } catch (e) {
             showToast((e as Error).message, 'error');

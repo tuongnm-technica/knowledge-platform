@@ -115,6 +115,9 @@ class SyncStatusRequest(BaseModel):
 
 class SyncTriggerRequest(BaseModel):
     force_full: bool = False
+    summarize: bool | None = None
+    relations: bool | None = None
+    vision: bool | None = None
 
 
 @router.get("/{connector_type}/instances")
@@ -235,6 +238,9 @@ async def sync_connector_instance(
         connector_type,
         instance_id,
         incremental=incremental,
+        summarize=req.summarize if req else None,
+        relations=req.relations if req else None,
+        vision=req.vision if req else None,
     )
 
 @router.post("/{connector_type}/instances/{instance_id}/stop")

@@ -1,14 +1,13 @@
-<!-- ── CONNECTORS PAGE ── -->
-<div class="page" id="page-connectors">
+<div class="page" id="page-connectors" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="connectors-content">
     <div class="page-intro">
       <div class="intro-copy">
         <div class="intro-kicker">Sources</div>
-        <div class="intro-title">Connector control room</div>
-        <div class="intro-sub">Theo dõi cấu hình, sức khỏe kết nối, lịch sử đồng bộ và thao tác vận hành cho từng nguồn dữ liệu.</div>
+        <div class="intro-title" x-text="$t('connectors.title', { defaultValue: 'Connector control room' })">Connector control room</div>
+        <div class="intro-sub" x-text="$t('connectors.intro_sub')">Theo dõi cấu hình, sức khỏe kết nối, lịch sử đồng bộ và thao tác vận hành cho từng nguồn dữ liệu.</div>
       </div>
       <div class="header-actions">
-        <button class="primary-btn" id="addConnectorBtn">+ Thêm kết nối</button>
+        <button class="primary-btn" id="addConnectorBtn" x-text="$t('connectors.btn_add')">+ Thêm kết nối</button>
         <div class="count-pill" id="connectorsSummaryPill">Manual sync enabled</div>
       </div>
     </div>
@@ -19,7 +18,7 @@
     <div id="connectorsToolbar" class="connectors-toolbar-wrapper"></div>
     
     <div class="connector-list" id="connectorsGrid">
-      <div class="connectors-empty">Đang tải danh sách kết nối...</div>
+      <div class="connectors-empty" x-text="$t('connectors.loading')">Đang tải danh sách kết nối...</div>
     </div>
 
   </div>

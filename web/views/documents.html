@@ -1,12 +1,12 @@
-<div class="page" id="page-documents">
+<div class="page" id="page-documents" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
     <div class="connectors-content">
         <div class="documents-header">
             <div class="count-pill">
-                <span class="count-bold" id="doc-total-count">0</span> tài liệu
+                <span class="count-bold" id="doc-total-count">0</span><span x-text="$t('docs.total')"> tài liệu</span>
             </div>
             <div class="header-actions">
                 <a href="/graph" data-navigo class="secondary-btn graph-btn">
-                    <span>🕸️</span> Khám phá Knowledge Graph
+                    <span>🕸️</span> <span x-text="$t('docs.explore_graph')">Khám phá Knowledge Graph</span>
                 </a>
             </div>
         </div>
@@ -14,28 +14,28 @@
             <div class="intro-flex">
                 <div>
                     <div class="intro-kicker">Knowledge Management</div>
-                    <div class="intro-title">Knowledge Base</div>
-                    <div class="intro-sub">Quản lý và cập nhật các tài liệu đã được đồng bộ từ các nguồn dữ liệu (Connectors).</div>
+                    <div class="intro-title" x-text="$t('docs.intro_title')">Knowledge Base</div>
+                    <div class="intro-sub" x-text="$t('docs.intro_sub')">Quản lý và cập nhật các tài liệu đã được đồng bộ từ các nguồn dữ liệu (Connectors).</div>
                 </div>
                 <div class="documents-controls">
                     <div class="search-box">
-                        <input type="text" id="docSearchInput" class="admin-input" placeholder="Tìm kiếm tiêu đề...">
-                        <button class="secondary-btn" id="docSearchBtn">🔍 Tìm</button>
+                        <input type="text" id="docSearchInput" class="admin-input" :placeholder="$t('docs.search_placeholder')">
+                        <button class="secondary-btn" id="docSearchBtn">🔍 <span x-text="$t('docs.btn_search')">Tìm</span></button>
                     </div>
                     <div class="batch-actions">
-                        <button class="secondary-btn" id="batchAddToBasketBtn">📌 Thêm vào giỏ</button>
-                        <button class="danger-btn" id="batchDeleteDocsBtn">🗑 Xóa đã chọn</button>
+                        <button class="secondary-btn" id="batchAddToBasketBtn">📌 <span x-text="$t('docs.btn_add_basket')">Thêm vào giỏ</span></button>
+                        <button class="danger-btn" id="batchDeleteDocsBtn">🗑 <span x-text="$t('docs.btn_delete')">Xóa đã chọn</span></button>
                     </div>
                     <div id="docPagination" class="pagination-bar">
                         <button class="secondary-btn mini" id="prevDocsBtn">◀</button>
-                        <span id="docPageInfo">Trang 1 / 1</span>
+                        <span id="docPageInfo"><span x-text="$t('docs.page_info')">Trang</span> 1 / 1</span>
                         <button class="secondary-btn mini" id="nextDocsBtn">▶</button>
                     </div>
                 </div>
             </div>
         </div>
         <div id="documentsList" class="admin-table-wrapper" style="margin: 0 20px;">
-            <div style="padding:40px; text-align:center; color:var(--text-dim)">Đang khởi tạo danh sách tài liệu...</div>
+            <div style="padding:40px; text-align:center; color:var(--text-dim)" x-text="$t('docs.loading')">Đang khởi tạo danh sách tài liệu...</div>
         </div>
     </div>
 </div>

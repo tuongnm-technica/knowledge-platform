@@ -183,7 +183,7 @@ class SlackScanner(BaseScanner):
                     if saved_task_titles and thread_ts:
                         titles_str = "\n".join(f"• *{tt}*" for tt in saved_task_titles)
                         msg = f"🤖 *[Knowledge Platform]*\nTớ đã quét luồng thảo luận này và bóc tách thành các Draft Task:\n{titles_str}\n\n👉 Mọi người vào hệ thống duyệt để tớ đồng bộ sang Jira nhé!"
-                        await client.reply_to_thread(channel_id, thread_ts, msg)
+                        # await client.reply_to_thread(channel_id, thread_ts, msg)
                         
         return total
 
@@ -299,6 +299,6 @@ class SlackScanner(BaseScanner):
         if saved_task_titles and thread_ts:
             titles_str = "\n".join(f"• *{tt}*" for tt in saved_task_titles)
             msg = f"🤖 *[Knowledge Platform]*\nTớ vừa bóc tách nhanh Thread này theo yêu cầu (Webhook) và tạo các Draft Task:\n{titles_str}\n\n👉 Mọi người vào hệ thống duyệt để tớ đồng bộ sang Jira nhé!"
-            await client.reply_to_thread(channel_id, thread_ts, msg)
+            # await client.reply_to_thread(channel_id, thread_ts, msg)
             
         return total

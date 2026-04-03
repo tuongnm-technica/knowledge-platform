@@ -17,12 +17,12 @@ log = structlog.get_logger()
 # Lấy URL từ settings, fallback về mặc định cho Docker nếu chưa được định nghĩa
 REDIS_URL = getattr(settings, "REDIS_URL", "redis://redis:6379/0")
 
-async def sync_connector_job(ctx, connector_type: str, instance_id: str, incremental: bool):
+async def sync_connector_job(ctx, connector_type: str, instance_id: str, incremental: bool, summarize: bool | None = None, relations: bool | None = None, vision: bool | None = None):
     """Task được xử lý ở background, tách bạch hoàn toàn với API server"""
     log.info("worker.sync_connector_job.started", connector=connector_type, instance_id=instance_id)
     log.info("worker.sync_connector_job.dispatching", connector=connector_type, instance_id=instance_id)
     try:
-        await _run_sync_task(connector_type, instance_id, incremental)
+        await _run_sync_task(connector_type, instance_id, incremental, summarize, relations, vision)
         log.info("worker.sync_connector_job.completed", connector=connector_type, instance_id=instance_id)
     except Exception as e:
         log.error("worker.sync_connector_job.failed", connector=connector_type, error=str(e))
@@ -51,6 +51,10 @@ async def generate_pm_digest_job_proxy(ctx, *args, **kwargs):
 async def send_scheduled_pm_reports_job_proxy(ctx, *args, **kwargs):
     from tasks.pm_reports import send_scheduled_pm_reports
     return await send_scheduled_pm_reports(ctx, *args, **kwargs)
+
+async def check_daily_logtime_job_proxy(ctx, *args, **kwargs):
+    from tasks.pm_logtime import check_daily_logtime
+    return await check_daily_logtime(ctx, *args, **kwargs)
 
 async def aggregate_pm_metrics_job(ctx, project_key: str):
     from tasks.pm_metrics import aggregate_pm_metrics
@@ -151,6 +155,7 @@ class AIWorkerSettings(BaseWorkerSettings):
         arq.func(run_sdlc_generation_job_proxy, name='run_sdlc_generation_job'),
         arq.func(generate_pm_digest_job_proxy, name='generate_pm_digest'),
         arq.func(send_scheduled_pm_reports_job_proxy, name='send_scheduled_pm_reports'),
+        arq.func(check_daily_logtime_job_proxy, name='check_daily_logtime'),
         arq.func(aggregate_pm_metrics_job, name='aggregate_pm_metrics'),
     ]
     job_timeout = settings.ARQ_AI_JOB_TIMEOUT

@@ -30,13 +30,13 @@ export class DraftsModule {
         try {
             const docType = this.filterType ? `&doc_type=${this.filterType}` : '';
             const response = await authFetch(`${API}/docs/drafts?limit=50${docType}`);
-            if (!response.ok) throw new Error('Failed to load drafts');
+            if (!response.ok) throw new Error((window as any).$t('drafts.err_load_list'));
             const data = await response.json() as { drafts: Draft[] };
             this.drafts = data.drafts || [];
             this.checkPolling();
         } catch (err) {
             console.error(err);
-            showToast('Không tải được danh sách drafts', 'error');
+            showToast((window as any).$t('drafts.err_load_list'), 'error');
         } finally {
             this.isLoading = false;
             this.render();
@@ -66,7 +66,7 @@ export class DraftsModule {
         this.render();
         try {
             const res = await authFetch(`${API}/docs/drafts/${draftId}`);
-            if (!res.ok) throw new Error('Không tải được draft');
+            if (!res.ok) throw new Error((window as any).$t('drafts.err_load_draft'));
             const data = await res.json() as { draft: Draft };
             this.currentDraft = data.draft;
 
@@ -119,8 +119,8 @@ export class DraftsModule {
                     status: this.currentDraft.status
                 }),
             });
-            if (!res.ok) throw new Error('Lưu thất bại');
-            showToast('Đã lưu bản nháp', 'success');
+            if (!res.ok) throw new Error((window as any).$t('drafts.err_save_failed'));
+            showToast((window as any).$t('drafts.save_success'), 'success');
         } catch (err) {
             showToast((err as Error).message, 'error');
         }
@@ -128,14 +128,14 @@ export class DraftsModule {
 
     public async deleteDraft(draftId: string) {
         if (!await kpConfirm({
-            title: 'Xóa bản nháp',
-            message: 'Bạn có chắc chắn muốn xóa bản nháp này?',
+            title: (window as any).$t('drafts.confirm_delete_title'),
+            message: (window as any).$t('drafts.confirm_delete_msg'),
             danger: true
         })) return;
         try {
             const res = await authFetch(`${API}/docs/drafts/${draftId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Xóa thất bại');
-            showToast('Đã xóa bản nháp', 'success');
+            if (!res.ok) throw new Error((window as any).$t('drafts.err_delete_failed'));
+            showToast((window as any).$t('drafts.delete_success'), 'success');
             await this.loadDraftsPage(true);
         } catch (err) {
             showToast((err as Error).message, 'error');
@@ -164,7 +164,7 @@ export class DraftsModule {
             const grid = listContainer.querySelector('.drafts-grid');
             if (grid) {
                 if (this.drafts.length === 0 && !this.isLoading) {
-                    grid.innerHTML = '<div class="empty-state">Chưa có bản nháp nào. Hãy chạy skill để tạo nháp.</div>';
+                    grid.innerHTML = `<div class="empty-state">${(window as any).$t('drafts.empty_hint_long')}</div>`;
                 } else {
                     grid.innerHTML = this.drafts.map(d => {
                         const isProcessing = d.status === 'processing';
@@ -180,10 +180,10 @@ export class DraftsModule {
                             </div>
                             <div class="draft-card-footer">
                                 ${isProcessing 
-                                    ? '<span class="status-tag processing">Đang soạn thảo...</span>' 
-                                    : `<button class="secondary-btn mini edit-btn" data-id="${d.id}">✏️ Sửa</button>`
+                                    ? `<span class="status-tag processing">${(window as any).$t('drafts.status_processing')}</span>` 
+                                    : `<button class="secondary-btn mini edit-btn" data-id="${d.id}">✏️ ${(window as any).$t('drafts.edit_btn')}</button>`
                                 }
-                                <button class="danger-btn mini ghost-btn delete-btn" data-id="${d.id}">🗑 Xóa</button>
+                                <button class="danger-btn mini ghost-btn delete-btn" data-id="${d.id}">🗑 ${(window as any).$t('drafts.delete_btn')}</button>
                             </div>
                         </div>
                     `}).join('');

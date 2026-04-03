@@ -5,7 +5,10 @@ FastAPI dependencies — inject current_user vào routes.
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from apps.api.auth.jwt_handler import decode_token
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from storage.db.db import get_db, UserGroupORM
 
 bearer = HTTPBearer()
 
@@ -16,6 +19,7 @@ class CurrentUser:
     email:    str
     is_admin: bool
     role: str = "standard"
+    groups: list[str] = field(default_factory=list)
 
 
 ROLE_SYSTEM_ADMIN = "system_admin"
@@ -64,8 +68,9 @@ def has_role(current_user: CurrentUser, allowed: set[str]) -> bool:
     return role in allowed
 
 
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer),
+    session: AsyncSession = Depends(get_db),
 ) -> CurrentUser:
     """Inject vào bất kỳ route nào cần auth"""
     try:
@@ -79,11 +84,20 @@ def get_current_user(
     raw_is_admin = bool(payload.get("is_admin", False))
     role = normalize_role(payload.get("role", ROLE_STANDARD) or ROLE_STANDARD, is_admin=raw_is_admin)
     effective_admin = raw_is_admin or role == ROLE_SYSTEM_ADMIN
+    
+    uid = payload["sub"]
+    # Fetch groups for root-level security
+    groups_res = await session.execute(
+        select(UserGroupORM.group_id).where(UserGroupORM.user_id == uid)
+    )
+    groups = list(groups_res.scalars().all())
+    
     return CurrentUser(
-        user_id=payload["sub"],
+        user_id=uid,
         email=payload["email"],
         is_admin=effective_admin,
         role=role,
+        groups=groups
     )
 
 
@@ -113,8 +127,9 @@ def require_task_manager(current_user: CurrentUser = Depends(get_current_user)) 
     return current_user
 
 
-def get_current_user_optional(
+async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
+    session: AsyncSession = Depends(get_db),
 ) -> CurrentUser | None:
     """Optional auth — dùng cho endpoints public nhưng muốn biết user là ai"""
     if not credentials:
@@ -124,11 +139,19 @@ def get_current_user_optional(
         raw_is_admin = bool(payload.get("is_admin", False))
         role = normalize_role(payload.get("role", ROLE_STANDARD) or ROLE_STANDARD, is_admin=raw_is_admin)
         effective_admin = raw_is_admin or role == ROLE_SYSTEM_ADMIN
+        
+        uid = payload["sub"]
+        groups_res = await session.execute(
+            select(UserGroupORM.group_id).where(UserGroupORM.user_id == uid)
+        )
+        groups = list(groups_res.scalars().all())
+
         return CurrentUser(
-            user_id  = payload["sub"],
+            user_id  = uid,
             email    = payload["email"],
             is_admin = effective_admin,
             role     = role,
+            groups   = groups
         )
-    except ValueError:
+    except Exception:
         return None

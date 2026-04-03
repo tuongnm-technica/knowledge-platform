@@ -52,7 +52,15 @@ class IngestionPipeline:
         self._sync_repo = SyncRepository(session)
         self._summarizer = SummarizationService()
 
-    async def run(self, connector: BaseConnector, incremental: bool = True, connector_key: str | None = None) -> dict:
+    async def run(
+        self, 
+        connector: BaseConnector, 
+        incremental: bool = True, 
+        connector_key: str | None = None,
+        summarize: bool | None = None,
+        relations: bool | None = None,
+        vision: bool | None = None
+    ) -> dict:
         stats = {"fetched": 0, "indexed": 0, "skipped": 0, "errors": 0}
         connector_name = connector_key or connector.__class__.__name__.replace("Connector", "").lower()
 
@@ -107,7 +115,7 @@ class IngestionPipeline:
             for doc in batch_docs:
                 try:
                     log.debug("ingestion.doc.process", doc_id=doc.id, title=doc.title[:50])
-                    await self._process(doc, connector_key=connector_key or connector_name)
+                    await self._process(doc, connector_key=connector_key or connector_name, summarize=summarize, relations=relations, vision=vision)
                     stats["indexed"] += 1
                 except Exception as e:
                     log.error("ingestion.doc.error", doc_id=doc.id, error=str(e))
@@ -150,7 +158,7 @@ class IngestionPipeline:
         log.info("ingestion.done", connector=connector_name, **stats)
         return stats
 
-    async def _process(self, doc: Document, *, connector_key: str) -> None:
+    async def _process(self, doc: Document, *, connector_key: str, summarize: bool | None = None, relations: bool | None = None, vision: bool | None = None) -> None:
         sections = None
         if doc.source == SourceType.CONFLUENCE:
             raw_html = doc.metadata.get("raw_html", "")
@@ -162,9 +170,15 @@ class IngestionPipeline:
 
         doc.content = self._cleaner.clean(doc.content)
         
-        # AI Summarization: Zoom/Meet (always) or Confluence (if content length >= 500 words)
-        words = doc.content.split()
-        if doc.source in (SourceType.ZOOM, SourceType.GOOGLE_MEET) or (doc.source == SourceType.CONFLUENCE and len(words) >= 500):
+        # AI Summarization logic with overrides
+        should_summarize = summarize
+        if should_summarize is None:
+            words = doc.content.split()
+            should_summarize = settings.INGESTION_AI_SUMMARIZE_ENABLED and (
+                doc.source in (SourceType.ZOOM, SourceType.GOOGLE_MEET) or (doc.source == SourceType.CONFLUENCE and len(words) >= 500)
+            )
+
+        if should_summarize:
             try:
                 summary = await self._summarizer.summarize(doc.content, doc.source, doc.title)
                 if summary:
@@ -195,7 +209,7 @@ class IngestionPipeline:
         try:
             from ingestion.assets_ingestor import AssetIngestor
 
-            enriched = await AssetIngestor(self._session).enrich_document(doc)
+            enriched = await AssetIngestor(self._session).enrich_document(doc, vision=vision)
             if enriched.get("ingested", 0) > 0:
                 doc.content = str(enriched.get("content") or doc.content)
                 replacements = enriched.get("replacements") or {}
@@ -244,11 +258,13 @@ class IngestionPipeline:
         await self._graph.link_document_identities(doc.id, resolved_identities)
         await self._graph.link_document_entities(doc.id, extracted_entities)
         
-        # Mới: Sử dụng LLM để trích xuất Semantic Relations và nhét vào DB
-        # Skip cho Jira/Slack: nội dung ngắn/cấu trúc, không cần LLM relations
-        # (giảm số LLM call từ N_issues → 0 cho Jira, tăng tốc ingest ~5-10x)
-        _SKIP_RELATIONS_FOR = {SourceType.JIRA, SourceType.SLACK}
-        if doc.source not in _SKIP_RELATIONS_FOR:
+        # AI Relations logic with overrides
+        should_run_relations = relations
+        if should_run_relations is None:
+            _SKIP_RELATIONS_FOR = {SourceType.JIRA, SourceType.SLACK, SourceType.CONFLUENCE}
+            should_run_relations = settings.INGESTION_AI_RELATIONS_ENABLED and doc.source not in _SKIP_RELATIONS_FOR
+        
+        if should_run_relations:
             try:
                 semantic_relations = await self._relation_extractor.extract(f"{doc.title}\n{doc.content}")
                 if semantic_relations:

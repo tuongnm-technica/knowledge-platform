@@ -74,6 +74,19 @@ async def _run_pm_report_sending() -> None:
     except Exception as exc:
         log.error("scheduler.pm_report_send.failed", error=str(exc))
 
+async def _run_daily_logtime_check() -> None:
+    """Job hàng ngày lúc 15:00 để quét log time Jira và gửi nhắc nhở."""
+    try:
+        from arq_worker import REDIS_URL
+        from arq import create_pool
+        from arq.connections import RedisSettings
+        
+        pool = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+        await pool.enqueue_job("check_daily_logtime", _queue_name="arq:ai")
+        log.info("scheduler.daily_logtime_check.enqueued")
+    except Exception as exc:
+        log.error("scheduler.daily_logtime_check.failed", error=str(exc))
+
 
 
 async def sync_connector_key_job(connector_key: str) -> None:
@@ -291,6 +304,13 @@ def start_scheduler() -> None:
         trigger=CronTrigger(day_of_week="mon,thu", hour=8, minute=0, timezone="Asia/Ho_Chi_Minh"),
         id="pm_report_send_biweekly",
         name="Biweekly PM Report Sending (Mon, Thu @ 8:00)",
+        misfire_grace_time=3600,
+    )
+    scheduler.add_job(
+        _run_daily_logtime_check,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=0, timezone="Asia/Ho_Chi_Minh"),
+        id="daily_logtime_reminder",
+        name="Daily Jira Log-time Reminder (Mon-Fri @ 15:00)",
         misfire_grace_time=3600,
     )
 

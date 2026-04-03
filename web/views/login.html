@@ -1,5 +1,4 @@
-<!-- LOGIN SCREEN -->
-<div id="login-screen">
+<div id="login-screen" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="login-card">
     <div class="login-logo">
       <div class="login-logo-icon">&#129504;</div>
@@ -8,22 +7,22 @@
         <div class="login-logo-sub">On-Premise AI Platform &mdash; Technica</div>
       </div>
     </div>
-    <div class="login-title">Đăng nhập</div>
-    <div class="login-sub">Nhập thông tin tài khoản Technica của bạn</div>
-    <div class="login-error" id="loginError">Email hoặc mật khẩu không đúng</div>
+    <div class="login-title" x-text="$t('login.title')">Đăng nhập</div>
+    <div class="login-sub" x-text="$t('login.sub')">Nhập thông tin tài khoản Technica của bạn</div>
+    <div class="login-error" id="loginError" x-text="$t('login.error')">Email hoặc mật khẩu không đúng</div>
     <div class="login-field">
-      <label>EMAIL</label>
+      <label x-text="$t('login.email')">EMAIL</label>
       <input id="loginEmail" type="email" placeholder="you@technica.vn" autocomplete="email">
     </div>
     <div class="login-field">
-      <label>MẬT KHẨU</label>
+      <label x-text="$t('login.password')">MẬT KHẨU</label>
       <input id="loginPassword" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
         autocomplete="current-password">
     </div>
     <button class="login-btn" id="loginBtn">
-      <span id="loginBtnText">Đăng nhập</span>
+      <span id="loginBtnText" x-text="$t('login.btn')">Đăng nhập</span>
     </button>
-    <div class="login-footer">Technica Internal &mdash; Confidential</div>
+    <div class="login-footer" x-text="$t('login.footer')">Technica Internal &mdash; Confidential</div>
   </div>
-  <button id="loginThemeToggle" class="theme-toggle-login" title="Đổi giao diện">🌓</button>
+  <button id="loginThemeToggle" class="theme-toggle-login" :title="$t('login.theme_title')">🌓</button>
 </div>

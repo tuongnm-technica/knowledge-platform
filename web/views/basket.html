@@ -1,19 +1,18 @@
-<!-- ── CONTEXT BASKET DRAWER (REFAC) ── -->
 <div id="basketOverlay" class="basket-overlay" style="display: none;"></div>
-<div id="basketDrawer" class="basket-drawer">
+<div id="basketDrawer" class="basket-drawer" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="basket-header">
     <div>
-      <div class="basket-title">Giỏ Ngữ Cảnh</div>
+      <div class="basket-title" x-text="$t('basket.title')">Giỏ Ngữ Cảnh</div>
       <div id="basketCount" class="basket-sub">0 items</div>
     </div>
     <div class="basket-header-actions">
-      <button id="basket-clear-all" class="secondary-btn mini">Xóa</button>
-      <button id="basketClose" class="secondary-btn mini">Đóng</button>
+      <button id="basket-clear-all" class="secondary-btn mini" x-text="$t('basket.clear_all')">Xóa</button>
+      <button id="basketClose" class="secondary-btn mini" x-text="$t('basket.close')">Đóng</button>
     </div>
   </div>
   <div class="basket-token">
     <div class="basket-token-row">
-      <div class="basket-token-label">Dung lượng não AI</div>
+      <div class="basket-token-label" x-text="$t('basket.brain_capacity')">Dung lượng não AI</div>
       <div id="tokenVal" class="basket-token-value">0</div> <div class="basket-token-value">/ 32,000</div>
     </div>
     <div class="basket-progress">
@@ -21,14 +20,14 @@
     </div>
   </div>
   <div id="basketItems" class="basket-list">
-    <div class="basket-empty">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
+    <div class="basket-empty" x-text="$t('basket.empty')">Chưa có item nào. Hãy bấm 📌 để ghim ngữ cảnh.</div>
   </div>
   <div class="basket-actions">
-    <button class="secondary-btn">Refresh</button>
-    <button id="basket-run-skill" class="primary-btn">🚀 Chạy Skill</button>
+    <button class="secondary-btn" x-text="$t('common.refresh')">Refresh</button>
+    <button id="basket-run-skill" class="primary-btn">🚀 <span x-text="$t('basket.btn_run')">Chạy Skill</span></button>
   </div>
 </div>
-<button id="basketFab" class="basket-fab" title="Giỏ ngữ cảnh">
+<button id="basketFab" class="basket-fab" :title="$t('basket.fab_title')">
   📌
   <span id="basketFabCount" class="basket-badge" style="display: none;">0</span>
 </button>

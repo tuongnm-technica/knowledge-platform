@@ -1,5 +1,6 @@
 import { API, authFetch } from './client';
 import { User, AuthResponse } from './models';
+import { i18n } from './i18n';
 
 export class AuthModule {
     private static TOKEN_KEY = 'kp_access_token';
@@ -34,6 +35,10 @@ export class AuthModule {
         const data: AuthResponse = await response.json();
         this.setToken(data.access_token);
         
+        if (data.language) {
+            i18n.changeLanguage(data.language);
+        }
+        
         // Save user info to local storage for quick access if needed
         localStorage.setItem('kp_user', JSON.stringify(data));
     }
@@ -47,7 +52,11 @@ export class AuthModule {
     static async getCurrentUser(): Promise<User> {
         const response = await authFetch(`${API}/auth/me`);
         if (!response.ok) throw new Error('Không thể lấy thông tin user');
-        return (await response.json()) as User;
+        const user = (await response.json()) as User;
+        if (user.language) {
+            i18n.changeLanguage(user.language);
+        }
+        return user;
     }
     
     // --- DOM Binding Helpers ---

@@ -35,8 +35,8 @@ interface WorkflowRun {
 const WORKFLOW_TEMPLATES = [
     {
         icon: '🔍',
-        name: 'Research & Report',
-        description: 'Tìm kiếm trong Knowledge Base, tóm tắt và định dạng thành báo cáo.',
+        name: (window as any).$t('workflows.tpl_research_name'),
+        description: (window as any).$t('workflows.tpl_research_desc'),
         trigger_type: 'manual',
         nodes: [
             {
@@ -51,8 +51,8 @@ const WORKFLOW_TEMPLATES = [
     },
     {
         icon: '📋',
-        name: 'Meeting to Tasks',
-        description: 'Từ biên bản họp → trích xuất action items → tạo Task Drafts.',
+        name: (window as any).$t('workflows.tpl_meeting_name'),
+        description: (window as any).$t('workflows.tpl_meeting_desc'),
         trigger_type: 'manual',
         nodes: [
             {
@@ -67,8 +67,8 @@ const WORKFLOW_TEMPLATES = [
     },
     {
         icon: '📄',
-        name: 'SDLC Pipeline',
-        description: 'Từ yêu cầu nghiệp vụ → tự động tạo tài liệu BA, SA, QA.',
+        name: (window as any).$t('workflows.tpl_sdlc_name'),
+        description: (window as any).$t('workflows.tpl_sdlc_desc'),
         trigger_type: 'manual',
         nodes: [
             {
@@ -87,8 +87,8 @@ const WORKFLOW_TEMPLATES = [
     },
     {
         icon: '📊',
-        name: 'Daily Summary',
-        description: 'Tóm tắt hoạt động hàng ngày từ các nguồn dữ liệu.',
+        name: (window as any).$t('workflows.tpl_daily_name'),
+        description: (window as any).$t('workflows.tpl_daily_desc'),
         trigger_type: 'scheduled',
         schedule_cron: '0 8 * * 1-5',
         nodes: [
@@ -115,17 +115,17 @@ export class WorkflowsModule {
 
     public async loadWorkflowsPage(): Promise<void> {
         const container = document.getElementById('page-workflows');
-        if (container) container.innerHTML = '<div class="wf-loading"><div class="wf-spinner"></div><span>Đang tải AI Workflows...</span></div>';
+        if (container) container.innerHTML = `<div class="wf-loading"><div class="wf-spinner"></div><span>${(window as any).$t('workflows.loading')}</span></div>`;
 
         try {
             const res = await authFetch(`${API}/workflows`);
-            if (!res.ok) throw new Error('Không thể tải workflows');
+            if (!res.ok) throw new Error((window as any).$t('workflows.err_load_list'));
             const data = await res.json();
             this.renderWorkflowsPage((data.workflows || []) as AIWorkflow[]);
         } catch (err) {
             const error = err as Error;
             const container = document.getElementById('page-workflows');
-            if (container) container.innerHTML = `<div class="wf-empty-state"><div class="wf-empty-icon">⚠️</div><div class="wf-empty-title">Lỗi tải dữ liệu</div><div class="wf-empty-sub">${escapeHtml(error.message)}</div></div>`;
+            if (container) container.innerHTML = `<div class="wf-empty-state"><div class="wf-empty-icon">⚠️</div><div class="wf-empty-title">${(window as any).$t('workflows.err_load_data')}</div><div class="wf-empty-sub">${escapeHtml(error.message)}</div></div>`;
         }
     }
 
@@ -140,13 +140,13 @@ export class WorkflowsModule {
             <!-- Header -->
             <div class="wf-header">
                 <div class="wf-header-left">
-                    <div class="wf-header-kicker">🤖 Agentic Automation</div>
-                    <h1 class="wf-header-title">AI Workflows</h1>
-                    <p class="wf-header-sub">Xây dựng và chạy các chuỗi AI tự động hoá, nối tiếp nhiều bước xử lý thông minh.</p>
+                    <div class="wf-header-kicker">${(window as any).$t('workflows.intro_kicker')}</div>
+                    <h1 class="wf-header-title">${(window as any).$t('workflows.intro_title')}</h1>
+                    <p class="wf-header-sub">${(window as any).$t('workflows.intro_sub')}</p>
                 </div>
                 <div class="wf-header-actions">
-                    <button class="wf-btn wf-btn-secondary" id="btnShowTemplates">📚 Template Gallery</button>
-                    <button class="wf-btn wf-btn-primary" id="btnCreateWorkflow">＋ Tạo Workflow</button>
+                    <button class="wf-btn wf-btn-secondary" id="btnShowTemplates">${(window as any).$t('workflows.btn_templates')}</button>
+                    <button class="wf-btn wf-btn-primary" id="btnCreateWorkflow">${(window as any).$t('workflows.btn_create')}</button>
                 </div>
             </div>
 
@@ -185,11 +185,11 @@ export class WorkflowsModule {
             grid.innerHTML = `
             <div class="wf-empty-state">
                 <div class="wf-empty-icon">🚀</div>
-                <div class="wf-empty-title">Chưa có Workflow nào</div>
-                <div class="wf-empty-sub">Tạo workflow đầu tiên hoặc chọn từ Template Gallery để bắt đầu tự động hoá.</div>
+                <div class="wf-empty-title">${(window as any).$t('workflows.empty_title')}</div>
+                <div class="wf-empty-sub">${(window as any).$t('workflows.empty_sub')}</div>
                 <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
-                    <button class="wf-btn wf-btn-secondary" id="btnEmptyTemplates">📚 Template Gallery</button>
-                    <button class="wf-btn wf-btn-primary" id="btnEmptyCreate">＋ Tạo ngay</button>
+                    <button class="wf-btn wf-btn-secondary" id="btnEmptyTemplates">${(window as any).$t('workflows.btn_templates')}</button>
+                    <button class="wf-btn wf-btn-primary" id="btnEmptyCreate">${(window as any).$t('workflows.btn_create_now')}</button>
                 </div>
             </div>`;
             document.getElementById('btnEmptyCreate')?.addEventListener('click', () => this.openWorkflowBuilder(null));
@@ -206,23 +206,23 @@ export class WorkflowsModule {
         card.setAttribute('data-id', w.id);
 
         const triggerBadge = this.getTriggerBadge(w.trigger_type);
-        const timeFmt = w.updated_at ? new Date(w.updated_at).toLocaleDateString('vi-VN') : '—';
+        const timeFmt = w.updated_at ? new Date(w.updated_at).toLocaleDateString((window as any).i18next?.language === 'vi' ? 'vi-VN' : 'en-US') : '—';
 
         card.innerHTML = `
         <div class="wf-card-header">
             <div class="wf-card-icon">${this.getWorkflowIcon(w.name)}</div>
             <div class="wf-card-meta">
                 <div class="wf-card-name">${escapeHtml(w.name)}</div>
-                <div class="wf-card-time">Cập nhật ${timeFmt}</div>
+                <div class="wf-card-time">${(window as any).$t('workflows.card_updated')} ${timeFmt}</div>
             </div>
             <div class="wf-card-badge ${triggerBadge.cls}">${triggerBadge.label}</div>
         </div>
-        <div class="wf-card-desc markdown-body">${renderMarkdown(w.description || 'Không có mô tả.')}</div>
+        <div class="wf-card-desc markdown-body">${renderMarkdown(w.description || (window as any).$t('workflows.card_no_desc'))}</div>
         ${(w as any).schedule_cron ? `<div class="wf-card-cron">🕐 Cron: <code>${escapeHtml((w as any).schedule_cron)}</code></div>` : ''}
         <div class="wf-card-actions">
-            <button class="wf-btn wf-btn-primary wf-btn-sm" data-action="run" data-id="${w.id}">▶ Chạy</button>
-            <button class="wf-btn wf-btn-secondary wf-btn-sm" data-action="history" data-id="${w.id}">📋 Lịch sử</button>
-            <button class="wf-btn wf-btn-secondary wf-btn-sm" data-action="edit" data-id="${w.id}">✏️ Sửa</button>
+            <button class="wf-btn wf-btn-primary wf-btn-sm" data-action="run" data-id="${w.id}">${(window as any).$t('workflows.btn_run')}</button>
+            <button class="wf-btn wf-btn-secondary wf-btn-sm" data-action="history" data-id="${w.id}">${(window as any).$t('workflows.btn_history')}</button>
+            <button class="wf-btn wf-btn-secondary wf-btn-sm" data-action="edit" data-id="${w.id}">${(window as any).$t('workflows.btn_edit')}</button>
             <button class="wf-btn wf-btn-danger wf-btn-sm" data-action="delete" data-id="${w.id}">🗑</button>
         </div>`;
 
@@ -250,9 +250,9 @@ export class WorkflowsModule {
     }
 
     private getTriggerBadge(type: string): { cls: string; label: string } {
-        if (type === 'scheduled') return { cls: 'wf-badge-scheduled', label: '⏰ Scheduled' };
-        if (type === 'webhook') return { cls: 'wf-badge-webhook', label: '🔗 Webhook' };
-        return { cls: 'wf-badge-manual', label: '▶ Manual' };
+        if (type === 'scheduled') return { cls: 'wf-badge-scheduled', label: (window as any).$t('workflows.opt_scheduled') };
+        if (type === 'webhook') return { cls: 'wf-badge-webhook', label: (window as any).$t('workflows.opt_webhook') };
+        return { cls: 'wf-badge-manual', label: (window as any).$t('workflows.opt_manual') };
     }
 
     // ── Workflow Builder Modal ─────────────────────────────────────────────────
@@ -267,25 +267,25 @@ export class WorkflowsModule {
             <!-- Basic Info -->
             <div class="wf-form-section">
                 <div class="wf-form-group">
-                    <label class="wf-label">Tên Workflow <span class="wf-required">*</span></label>
-                    <input id="wfBuilderName" class="wf-input" type="text" placeholder="Vd: Daily Research Report" value="${escapeHtml(workflow?.name || '')}">
+                    <label class="wf-label">${(window as any).$t('workflows.label_name')} <span class="wf-required">*</span></label>
+                    <input id="wfBuilderName" class="wf-input" type="text" placeholder="${(window as any).$t('workflows.placeholder_name')}" value="${escapeHtml(workflow?.name || '')}">
                 </div>
                 <div class="wf-form-group">
-                    <label class="wf-label">Mô tả</label>
-                    <textarea id="wfBuilderDesc" class="wf-input wf-textarea" placeholder="Mô tả ngắn về workflow này...">${escapeHtml(workflow?.description || '')}</textarea>
+                    <label class="wf-label">${(window as any).$t('workflows.label_desc')}</label>
+                    <textarea id="wfBuilderDesc" class="wf-input wf-textarea" placeholder="${(window as any).$t('workflows.placeholder_desc')}">${escapeHtml(workflow?.description || '')}</textarea>
                 </div>
                 <div style="display:flex;gap:16px;">
                     <div class="wf-form-group" style="flex:1">
-                        <label class="wf-label">Trigger Type</label>
+                        <label class="wf-label">${(window as any).$t('workflows.label_trigger')}</label>
                         <select id="wfBuilderTrigger" class="wf-input wf-select">
-                            <option value="manual" ${workflow?.trigger_type === 'manual' ? 'selected' : ''}>▶ Manual (chạy tay)</option>
-                            <option value="scheduled" ${workflow?.trigger_type === 'scheduled' ? 'selected' : ''}>⏰ Scheduled (cron)</option>
-                            <option value="webhook" ${workflow?.trigger_type === 'webhook' ? 'selected' : ''}>🔗 Webhook (API)</option>
+                            <option value="manual" ${workflow?.trigger_type === 'manual' ? 'selected' : ''}>${(window as any).$t('workflows.opt_manual')}</option>
+                            <option value="scheduled" ${workflow?.trigger_type === 'scheduled' ? 'selected' : ''}>${(window as any).$t('workflows.opt_scheduled')}</option>
+                            <option value="webhook" ${workflow?.trigger_type === 'webhook' ? 'selected' : ''}>${(window as any).$t('workflows.opt_webhook')}</option>
                         </select>
                     </div>
                     <div class="wf-form-group" id="wfCronGroup" style="flex:1; display:${workflow?.trigger_type === 'scheduled' ? 'block' : 'none'}">
-                        <label class="wf-label">Cron Expression</label>
-                        <input id="wfBuilderCron" class="wf-input" type="text" placeholder="0 8 * * 1-5" value="${escapeHtml((workflow as any)?.schedule_cron || '')}">
+                        <label class="wf-label">${(window as any).$t('workflows.label_cron')}</label>
+                        <input id="wfBuilderCron" class="wf-input" type="text" placeholder="${(window as any).$t('workflows.placeholder_cron')}" value="${escapeHtml((workflow as any)?.schedule_cron || '')}">
                     </div>
                 </div>
             </div>
@@ -293,11 +293,11 @@ export class WorkflowsModule {
             <!-- Nodes Builder -->
             <div class="wf-form-section">
                 <div class="wf-nodes-header">
-                    <span class="wf-section-title">🔗 Pipeline Nodes</span>
-                    <div class="wf-vars-hint">Variables: <code>{{START}}</code> · <code>{{node_N_output}}</code></div>
+                    <span class="wf-section-title">${(window as any).$t('workflows.section_nodes')}</span>
+                    <div class="wf-vars-hint">${(window as any).$t('workflows.vars_hint')}</div>
                 </div>
                 <div id="wfNodesList" class="wf-nodes-list"></div>
-                <button class="wf-btn wf-btn-add-node" id="btnAddNode">＋ Thêm Node</button>
+                <button class="wf-btn wf-btn-add-node" id="btnAddNode">${(window as any).$t('workflows.btn_add_node')}</button>
             </div>
         </div>`;
 
@@ -322,21 +322,21 @@ export class WorkflowsModule {
                 nodeEl.innerHTML = `
                 <div class="wf-node-header">
                     <div class="wf-node-num">${idx + 1}</div>
-                    <input class="wf-input wf-node-name" placeholder="Tên bước" value="${escapeHtml(node.name || '')}" data-field="name" data-idx="${idx}">
+                    <input class="wf-input wf-node-name" placeholder="${(window as any).$t('workflows.node_name_placeholder')}" value="${escapeHtml(node.name || '')}" data-field="name" data-idx="${idx}">
                     <select class="wf-input wf-node-type wf-select-sm" data-field="node_type" data-idx="${idx}">
-                        <option value="llm" ${(node as any).node_type === 'llm' || !(node as any).node_type ? 'selected' : ''}>🧠 LLM</option>
-                        <option value="rag" ${(node as any).node_type === 'rag' ? 'selected' : ''}>🔍 RAG</option>
-                        <option value="doc_writer" ${(node as any).node_type === 'doc_writer' ? 'selected' : ''}>✍️ Doc Writer</option>
+                        <option value="llm" ${(node as any).node_type === 'llm' || !(node as any).node_type ? 'selected' : ''}>${(window as any).$t('workflows.node_type_llm')}</option>
+                        <option value="rag" ${(node as any).node_type === 'rag' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_rag')}</option>
+                        <option value="doc_writer" ${(node as any).node_type === 'doc_writer' ? 'selected' : ''}>${(window as any).$t('workflows.node_type_doc_writer')}</option>
                     </select>
-                    <button class="wf-btn-icon wf-btn-remove" data-remove="${idx}" title="Xóa node">✕</button>
+                    <button class="wf-btn-icon wf-btn-remove" data-remove="${idx}" title="${(window as any).$t('workflows.node_remove_tooltip')}">✕</button>
                 </div>
                 <div class="wf-node-prompt-wrap">
-                    <label class="wf-label wf-label-sm">System Prompt / Instructions</label>
-                    <textarea class="wf-input wf-node-prompt" placeholder="Hướng dẫn cho AI. Dùng {{START}} cho dữ liệu ban đầu, {{node_1_output}} cho kết quả bước 1..." data-field="system_prompt" data-idx="${idx}">${escapeHtml(node.system_prompt || '')}</textarea>
+                    <label class="wf-label wf-label-sm">${(window as any).$t('workflows.node_prompt_label')}</label>
+                    <textarea class="wf-input wf-node-prompt" placeholder="${(window as any).$t('workflows.node_prompt_placeholder')}" data-field="system_prompt" data-idx="${idx}">${escapeHtml(node.system_prompt || '')}</textarea>
                 </div>
                 <div class="wf-node-footer">
                     <div class="wf-form-group wf-node-model">
-                        <label class="wf-label wf-label-sm">Model Override (tuỳ chọn)</label>
+                        <label class="wf-label wf-label-sm">${(window as any).$t('workflows.node_model_override')}</label>
                         <input class="wf-input wf-input-sm" placeholder="Vd: gemma3:12b" value="${escapeHtml(node.model_override || '')}" data-field="model_override" data-idx="${idx}">
                     </div>
                 </div>`;
@@ -383,9 +383,9 @@ export class WorkflowsModule {
         });
 
         kpOpenModal({
-            title: isEdit ? `✏️ Sửa Workflow: ${workflow?.name}` : '＋ Tạo Workflow Mới',
+            title: isEdit ? (window as any).$t('workflows.modal_edit_title', { name: workflow?.name }) : (window as any).$t('workflows.modal_create_title'),
             content: wrapper,
-            okText: isEdit ? 'Lưu thay đổi' : 'Tạo Workflow',
+            okText: isEdit ? (window as any).$t('workflows.btn_save') : (window as any).$t('workflows.btn_create_submit'),
             contentStyles: { maxWidth: '720px', width: '90vw' },
             onOk: async () => {
                 const name = (wrapper.querySelector('#wfBuilderName') as HTMLInputElement)?.value?.trim();
@@ -393,7 +393,7 @@ export class WorkflowsModule {
                 const trigger_type = (wrapper.querySelector('#wfBuilderTrigger') as HTMLSelectElement)?.value;
                 const schedule_cron = (wrapper.querySelector('#wfBuilderCron') as HTMLInputElement)?.value?.trim() || null;
 
-                if (!name) return { error: 'Vui lòng nhập tên workflow.' };
+                if (!name) return { error: (window as any).$t('workflows.err_name_required') };
 
                 // Collect final node values from DOM
                 const finalNodes = nodeData.map((n, i) => {
@@ -411,7 +411,7 @@ export class WorkflowsModule {
                     };
                 });
 
-                if (finalNodes.length === 0) return { error: 'Workflow cần ít nhất 1 node.' };
+                if (finalNodes.length === 0) return { error: (window as any).$t('workflows.err_min_nodes') };
 
                 try {
                     const body = { name, description, trigger_type, schedule_cron, nodes: finalNodes };
@@ -423,7 +423,7 @@ export class WorkflowsModule {
                         body: JSON.stringify(body),
                     });
                     if (!res.ok) throw new Error(await res.text());
-                    showToast(isEdit ? 'Đã cập nhật workflow!' : 'Đã tạo workflow mới!', 'success');
+                    showToast(isEdit ? (window as any).$t('workflows.toast_update_success') : (window as any).$t('workflows.toast_create_success'), 'success');
                     this.loadWorkflowsPage();
                     return true;
                 } catch (e) {
@@ -439,7 +439,7 @@ export class WorkflowsModule {
         const wrapper = document.createElement('div');
         wrapper.className = 'wf-template-gallery';
         wrapper.innerHTML = `
-        <div class="wf-gallery-intro">Chọn một template để tạo nhanh workflow. Bạn có thể tuỳ chỉnh sau khi tạo.</div>
+        <div class="wf-gallery-intro">${(window as any).$t('workflows.gallery_intro')}</div>
         <div class="wf-gallery-grid" id="galleryGrid"></div>`;
 
         const grid = wrapper.querySelector('#galleryGrid') as HTMLElement;
@@ -451,7 +451,7 @@ export class WorkflowsModule {
             <div class="wf-tpl-name">${escapeHtml(tpl.name)}</div>
             <div class="wf-tpl-desc">${escapeHtml(tpl.description)}</div>
             <div class="wf-tpl-nodes">${tpl.nodes.length} nodes · ${this.getTriggerBadge(tpl.trigger_type).label}</div>
-            <button class="wf-btn wf-btn-primary wf-btn-sm" data-tpl="${idx}">Dùng Template này</button>`;
+            <button class="wf-btn wf-btn-primary wf-btn-sm" data-tpl="${idx}">${(window as any).$t('workflows.btn_use_template')}</button>`;
             card.querySelector('button')?.addEventListener('click', () => {
                 // Pre-fill builder with template data
                 const wfLike = {
@@ -469,9 +469,9 @@ export class WorkflowsModule {
         });
 
         kpOpenModal({
-            title: '📚 Template Gallery',
+            title: (window as any).$t('workflows.gallery_title'),
             content: wrapper,
-            okText: 'Đóng',
+            okText: (window as any).$t('common.close'),
             contentStyles: { maxWidth: '800px', width: '90vw' },
             onOk: async () => true,
         });
@@ -499,9 +499,9 @@ export class WorkflowsModule {
             <!-- Input Section -->
             <div id="wfRunInputSection">
                 <div class="wf-run-desc">
-                    Nhập dữ liệu khởi động. Nó sẽ được gán vào biến <code>{{START}}</code> trong tất cả các nodes.
+                    ${(window as any).$t('workflows.run_input_intro')}
                 </div>
-                <textarea id="wfRunContext" class="wf-input wf-textarea wf-textarea-lg" placeholder="Nhập yêu cầu, câu hỏi, hoặc dữ liệu đầu vào..."></textarea>
+                <textarea id="wfRunContext" class="wf-input wf-textarea wf-textarea-lg" placeholder="${(window as any).$t('workflows.run_context_placeholder')}"></textarea>
 
                 <!-- Pipeline Preview -->
                 <div class="wf-pipeline-preview">
@@ -512,7 +512,7 @@ export class WorkflowsModule {
                             <div class="wf-pipeline-step-name">${escapeHtml(n.name)}</div>
                             <div class="wf-pipeline-step-type">${(n as any).node_type === 'rag' ? '🔍 RAG' : (n as any).node_type === 'doc_writer' ? '✍️ Doc Writer' : '🧠 LLM'}</div>
                         </div>
-                        <div class="wf-pipeline-step-status wf-step-pending" id="pipeStepStatus_${i}">⏳ Chờ</div>
+                        <div class="wf-pipeline-step-status wf-step-pending" id="pipeStepStatus_${i}">${(window as any).$t('workflows.run_step_pending')}</div>
                     </div>`).join('<div class="wf-pipeline-arrow">↓</div>')}
                 </div>
             </div>
@@ -520,7 +520,7 @@ export class WorkflowsModule {
             <!-- Execution Tracker (hidden initially) -->
             <div id="wfExecSection" style="display:none;">
                 <div class="wf-exec-header">
-                    <div class="wf-exec-title">🚀 Đang thực thi Workflow</div>
+                    <div class="wf-exec-title">${(window as any).$t('workflows.exec_title')}</div>
                     <div class="wf-exec-name">${escapeHtml(w.name)}</div>
                 </div>
                 <div class="wf-exec-progress" id="wfExecProgress">
@@ -539,7 +539,7 @@ export class WorkflowsModule {
                     </div>`).join('')}
                 </div>
                 <div class="wf-exec-final" id="wfExecFinal" style="display:none">
-                    <div class="wf-exec-final-title">✅ Kết quả cuối cùng</div>
+                    <div class="wf-exec-final-title">${(window as any).$t('workflows.exec_final_title')}</div>
                     <div class="wf-exec-final-content markdown-body" id="wfExecFinalContent"></div>
                 </div>
             </div>
@@ -549,14 +549,14 @@ export class WorkflowsModule {
         let isRunning = false;
 
         await kpOpenModal({
-            title: `▶ Run: ${w.name}`,
+            title: (window as any).$t('workflows.run_modal_title', { name: w.name }),
             content: wrapper,
-            okText: 'Execute Workflow',
+            okText: (window as any).$t('workflows.run_btn_execute'),
             contentStyles: { maxWidth: '680px', width: '90vw' },
             onOk: async () => {
                 if (isRunning) return true; // allow close while running
                 const context = (wrapper.querySelector('#wfRunContext') as HTMLTextAreaElement)?.value?.trim();
-                if (!context) return { error: 'Vui lòng nhập dữ liệu đầu vào.' };
+                if (!context) return { error: (window as any).$t('workflows.run_err_no_input') };
 
                 // Switch to execution view
                 const inputSection = wrapper.querySelector('#wfRunInputSection') as HTMLElement;
@@ -566,7 +566,7 @@ export class WorkflowsModule {
 
                 // Update button
                 const okBtn = document.querySelector('.kp-modal-ok') as HTMLButtonElement;
-                if (okBtn) { okBtn.textContent = 'Đang chạy...'; okBtn.disabled = true; }
+                if (okBtn) { okBtn.textContent = (window as any).$t('workflows.run_btn_running'); okBtn.disabled = true; }
                 isRunning = true;
 
                 try {
@@ -582,12 +582,12 @@ export class WorkflowsModule {
 
                     // Start polling for status
                     this.startExecutionPolling(jobId!, nodes, wrapper, () => {
-                        if (okBtn) { okBtn.textContent = 'Đóng'; okBtn.disabled = false; }
+                        if (okBtn) { okBtn.textContent = (window as any).$t('workflows.run_btn_close'); okBtn.disabled = false; }
                     });
                     return null; // Keep modal open
                 } catch (e) {
                     isRunning = false;
-                    if (okBtn) { okBtn.textContent = 'Execute Workflow'; okBtn.disabled = false; }
+                    if (okBtn) { okBtn.textContent = (window as any).$t('workflows.run_btn_execute'); okBtn.disabled = false; }
                     if (inputSection) inputSection.style.display = 'block';
                     if (execSection) execSection.style.display = 'none';
                     return { error: (e as Error).message };
@@ -672,7 +672,7 @@ export class WorkflowsModule {
                     if (finalSection) finalSection.style.display = 'block';
                     if (finalContent) finalContent.innerHTML = renderMarkdown(answer);
 
-                    showToast('Workflow hoàn thành!', 'success');
+                    showToast((window as any).$t('workflows.toast_exec_complete'), 'success');
                     onDone();
 
                 } else if (data.status === 'failed') {
@@ -687,7 +687,7 @@ export class WorkflowsModule {
                             nodeEl.classList.add('exec-node-failed');
                         }
                     });
-                    showToast('Workflow thất bại: ' + (data.error || 'Unknown error'), 'error');
+                    showToast((window as any).$t('workflows.toast_exec_failed') + (data.error || 'Unknown error'), 'error');
                     onDone();
                 }
 
@@ -701,24 +701,24 @@ export class WorkflowsModule {
 
     private async openRunHistory(w: AIWorkflow): Promise<void> {
         const wrapper = document.createElement('div');
-        wrapper.innerHTML = '<div class="wf-loading"><div class="wf-spinner"></div><span>Đang tải lịch sử...</span></div>';
+        wrapper.innerHTML = `<div class="wf-loading"><div class="wf-spinner"></div><span>${(window as any).$t('workflows.history_loading')}</span></div>`;
 
         kpOpenModal({
-            title: `📋 Lịch sử runs: ${w.name}`,
+            title: (window as any).$t('workflows.history_title', { name: w.name }),
             content: wrapper,
-            okText: 'Đóng',
+            okText: (window as any).$t('common.close'),
             contentStyles: { maxWidth: '700px', width: '90vw' },
             onOk: async () => true,
         });
 
         try {
             const res = await authFetch(`${API}/workflows/${w.id}/runs?limit=20`);
-            if (!res.ok) throw new Error('Không thể tải lịch sử.');
+            if (!res.ok) throw new Error((window as any).$t('workflows.history_err_load'));
             const data = await res.json();
             const runs: WorkflowRun[] = data.runs || [];
 
             if (runs.length === 0) {
-                wrapper.innerHTML = `<div class="wf-empty-state" style="padding:40px"><div class="wf-empty-icon">📭</div><div class="wf-empty-title">Chưa có lần chạy nào</div></div>`;
+                wrapper.innerHTML = `<div class="wf-empty-state" style="padding:40px"><div class="wf-empty-icon">📭</div><div class="wf-empty-title">${(window as any).$t('workflows.history_empty')}</div></div>`;
                 return;
             }
 
@@ -726,7 +726,7 @@ export class WorkflowsModule {
             <div class="wf-history-list">
                 ${runs.map(run => {
                     const statusIcon = { queued: '⏳', running: '🔄', completed: '✅', failed: '❌' }[run.status] || '?';
-                    const dt = run.created_at ? new Date(run.created_at).toLocaleString('vi-VN') : '—';
+                    const dt = run.created_at ? new Date(run.created_at).toLocaleString((window as any).i18next?.language === 'vi' ? 'vi-VN' : 'en-US') : '—';
                     const duration = run.started_at && run.finished_at
                         ? Math.round((new Date(run.finished_at).getTime() - new Date(run.started_at).getTime()) / 1000) + 's'
                         : '—';
@@ -753,17 +753,17 @@ export class WorkflowsModule {
 
     private async deleteWorkflow(w: AIWorkflow): Promise<void> {
         const ok = await kpConfirm({
-            title: 'Xóa Workflow',
-            message: `Bạn có chắc muốn xóa vĩnh viễn Workflow "${w.name}"? Tác vụ này không thể phục hồi.`,
+            title: (window as any).$t('workflows.delete_confirm_title'),
+            message: (window as any).$t('workflows.delete_confirm_msg', { name: w.name }),
             danger: true
         });
         if (!ok) return;
 
         try {
-            showToast('Đang xóa...', 'info');
+            showToast((window as any).$t('workflows.toast_deleting'), 'info');
             const res = await authFetch(`${API}/workflows/${w.id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Xóa thất bại');
-            showToast('Đã xóa workflow', 'success');
+            showToast((window as any).$t('workflows.toast_delete_success'), 'success');
             this.loadWorkflowsPage();
         } catch (e) {
             showToast((e as Error).message, 'error');

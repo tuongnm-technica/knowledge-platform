@@ -145,6 +145,10 @@ class Settings(BaseSettings):
     AGENT_SELF_CORRECT_ENABLED: bool = True
     AGENT_LOGIC_CHECK_ENABLED: bool = True
 
+    # Ingestion AI & Graph Control
+    INGESTION_AI_SUMMARIZE_ENABLED: bool = False
+    INGESTION_AI_RELATIONS_ENABLED: bool = True
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

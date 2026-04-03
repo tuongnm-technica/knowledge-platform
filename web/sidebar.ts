@@ -27,7 +27,7 @@ export class SidebarModule {
 
             if (avatar) avatar.textContent = (user.display_name || user.email || '?').charAt(0).toUpperCase();
             if (username) username.textContent = user.display_name || user.email;
-            if (roleEl) roleEl.textContent = user.is_admin ? 'System Admin' : (user.role || 'Member');
+            if (roleEl) roleEl.textContent = user.is_admin ? (window as any).$t('common.role_admin') : (user.role || (window as any).$t('common.role_member'));
             return user;
         } catch (err) {
             return null;

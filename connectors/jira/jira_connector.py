@@ -224,6 +224,7 @@ class JiraConnector(BaseConnector):
         return [
             {
                 "author": (w.get("author") or {}).get("displayName", "Unknown"),
+                "author_email": (w.get("author") or {}).get("emailAddress", ""),
                 "timeSpent": w.get("timeSpent"),
                 "timeSpentSeconds": w.get("timeSpentSeconds", 0),
                 "started": w.get("started"),

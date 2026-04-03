@@ -83,16 +83,16 @@ export class ChatModule {
             this.setLoading(true);
             try {
                 const res = await authFetch(`${API}/history/sessions/${detail}`);
-                if (!res.ok) throw new Error('Failed to fetch session history');
+                if (!res.ok) throw new Error((window as any).$t('chat.err_fetch_history'));
                 const data = await res.json();
                 
                 if (data.messages && data.messages.length > 0) {
                     data.messages.forEach((m: any) => this.appendMessage(m));
                 } else {
-                    this.appendMessage({ id: 'sys', role: 'system', content: `Đã kết nối lại hội thoại. Không có tin nhắn nào.`, created_at: new Date().toISOString() });
+                    this.appendMessage({ id: 'sys', role: 'system', content: (window as any).$t('chat.empty_reconnected'), created_at: new Date().toISOString() });
                 }
             } catch (err) {
-                this.appendMessage({ id: 'sys', role: 'system', content: `⚠️ Lỗi khi tải lịch sử hội thoại.`, created_at: new Date().toISOString() });
+                this.appendMessage({ id: 'sys', role: 'system', content: `⚠️ ${(window as any).$t('chat.err_fetch_history')}.`, created_at: new Date().toISOString() });
             } finally {
                 this.setLoading(false);
             }
@@ -125,13 +125,13 @@ export class ChatModule {
 
             // 2. Fetch only models enabled for chat by Admin
             const res = await authFetch(`${API}/models/chat`);
-            if (!res.ok) throw new Error('Failed to fetch models');
+            if (!res.ok) throw new Error((window as any).$t('chat.err_load_models'));
             const models = await res.json();
             
             this.modelSelector.innerHTML = '';
             
             if (models.length === 0) {
-                this.modelSelector.innerHTML = '<option value="">Chọn model...</option>';
+                this.modelSelector.innerHTML = `<option value="">${(window as any).$t('chat.select_model_placeholder')}</option>`;
                 return;
             }
 
@@ -143,10 +143,10 @@ export class ChatModule {
                 
                 // Prioritize the bound default model, then the system default flag
                 if (m.id === defaultChatId) {
-                    opt.textContent += ' [Mặc định]';
+                    opt.textContent += ` ${(window as any).$t('chat.tag_default')}`;
                     opt.selected = true;
                 } else if (!defaultChatId && m.is_default) {
-                    opt.textContent += ' [System]';
+                    opt.textContent += ` ${(window as any).$t('chat.tag_system')}`;
                     opt.selected = true;
                 }
                 
@@ -155,7 +155,7 @@ export class ChatModule {
         } catch (err) {
             console.error('Error loading models:', err);
             if (this.modelSelector) {
-                this.modelSelector.innerHTML = '<option value="">Lỗi tải models</option>';
+                this.modelSelector.innerHTML = `<option value="">${(window as any).$t('chat.err_load_models')}</option>`;
             }
         }
     }
@@ -224,7 +224,7 @@ export class ChatModule {
                 });
             }
 
-            if (!response.ok) throw new Error(`Lỗi HTTP ${response.status}`);
+            if (!response.ok) throw new Error(`${(window as any).$t('chat.err_http')} ${response.status}`);
             const jobData = await response.json() as AskJobResponse;
             if (jobData.session_id) this.currentSessionId = jobData.session_id;
 
@@ -236,7 +236,7 @@ export class ChatModule {
             this.appendMessage({
                 id: Date.now().toString(),
                 role: 'system',
-                content: `⚠️ Lỗi: ${error.message}`,
+                content: `⚠️ ${(window as any).$t('chat.err_status')}: ${error.message}`,
                 created_at: new Date().toISOString()
             });
         } finally {
@@ -252,7 +252,7 @@ export class ChatModule {
         while (attempts < maxAttempts) {
             try {
                 const resp = await authFetch(`${API}/ask/status/${jobId}`);
-                if (!resp.ok) throw new Error('Lỗi lấy trạng thái');
+                if (!resp.ok) throw new Error((window as any).$t('chat.err_status'));
                 const data = await resp.json() as JobStatusResponse;
                 
                 const result = data.result as any;
@@ -277,7 +277,7 @@ export class ChatModule {
                 }
                 if (data.status === 'failed') {
                     this.removeThinking(thinkId);
-                    throw new Error(data.error || 'Worker xử lý AI thất bại');
+                    throw new Error(data.error || (window as any).$t('chat.err_worker_failed'));
                 }
             } catch (err) {
                 console.error('Polling error:', err);
@@ -286,7 +286,7 @@ export class ChatModule {
             attempts++;
         }
         this.removeThinking(thinkId);
-        throw new Error('Hết thời gian chờ phản hồi (Timeout)');
+        throw new Error((window as any).$t('chat.err_timeout'));
     }
 
     private appendThinking(id: string): void {
@@ -303,7 +303,7 @@ export class ChatModule {
                             <span class="thinking-dot"></span>
                             <span class="thinking-dot"></span>
                             <span class="thinking-dot"></span>
-                            <span class="thinking-text">Đang suy nghĩ...</span>
+                            <span class="thinking-text">${(window as any).$t('chat.thinking')}</span>
                         </div>
                         <div class="thinking-stepper" style="margin-top:8px; font-size:0.85em;"></div>
                         <div class="partial-answer markdown-body" style="opacity:0.9;"></div>
@@ -337,7 +337,7 @@ export class ChatModule {
                 
                 const expandedQuery = result.rewritten_query ? `
                     <div class="rewritten-query-box">
-                        <span class="rewritten-query-label">Expanded Query (AI):</span>
+                        <span class="rewritten-query-label">${(window as any).$t('chat.expanded_query_label')}</span>
                         <span class="rewritten-query-text">"${escapeHtml(result.rewritten_query)}"</span>
                     </div>
                 ` : '';
@@ -369,7 +369,7 @@ export class ChatModule {
             stepper.innerHTML = `
                 ${planHtml}
                 <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
-                    <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; font-weight: 800;">Real-time Log:</div>
+                    <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; font-weight: 800;">${(window as any).$t('chat.realtime_log_label')}</div>
                     ${thoughtsHtml}
                 </div>
             `;
@@ -411,15 +411,15 @@ export class ChatModule {
                     <a href="${s.url || '#'}" target="_blank" class="source-card">
                         <div class="source-header">
                             <span class="source-type-tag">${sourceName}</span>
-                            ${score > 0 ? `<span class="source-score-badge">${score}% Match</span>` : ''}
+                            ${score > 0 ? `<span class="source-score-badge">${score}% ${(window as any).$t('chat.match')}</span>` : ''}
                         </div>
-                        <div class="source-title">${escapeHtml(s.title || 'Untitled Document')}</div>
+                        <div class="source-title">${escapeHtml(s.title || (window as any).$t('chat.untitled_doc'))}</div>
                     </a>
                 `;
             }).join('');
 
             sourcesContainer.innerHTML = `
-                <div class="sources-label">📚 Related Sources</div>
+                <div class="sources-label">📚 ${(window as any).$t('chat.related_sources')}</div>
                 <div class="sources-grid">${cards}</div>
             `;
         }
@@ -461,14 +461,13 @@ export class ChatModule {
 
                 const expandedQuery = msg.rewritten_query ? `
                     <div class="rewritten-query-box">
-                        <span class="rewritten-query-label">Expanded Query (AI):</span>
+                        <span class="rewritten-query-label">${(window as any).$t('chat.expanded_query_label')}</span>
                         <span class="rewritten-query-text">"${escapeHtml(msg.rewritten_query)}"</span>
                     </div>
                 ` : '';
-                
                 planHtml = `
                     <details class="chat-thinking-plan">
-                        <summary>View Thinking Process (${msg.agent_plan.length} steps)</summary>
+                        <summary>${(window as any).$t('chat.view_thinking_process', { count: msg.agent_plan.length })}</summary>
                         <div class="thinking-content">
                             ${expandedQuery}
                             <ul class="thinking-steps">${steps}</ul>
@@ -489,9 +488,9 @@ export class ChatModule {
                         <a href="${s.url || '#'}" target="_blank" class="source-card">
                             <div class="source-header">
                                 <span class="source-type-tag">${sourceName}</span>
-                                ${score > 0 ? `<span class="source-score-badge">${score}% Match</span>` : ''}
+                                ${score > 0 ? `<span class="source-score-badge">${score}% ${(window as any).$t('chat.match')}</span>` : ''}
                             </div>
-                            <div class="source-title">${escapeHtml(s.title || 'Untitled Document')}</div>
+                            <div class="source-title">${escapeHtml(s.title || (window as any).$t('chat.untitled_doc'))}</div>
                             <div class="source-footer">
                                 <span>📄 ${escapeHtml(s.author || 'System')}</span>
                             </div>
@@ -501,7 +500,7 @@ export class ChatModule {
 
                 sourcesHtml = `
                     <div class="chat-sources-container">
-                        <div class="sources-label">📚 Related Sources</div>
+                        <div class="sources-label">📚 ${(window as any).$t('chat.related_sources')}</div>
                         <div class="sources-grid">${cards}</div>
                     </div>
                 `;
@@ -521,11 +520,11 @@ export class ChatModule {
                         <span class="chat-timestamp">${timeStr}</span>
                         <div class="chat-feedback-group" style="margin-left: auto; display: flex; gap: 4px;">
                             ${msg.query_id ? `
-                                <button class="chat-feedback-btn" data-query-id="${msg.query_id}" data-type="positive" title="Hữu ích">👍</button>
-                                <button class="chat-feedback-btn" data-query-id="${msg.query_id}" data-type="negative" title="Không hữu ích">👎</button>
+                                <button class="chat-feedback-btn" data-query-id="${msg.query_id}" data-type="positive" title="${(window as any).$t('chat.tooltip_helpful')}">👍</button>
+                                <button class="chat-feedback-btn" data-query-id="${msg.query_id}" data-type="negative" title="${(window as any).$t('chat.tooltip_unhelpful')}">👎</button>
                             ` : ''}
                         </div>
-                        <button class="chat-copy-btn" title="Copy">📋 Copy</button>
+                        <button class="chat-copy-btn" title="Copy">📋 ${(window as any).$t('chat.btn_copy')}</button>
                     </div>
                 </div>
             `;

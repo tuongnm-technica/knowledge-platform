@@ -91,35 +91,35 @@ export class GraphModule {
             
             grid.innerHTML = `
                 <div class="connector-summary-card">
-                    <span>Tổng tài liệu</span>
+                    <span>${(window as any).$t('graph.stat_total_docs')}</span>
                     <strong>${data.totalDocuments || 0}</strong>
-                    <small>Trong kho tri thức</small>
+                    <small>${(window as any).$t('graph.stat_total_docs_sub')}</small>
                 </div>
                 <div class="connector-summary-card">
-                    <span>Độ phủ & Tươi mới</span>
+                    <span>${(window as any).$t('graph.stat_coverage_freshness')}</span>
                     <strong>${data.coveragePercent || 0}% / ${data.freshnessDays || 0}d</strong>
-                    <small>Coverage / Freshness</small>
+                    <small>${(window as any).$t('graph.stat_coverage_freshness_sub')}</small>
                 </div>
                 <div class="connector-summary-card">
-                    <span>Thực thể (Entities)</span>
+                    <span>${(window as any).$t('graph.stat_entities')}</span>
                     <strong>${data.entities || 0}</strong>
-                    <small>Nodes trích xuất</small>
+                    <small>${(window as any).$t('graph.stat_entities_sub')}</small>
                 </div>
                 <div class="connector-summary-card">
-                    <span>Quan hệ (Relations)</span>
+                    <span>${(window as any).$t('graph.stat_relations')}</span>
                     <strong>${(data.relations || 0) + (data.document_links || 0)}</strong>
-                    <small>Edges trong Graph</small>
+                    <small>${(window as any).$t('graph.stat_relations_sub')}</small>
                 </div>
             `;
         } catch (err) {
-            grid.innerHTML = '<div class="search-empty" style="grid-column: 1/-1;">Lỗi tải dữ liệu sức khỏe đồ thị</div>';
+            grid.innerHTML = `<div class="search-empty" style="grid-column: 1/-1;">${(window as any).$t('graph.err_load_health')}</div>`;
         }
     }
     private async loadGraphData(): Promise<void> {
         this.showGraphLoading();
         try {
             const response = await authFetch(`${API}/graph/snapshot?limit=150`);
-            if (!response.ok) throw new Error('Lỗi lấy dữ liệu đồ thị');
+            if (!response.ok) throw new Error((window as any).$t('graph.err_load_data_failed'));
             const data = await response.json() as any;
 
             this.nodes = (data.detail && data.detail.nodes) ? data.detail.nodes : (data.nodes || []);
@@ -154,7 +154,7 @@ export class GraphModule {
         } catch (err) {
             const error = err as Error;
             console.error('Graph Load Error:', error);
-            showToast('Không tải được graph data', 'error');
+            showToast((window as any).$t('graph.err_load_data'), 'error');
         } finally {
             this.hideGraphLoading();
         }
@@ -177,12 +177,12 @@ export class GraphModule {
             else wrap.insertBefore(toolbar, wrap.firstChild);
         }
         const views = [
-            { id: 'view', label: '🗺️ Overview' },
-            { id: 'snapshot', label: '📊 Entities' },
-            { id: 'gaps', label: '🔍 Gaps' },
-            { id: 'focus', label: '🎯 Focus' },
-            { id: 'impact', label: '💥 Impact' },
-            { id: 'trace', label: '🔗 Trace' }
+            { id: 'view', label: (window as any).$t('graph.view_overview') },
+            { id: 'snapshot', label: (window as any).$t('graph.view_entities') },
+            { id: 'gaps', label: (window as any).$t('graph.view_gaps') },
+            { id: 'focus', label: (window as any).$t('graph.view_focus') },
+            { id: 'impact', label: (window as any).$t('graph.view_impact') },
+            { id: 'trace', label: (window as any).$t('graph.view_trace') }
         ];
         toolbar.innerHTML = views.map(v => `
             <button class="graph-view-btn ${this.currentView === v.id ? 'active' : ''}" 
@@ -204,28 +204,40 @@ export class GraphModule {
         const resultPanel = document.getElementById('graphResultPanel');
         if (resultPanel) resultPanel.innerHTML = '';
 
-        if (viewId === 'view') return this.loadAdvancedGraph(`${API}/graph/view?since_days=30`, 'Đã tải bản đồ tổng quan');
+        if (viewId === 'view') return this.loadAdvancedGraph(`${API}/graph/view?since_days=30`, (window as any).$t('graph.success_overview'));
         if (viewId === 'snapshot') return this.loadGraphData();
         
         if (viewId === 'gaps') {
-            return this.loadAdvancedGraph(`${API}/graph/gaps`, 'Đã phân tích lỗ hổng dữ liệu');
+            return this.loadAdvancedGraph(`${API}/graph/gaps`, (window as any).$t('graph.success_gaps'));
         }
         if (viewId === 'focus') {
-            const nodeId = await kpPrompt({ title: '🎯 Focus Node', message: 'Nhập node ID:', placeholder: 'vd: entity_123' });
+            const nodeId = await kpPrompt({ 
+                title: (window as any).$t('graph.prompt_focus_title'), 
+                message: (window as any).$t('graph.prompt_focus_msg'), 
+                placeholder: (window as any).$t('graph.prompt_focus_placeholder') 
+            });
             if (!nodeId) return;
-            return this.loadAdvancedGraph(`${API}/graph/focus?node_id=${encodeURIComponent(nodeId)}&depth=2`, `Đã tải Focus cho ${nodeId}`);
+            return this.loadAdvancedGraph(`${API}/graph/focus?node_id=${encodeURIComponent(nodeId)}&depth=2`, (window as any).$t('graph.success_focus', { id: nodeId }));
         }
         if (viewId === 'impact') {
-            const docId = await kpPrompt({ title: '💥 Impact Analysis', message: 'Nhập document ID:', placeholder: 'vd: doc_abc' });
+            const docId = await kpPrompt({ 
+                title: (window as any).$t('graph.prompt_impact_title'), 
+                message: (window as any).$t('graph.prompt_impact_msg'), 
+                placeholder: (window as any).$t('graph.prompt_impact_placeholder') 
+            });
             if (!docId) return;
-            return this.loadAdvancedGraph(`${API}/graph/impact?doc_id=${encodeURIComponent(docId)}&depth=3`, 'Đã tải Impact Analysis');
+            return this.loadAdvancedGraph(`${API}/graph/impact?doc_id=${encodeURIComponent(docId)}&depth=3`, (window as any).$t('graph.success_impact'));
         }
         if (viewId === 'trace') {
-            const inputId = await kpPrompt({ title: '🔗 Trace Root Cause', message: 'Nhập ID hoặc Jira key:', placeholder: 'vd: PROJ-123' });
+            const inputId = await kpPrompt({ 
+                title: (window as any).$t('graph.prompt_trace_title'), 
+                message: (window as any).$t('graph.prompt_trace_msg'), 
+                placeholder: (window as any).$t('graph.prompt_trace_placeholder') 
+            });
             if (!inputId) return;
             const isJira = /^[A-Z]+-\d+$/.test(inputId.trim());
             const params = isJira ? `jira_key=${encodeURIComponent(inputId)}` : `doc_id=${encodeURIComponent(inputId)}`;
-            return this.loadAdvancedGraph(`${API}/graph/trace?${params}&depth=4`, 'Đã tải Trace Root Cause');
+            return this.loadAdvancedGraph(`${API}/graph/trace?${params}&depth=4`, (window as any).$t('graph.success_trace'));
         }
     }
 
@@ -248,11 +260,11 @@ export class GraphModule {
                         ctx.fillStyle = '#888888';
                         ctx.font = '16px Inter, sans-serif';
                         ctx.textAlign = 'center';
-                        ctx.fillText('Chưa có dữ liệu đồ thị. Vui lòng trích xuất thực thể từ tài liệu.', canvas.width / 2, canvas.height / 2);
+                        ctx.fillText((window as any).$t('graph.empty_graph'), canvas.width / 2, canvas.height / 2);
                     }
                 }
                 this.hideGraphLoading();
-                showToast('Không có dữ liệu đồ thị để hiển thị', 'info');
+                showToast((window as any).$t('graph.err_no_data'), 'info');
                 return;
             }
 
@@ -286,7 +298,7 @@ export class GraphModule {
             showToast(successMsg, 'success');
         } catch (err) { 
             const error = err as Error;
-            showToast(`Lỗi: ${error.message}`, 'error'); 
+            showToast((window as any).$t('common.error_with_msg', { message: error.message }), 'error'); 
         } finally { 
             this.hideGraphLoading(); 
         }
@@ -294,12 +306,12 @@ export class GraphModule {
 
     public async loadTrace(docId: string): Promise<void> {
         this.currentView = 'trace';
-        await this.loadAdvancedGraph(`${API}/graph/trace?doc_id=${encodeURIComponent(docId)}&depth=4`, 'Đã tải Trace Root Cause');
+        await this.loadAdvancedGraph(`${API}/graph/trace?doc_id=${encodeURIComponent(docId)}&depth=4`, (window as any).$t('graph.success_trace'));
     }
 
     public async loadImpact(docId: string): Promise<void> {
         this.currentView = 'impact';
-        await this.loadAdvancedGraph(`${API}/graph/impact?doc_id=${encodeURIComponent(docId)}&depth=3`, 'Đã tải Impact Analysis');
+        await this.loadAdvancedGraph(`${API}/graph/impact?doc_id=${encodeURIComponent(docId)}&depth=3`, (window as any).$t('graph.success_impact'));
     }
 
     private showGraphLoading(): void {
@@ -308,7 +320,7 @@ export class GraphModule {
             hint = document.createElement('div');
             hint.id = 'graphHintOverlay';
             hint.className = 'graph-loading-state';
-            hint.innerHTML = '<div class="spinner"></div><p>Đang tải dữ liệu và tính toán lực...</p>';
+            hint.innerHTML = `<div class="spinner"></div><p>${(window as any).$t('graph.loading_data')}</p>`;
             this.canvas?.parentElement?.appendChild(hint);
         } else hint.style.display = 'flex';
     }
@@ -328,7 +340,7 @@ export class GraphModule {
             timeline.id = 'graphTimelineContainer';
             timeline.className = 'graph-timeline-container';
             timeline.innerHTML = `
-                <div class="timeline-label">🕒 Thời gian: <span id="timelineValue">365</span> ngày</div>
+                <div class="timeline-label">${(window as any).$t('graph.timeline_label', { days: 365 })}</div>
                 <input type="range" id="graphTimeSlider" min="1" max="365" value="365">
             `;
             wrap.appendChild(timeline);
@@ -473,7 +485,7 @@ export class GraphModule {
         // Luồng Query-to-Subgraph: Nếu gõ xong 800ms thì tự động fetch subgraph
         this.searchTimeout = window.setTimeout(() => {
             if (query.length >= 3) {
-                this.loadAdvancedGraph(`${API}/graph/query?query=${encodeURIComponent(query)}&limit=15`, `Đã tìm thấy subgraph cho: ${query}`);
+                this.loadAdvancedGraph(`${API}/graph/query?query=${encodeURIComponent(query)}&limit=15`, (window as any).$t('common.load_success'));
             }
         }, 800);
         
@@ -772,11 +784,11 @@ export class GraphModule {
                     <span class="value"><code>${node.id}</code></span>
                 </div>
                 <div class="graph-detail-item">
-                    <span class="label">Loại</span>
-                    <span class="value">${escapeHtml(node.type || 'Thực thể')}</span>
+                    <span class="label">${(window as any).$t('graph.detail_type')}</span>
+                    <span class="value">${escapeHtml(node.type || (window as any).$t('graph.detail_type_entity'))}</span>
                 </div>
-                <div id="nodeExtraDetails" class="graph-loading">Đang tải chi tiết...</div>
-                <button id="graphViewDocBtn" data-id="${node.id}" class="primary-btn mini" style="margin-top: 10px; width: 100%;">📄 Xem tài liệu liên quan</button>
+                <div id="nodeExtraDetails" class="graph-loading">${(window as any).$t('graph.detail_loading')}</div>
+                <button id="graphViewDocBtn" data-id="${node.id}" class="primary-btn mini" style="margin-top: 10px; width: 100%;">${(window as any).$t('graph.detail_view_doc')}</button>
             </div>
         `;
 

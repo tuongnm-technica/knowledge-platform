@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -7,10 +8,12 @@ from pydantic import BaseModel
 from services.llm_service import LLMService
 
 from apps.api.auth.dependencies import CurrentUser, get_current_user
+from apps.api.auth.access_control import validate_project_access, get_accessible_projects
 from storage.db.db import get_db
 from connectors.jira.jira_client import JiraClient
 
 router = APIRouter(prefix="/pm", tags=["pm_dashboard"])
+log = structlog.get_logger()
 
 @router.get("/projects")
 async def get_pm_projects(
@@ -18,24 +21,46 @@ async def get_pm_projects(
     user: CurrentUser = Depends(get_current_user),
 ):
     try:
-        # Fetching directly from Jira Client (or we can query distinct 'project' from documents)
+        # Check permission level
         client = JiraClient()
-        projects = client.get_projects()
-        
-        return {
-            "projects": [
+        if user.is_admin:
+            projects_data = client.get_projects()
+            projects = [
                 {
-                    "key": p.get("key"), 
+                    "key": p.get("key"),
                     "name": p.get("name"),
                     "id": p.get("id"),
                     "avatar": p.get("avatarUrls", {}).get("48x48")
                 } 
-                for p in projects
+                for p in projects_data
             ]
-        }
+        else:
+            # Chỉ lấy các project mà user có group tương ứng
+            permitted_keys = get_accessible_projects(user)
+            if not permitted_keys:
+                return {"projects": []}
+                
+            all_p = client.get_projects()
+            projects = [
+                {
+                    "key": p.get("key"),
+                    "name": p.get("name"),
+                    "id": p.get("id"),
+                    "avatar": p.get("avatarUrls", {}).get("48x48")
+                } 
+                for p in all_p if p.get("key") in permitted_keys
+            ]
+        return {"projects": projects}
     except Exception as e:
         # Fallback to DB if live Jira connection fails
-        res = await session.execute(text("SELECT DISTINCT metadata->>'project' as key FROM documents WHERE source='jira' AND metadata->>'project' IS NOT NULL"))
+        if user.is_admin:
+            res = await session.execute(text("SELECT DISTINCT project_key as key FROM pm_metrics_by_project"))
+        else:
+            permitted_keys = get_accessible_projects(user)
+            res = await session.execute(
+                text("SELECT DISTINCT project_key as key FROM pm_metrics_by_project WHERE project_key = ANY(:keys)"),
+                {"keys": permitted_keys}
+            )
         projects = [{"key": row[0], "name": row[0]} for row in res.fetchall()]
         return {"projects": projects}
 
@@ -51,6 +76,9 @@ async def get_pm_dashboard_stats(
     else:
         project_key = project_key.strip().replace("[", "").replace("]", "")
 
+    # Security Check from the Root
+    await validate_project_access(project_key, user)
+
     # Fetching metrics from pm_metrics_daily and pm_project_insights
     if project_key:
         query_metrics = text("""
@@ -63,15 +91,19 @@ async def get_pm_dashboard_stats(
         query_insights = text("""
             SELECT velocity_weekly, risk_score, health_status, insight
             FROM pm_metrics_by_project
-            WHERE (project_key ILIKE '%' || CAST(:p AS TEXT) || '%' OR CAST(:p AS TEXT) || '%' ILIKE '%' || project_key || '%')
+            WHERE (project_key = CAST(:p AS TEXT))
             ORDER BY updated_at DESC LIMIT 1
         """)
     else:
-        # Global View: Sum of latest metrics for each project
+        # Global View (Admin only usually, or union of permitted)
+        # For simple root security, if no project_key, we might return sum of permitted
+        permitted_keys = get_accessible_projects(user)
+        
         query_metrics = text("""
             WITH latest_dates AS (
                 SELECT project_key, MAX(date) as max_date
                 FROM pm_metrics_daily
+                WHERE (:is_admin OR project_key = ANY(:keys))
                 GROUP BY project_key
             )
             SELECT 
@@ -87,12 +119,16 @@ async def get_pm_dashboard_stats(
                 AVG(velocity_weekly) as velocity_weekly, 
                 AVG(risk_score) as risk_score, 
                 'overview' as health_status, 
-                'Global overview of all projects' as insight
+                'Global overview of your permitted projects' as insight
             FROM pm_metrics_by_project
+            WHERE (:is_admin OR project_key = ANY(:keys))
         """)
     
-    res_metrics = await session.execute(query_metrics, {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {})
+    params = {"p": project_key, "is_admin": user.is_admin, "keys": get_accessible_projects(user)}
+    res_metrics = await session.execute(query_metrics, params)
     stats_row = res_metrics.fetchone()
+    res_insights = await session.execute(query_insights, params)
+    insights_row = res_insights.fetchone()
     
     # [LIVE FALLBACK] If no daily metrics found or they are all NULL, compute live from documents table
     is_empty = not stats_row or all(v is None for v in stats_row)
@@ -107,13 +143,14 @@ async def get_pm_dashboard_stats(
             FROM documents
             WHERE source = 'jira' 
               AND (
+                  (:is_admin OR metadata->>'project_key' = ANY(:keys))
+              )
+              AND (
                   CAST(:p AS TEXT) IS NULL 
-                  OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-                  OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-                  OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
+                  OR metadata->>'project_key' = CAST(:p AS TEXT)
               )
         """)
-        res_live = await session.execute(live_query, {"p": project_key})
+        res_live = await session.execute(live_query, params)
         live_stats = res_live.fetchone()
         stats = {
             "todo_count": live_stats[0] or 0,
@@ -147,7 +184,7 @@ async def get_pm_dashboard_stats(
     }
 
     # Optional: Merge project insights if available
-    p_res = await session.execute(query_insights, {"p": project_key, "p_br": f"[{project_key}]"} if project_key else {})
+    p_res = await session.execute(query_insights, params)
     p_metrics = p_res.mappings().first()
     if p_metrics:
         formatted_stats.update({
@@ -165,12 +202,9 @@ async def get_pm_risks(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
-    # Placeholder for risks generated by PM Digest background task
     query = """
     SELECT 
         title, content, created_at
@@ -182,6 +216,15 @@ async def get_pm_risks(
     if project_key:
         query += " AND title ILIKE :p"
         params["p"] = f"%{project_key}%"
+    else:
+        # If no project_key, filter by what's permitted
+        permitted_keys = get_accessible_projects(user)
+        if not user.is_admin:
+            query += " AND (FALSE " # build a chain of ORs for permitted projects in title
+            for i, pk in enumerate(permitted_keys):
+                query += f" OR title ILIKE :p{i}"
+                params[f"p{i}"] = f"%{pk}%"
+            query += ")"
         
     query += " ORDER BY created_at DESC LIMIT :limit"
     params["limit"] = limit
@@ -215,16 +258,20 @@ async def get_pm_workload(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     query = "SELECT user_id, display_name, project_key, todo_count, in_progress_count, done_count FROM pm_metrics_by_user"
     params = {}
     if project_key:
-        query += " WHERE (project_key ILIKE '%' || CAST(:p AS TEXT) || '%' OR CAST(:p AS TEXT) || '%' ILIKE '%' || project_key || '%')"
+        query += " WHERE project_key = :p"
         params = {"p": project_key}
+    else:
+        # Filter global view by permitted projects
+        if not user.is_admin:
+            permitted_keys = get_accessible_projects(user)
+            query += " WHERE project_key = ANY(:keys)"
+            params = {"keys": permitted_keys}
         
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -246,13 +293,8 @@ async def get_pm_logtime(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """
-    Aggregates total time spent (logged hours) from issue metadata by user.
-    """
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     query = """
         SELECT 
@@ -262,16 +304,21 @@ async def get_pm_logtime(
         WHERE source = 'jira' 
           AND (
               CAST(:p AS TEXT) IS NULL
-              OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-              OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-              OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
+              OR metadata->>'project_key' = CAST(:p AS TEXT)
           )
+    """
+    
+    params = {"p": project_key}
+    if not user.is_admin and not project_key:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
+
+    query += """
         GROUP BY 1
         HAVING SUM(CAST(COALESCE(metadata->'timetracking'->>'timeSpentSeconds', '0') AS INTEGER)) > 0
         ORDER BY seconds DESC
     """
-    
-    params = {"p": project_key}
     
     res = await session.execute(text(query), params)
     rows = res.fetchall()
@@ -292,16 +339,13 @@ async def get_pm_logtime_trend(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
-    """
-    Groups effort (log-time) by day and user for a trend chart.
-    Uses JSONB unnesting to reach individual worklog entries.
-    """
-    query = f"""
+    # Security Check
+    await validate_project_access(project_key, user)
+
+    query = """
         SELECT 
             CAST(w->>'started' AS DATE) as log_date,
             w->>'author' as user_name,
@@ -309,19 +353,22 @@ async def get_pm_logtime_trend(
         FROM documents,
              jsonb_array_elements(CASE WHEN jsonb_typeof((metadata->'worklog')::jsonb) = 'array' THEN (metadata->'worklog')::jsonb ELSE '[]'::jsonb END) w
         WHERE source = 'jira' 
-          AND (
-              CAST(:p AS TEXT) IS NULL
-              OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-              OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-              OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
-          )
-        AND (w->>'started') IS NOT NULL
-          AND CAST(w->>'started' AS DATE) >= CURRENT_DATE - INTERVAL '{days} days'
+          AND (w->>'started') IS NOT NULL
+          AND CAST(w->>'started' AS DATE) >= CURRENT_DATE - INTERVAL '1 day' * :days
+    """
+    
+    params = {"p": project_key, "days": days}
+    if project_key:
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
+
+    query += """
         GROUP BY 1, 2
         ORDER BY 1 ASC, 3 DESC
     """
-    
-    params = {"p": project_key}
     
     res = await session.execute(text(query), params)
     rows = res.fetchall()
@@ -344,10 +391,8 @@ async def get_pm_stale_tasks(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     query = """
     SELECT 
@@ -357,17 +402,18 @@ async def get_pm_stale_tasks(
         updated_at
     FROM documents 
     WHERE source = 'jira' 
-      AND (
-          CAST(:p AS TEXT) IS NULL 
-          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-          OR CAST(:p AS TEXT) ILIKE '%' || (metadata->>'project_key') || '%'
-      )
       AND metadata->>'statusCategory' = 'in progress'
-      AND updated_at < NOW() - CAST(:d || ' days' AS INTERVAL)
-    ORDER BY updated_at ASC LIMIT 50
+      AND updated_at < NOW() - INTERVAL '1 day' * :d
     """
-    params = {"p": project_key, "d": str(days)}
+    params = {"p": project_key, "d": days}
+    if project_key:
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
+
+    query += " ORDER BY updated_at ASC LIMIT 50"
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
     return {"tasks": [dict(r) for r in rows]}
@@ -390,12 +436,12 @@ async def refresh_pm_ai_analysis(
         from arq import create_pool
         from arq.connections import RedisSettings
         
+        # Security Check
+        await validate_project_access(project_key, user)
+
         # Kiểm tra xem dự án có dữ liệu Jira không
         res = await session.execute(
-            text("""SELECT COUNT(*) FROM documents WHERE source = 'jira' AND (
-                metadata->>'project_key' ILIKE '%' || :p || '%' OR 
-                metadata->>'project' ILIKE '%' || :p || '%'
-            )"""),
+            text("""SELECT COUNT(*) FROM documents WHERE source = 'jira' AND metadata->>'project_key' = :p"""),
             {"p": project_key}
         )
 
@@ -415,16 +461,38 @@ async def refresh_pm_ai_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/dashboard/test-logtime-check")
+async def test_pm_logtime_check(
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Endpoint để PM/Admin kích hoạt kiểm tra log-time ngay lập tức (phục vụ testing).
+    """
+    if user.role not in ["pm_po", "system_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Only PMs and Admins can trigger log-time checks")
+        
+    try:
+        from arq_worker import REDIS_URL
+        from arq import create_pool
+        from arq.connections import RedisSettings
+        
+        pool = await create_pool(RedisSettings.from_dsn(REDIS_URL))
+        # Enqueue job kiểm tra
+        await pool.enqueue_job("check_daily_logtime", _queue_name="arq:ai")
+        
+        return {"status": "enqueued", "message": "Log-time check job has been enqueued to arq:ai. Check worker logs and your email (if you are in the list)."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/dashboard/burnup")
 async def get_pm_burnup(
     project_key: Optional[str] = None,
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     query = """
     SELECT 
@@ -433,14 +501,16 @@ async def get_pm_burnup(
     FROM documents 
     WHERE source = 'jira' 
       AND (metadata)::jsonb->>'statusCategory' = 'done'
-      AND (
-          CAST(:p AS TEXT) IS NULL 
-          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-      )
-    GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30
     """
     params = {"p": project_key}
+    if project_key:
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
+
+    query += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30"
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -464,10 +534,8 @@ async def get_pm_cfd(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     # Simulated CFD from current Snapshot DB
     query = """
@@ -477,10 +545,13 @@ async def get_pm_cfd(
     FROM documents 
     WHERE source = 'jira'
     """
-    params = {}
+    params = {"p": project_key}
     if project_key:
-        query += " AND (metadata->>'project_key' ILIKE '%' || :p || '%' OR metadata->>'project' ILIKE '%' || :p || '%')"
-        params["p"] = project_key
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
         
     query += " GROUP BY DATE(created_at) ORDER BY DATE(created_at) ASC"
     
@@ -495,7 +566,9 @@ async def get_pm_cfd(
     WHERE source = 'jira' AND (metadata)::jsonb->>'statusCategory' = 'done'
     """
     if project_key:
-        query_done += " AND (metadata->>'project_key' ILIKE '%' || :p || '%' OR metadata->>'project' ILIKE '%' || :p || '%')"
+        query_done += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        query_done += " AND metadata->>'project_key' = ANY(:keys)"
         
     query_done += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC"
     
@@ -546,10 +619,8 @@ async def get_pm_lead_time(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     query = """
     SELECT 
@@ -560,14 +631,16 @@ async def get_pm_lead_time(
       AND (metadata)::jsonb->>'statusCategory' = 'done'
       AND updated_at IS NOT NULL
       AND created_at IS NOT NULL
-      AND (
-          CAST(:p AS TEXT) IS NULL 
-          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-      )
-    GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30
     """
-    params = {"p": project_key, "p_br": f"[{project_key}]" if project_key else None}
+    params = {"p": project_key}
+    if project_key:
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
+
+    query += " GROUP BY DATE(updated_at) ORDER BY DATE(updated_at) ASC LIMIT 30"
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -596,10 +669,8 @@ async def get_pm_issue_types(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     query = """
     SELECT 
@@ -607,14 +678,16 @@ async def get_pm_issue_types(
         COUNT(id) as count
     FROM documents 
     WHERE source = 'jira'
-      AND (
-          CAST(:p AS TEXT) IS NULL 
-          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-      )
-    GROUP BY COALESCE(metadata->>'issue_type', 'Unknown') ORDER BY count DESC
     """
     params = {"p": project_key}
+    if project_key:
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
+
+    query += " GROUP BY COALESCE(metadata->>'issue_type', 'Unknown') ORDER BY count DESC"
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -628,10 +701,8 @@ async def get_pm_epics(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     # Fetch Epics
     query = """
@@ -645,14 +716,16 @@ async def get_pm_epics(
     FROM documents
     WHERE source = 'jira'
       AND metadata->>'issue_type' = 'Epic'
-      AND (
-          CAST(:p AS TEXT) IS NULL 
-          OR metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%'
-          OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%'
-      )
-    ORDER BY updated_at DESC LIMIT 20
     """
     params = {"p": project_key}
+    if project_key:
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
+
+    query += " ORDER BY updated_at DESC LIMIT 20"
     
     res = await session.execute(text(query), params)
     rows = res.mappings().fetchall()
@@ -679,10 +752,8 @@ async def get_pm_retrospective(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
+    # Security Check
+    await validate_project_access(project_key, user)
 
     query = """
     SELECT 
@@ -690,10 +761,17 @@ async def get_pm_retrospective(
     FROM doc_drafts
     WHERE doc_type = 'pm_sprint_retrospective'
     """
-    params = {"limit": limit}
+    params = {"limit": limit, "p": project_key}
     if project_key:
-        query += " AND title ILIKE :p"
+        query += " AND title ILIKE :p" # retrospective usually have project_key in title
         params["p"] = f"%{project_key}%"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND (FALSE "
+        for i, pk in enumerate(permitted_keys):
+            query += f" OR title ILIKE :p{i}"
+            params[f"p{i}"] = f"%{pk}%"
+        query += ")"
         
     query += " ORDER BY created_at DESC LIMIT :limit"
     
@@ -731,7 +809,7 @@ async def generate_pm_custom_report(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project_key = req.project_key.strip()
+    project_key = req.project_key.strip().replace("[", "").replace("]", "")
     prompt = (req.prompt or "").strip()
     action = req.action_type or "custom"
     
@@ -747,6 +825,9 @@ async def generate_pm_custom_report(
         "custom": prompt
     }
     final_prompt = action_map.get(action, prompt)
+    
+    # 0. Permission check
+    await validate_project_access(project_key, user)
 
     # 1. Fetch current status metrics
     metrics_query = """
@@ -768,7 +849,7 @@ async def generate_pm_custom_report(
     WHERE source = 'jira' 
       AND metadata->>'project_key' = :p
       AND metadata->>'statusCategory' = 'in progress'
-      AND updated_at < NOW() - interval '3 days'
+      AND updated_at < NOW() - INTERVAL '3 days'
     ORDER BY updated_at ASC LIMIT 10
     """
     s_res = await session.execute(text(stale_query), {"p": project_key})
@@ -780,12 +861,7 @@ async def generate_pm_custom_report(
         SELECT source_id as key, title, metadata->'assignee'->>'displayName' as assignee, metadata->>'status' as status
         FROM documents 
         WHERE source = 'jira' 
-          AND (
-              metadata->>'project_key' ILIKE :p 
-              OR metadata->>'project_key' ILIKE :p_br
-              OR metadata->>'project' ILIKE :p
-              OR metadata->>'project' ILIKE :p_br
-          )
+          AND metadata->>'project_key' = :p
           AND metadata->>'statusCategory' = 'in progress'
         ORDER BY updated_at DESC LIMIT 10
     """)
@@ -817,7 +893,7 @@ QUY TẮC PHẢN HỒI (BẮT BUỘC):
 5. ĐỊNH DẠNG: Trả về Markdown chuyên nghiệp. 
 6. BIỂU ĐỒ: Khi cần minh họa dữ liệu (phân bổ Assignee, rủi ro, Log-time theo User, v.v.), hãy xuất mã biểu đồ theo format:
 ```
-[[CHART:{"type":"pie|bar|line", "title": "...", "labels": [], "data": []}]]
+[[CHART:{{ "type":"pie|bar|line", "title": "...", "labels": [], "data": [] }}]]
 ```
 7. SUMMARY JSON: Cuối cùng, hãy luôn xuất một khối JSON nhỏ chứa thông tin tóm tắt.
 
@@ -841,8 +917,16 @@ async def get_at_risk_projects(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    query = "SELECT * FROM pm_metrics_by_project WHERE health_status != 'healthy' ORDER BY risk_score DESC LIMIT 5"
-    res = await session.execute(text(query))
+    # Filter by permitted projects
+    permitted_keys = get_accessible_projects(user)
+    
+    query = """
+        SELECT * FROM pm_metrics_by_project 
+        WHERE health_status != 'healthy' 
+        AND (:is_admin OR project_key = ANY(:keys))
+        ORDER BY risk_score DESC LIMIT 5
+    """
+    res = await session.execute(text(query), {"is_admin": user.is_admin, "keys": permitted_keys})
     return {"projects": [dict(r) for r in res.mappings().fetchall()]}
 
 
@@ -853,11 +937,8 @@ async def get_pm_drilldown(
     session: AsyncSession = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Drill-down API to fetch issue list for a specific metric."""
-    if not project_key or project_key.strip() == "":
-        project_key = None
-    else:
-        project_key = project_key.strip()
+    # Security check
+    await validate_project_access(project_key, user)
 
     query = """
     SELECT 
@@ -868,14 +949,16 @@ async def get_pm_drilldown(
     FROM documents
     WHERE source = 'jira'
     """
-    params = {}
+    params = {"p": project_key}
     if project_key:
-        project_key = project_key.strip().replace("[", "").replace("]", "")
-        query += " AND (metadata->>'project_key' ILIKE '%' || CAST(:p AS TEXT) || '%' OR metadata->>'project' ILIKE '%' || CAST(:p AS TEXT) || '%')"
-        params["p"] = project_key
+        query += " AND metadata->>'project_key' = :p"
+    elif not user.is_admin:
+        permitted_keys = get_accessible_projects(user)
+        query += " AND metadata->>'project_key' = ANY(:keys)"
+        params["keys"] = permitted_keys
         
     if metric == "high_priority":
-        query += " AND metadata->>'priority' IN ('High', 'Highest')"
+        query += " AND metadata->>'priority' IN ('High', 'Highest', 'Critical')"
     elif metric == "todo":
         query += " AND metadata->>'statusCategory' = 'to do'"
     elif metric == "in_progress":
@@ -883,7 +966,7 @@ async def get_pm_drilldown(
     elif metric == "done":
         query += " AND metadata->>'statusCategory' = 'done'"
     elif metric == "stale":
-        query += " AND metadata->>'statusCategory' = 'in progress' AND updated_at < NOW() - interval '3 days'"
+        query += " AND metadata->>'statusCategory' = 'in progress' AND updated_at < NOW() - INTERVAL '3 days'"
         
     query += " LIMIT 50"
     res = await session.execute(text(query), params)

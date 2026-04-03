@@ -361,23 +361,43 @@ export class ConnectorsModule {
         body.className = 'sync-modal-content';
         body.innerHTML = `
             <div class="modal-intro">
-                Chọn chế độ đồng bộ cho <strong>${escapeHtml(inst.instance_name)}</strong>:
+                ${(window as any).$t('connectors.modal_sync_intro', { name: escapeHtml(inst.instance_name) })}
             </div>
             <div class="sync-options">
                 <label class="sync-option-card active">
                     <input type="radio" name="syncMode" value="incremental" checked>
                     <div class="option-body">
-                        <div class="option-title highlight">▶ Tiếp tục / Cập nhật mới (Khuyên dùng)</div>
-                        <div class="option-desc">Chỉ lấy các dữ liệu mới tạo hoặc bị sửa đổi kể từ lần đồng bộ thành công gần nhất. <br><b>Phù hợp để Resume</b> nếu lần chạy trước bị dừng hoặc lỗi giữa chừng.</div>
+                        <div class="option-title highlight">${(window as any).$t('connectors.sync_opt_inc_title')}</div>
+                        <div class="option-desc">${(window as any).$t('connectors.sync_opt_inc_desc')}</div>
                     </div>
                 </label>
                 <label class="sync-option-card">
                     <input type="radio" name="syncMode" value="full">
                     <div class="option-body">
-                        <div class="option-title">🔄 Đồng bộ lại từ đầu (Full Sync)</div>
-                        <div class="option-desc">Bỏ qua lịch sử cũ, quét lại toàn bộ kho dữ liệu từ con số 0. Quá trình này sẽ mất nhiều thời gian hơn rất nhiều.</div>
+                        <div class="option-title">${(window as any).$t('connectors.sync_opt_full_title')}</div>
+                        <div class="option-desc">${(window as any).$t('connectors.sync_opt_full_desc')}</div>
                     </div>
                 </label>
+            </div>
+
+            <div class="sync-advanced-options" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                <div class="advanced-options-header" style="font-weight: 600; margin-bottom: 12px; font-size: 0.9rem; color: var(--text-muted);">
+                    ${(window as any).$t('connectors.label_advanced_ai')}
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                        <span style="font-size: 0.95rem;">${(window as any).$t('connectors.sync_opt_ai_summarize')}</span>
+                        <input type="checkbox" id="syncSummarize" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    </label>
+                    <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                        <span style="font-size: 0.95rem;">${(window as any).$t('connectors.sync_opt_ai_relations')}</span>
+                        <input type="checkbox" id="syncRelations" ${['confluence', 'jira', 'slack'].includes(type) ? '' : 'checked'} style="width: 18px; height: 18px; cursor: pointer;">
+                    </label>
+                    <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                        <span style="font-size: 0.95rem;">${(window as any).$t('connectors.sync_opt_ai_vision')}</span>
+                        <input type="checkbox" id="syncVision" style="width: 18px; height: 18px; cursor: pointer;">
+                    </label>
+                </div>
             </div>
         `;
 
@@ -390,22 +410,30 @@ export class ConnectorsModule {
         });
 
         await kpOpenModal({
-            title: '🚀 Khởi chạy Đồng bộ',
+            title: '🚀 ' + (window as any).$t('connectors.modal_sync_launch'),
             content: body,
-            okText: 'Bắt đầu',
+            okText: (window as any).$t('common.start'),
             onOk: async () => {
                 const mode = (body.querySelector('input[name="syncMode"]:checked') as HTMLInputElement).value;
                 const forceFull = mode === 'full';
+                const summarize = (body.querySelector('#syncSummarize') as HTMLInputElement).checked;
+                const relations = (body.querySelector('#syncRelations') as HTMLInputElement).checked;
+                const vision = (body.querySelector('#syncVision') as HTMLInputElement).checked;
                 
-                showToast(`Đang yêu cầu đồng bộ ${type}...`, 'info');
+                showToast((window as any).$t('connectors.requesting_sync', { type }), 'info');
                 try {
                     const res = await authFetch(`${API}/connectors/${type}/instances/${id}/sync`, { 
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ force_full: forceFull })
+                        body: JSON.stringify({ 
+                            force_full: forceFull,
+                            summarize: summarize,
+                            relations: relations,
+                            vision: vision
+                        })
                     });
-                    if (!res.ok) throw new Error('Yêu cầu đồng bộ thất bại');
-                    showToast('Đã bắt đầu tiến trình đồng bộ', 'success');
+                    if (!res.ok) throw new Error((window as any).$t('connectors.err_sync_failed'));
+                    showToast((window as any).$t('connectors.sync_started'), 'success');
                     setTimeout(() => this.loadConnectorStats(true), 1000);
                     return true;
                 } catch (err) {

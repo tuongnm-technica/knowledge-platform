@@ -31,9 +31,13 @@ async def describe_image(
     hint: str = "",
     max_chars: int | None = None,
     retries: int = 1,
+    vision: bool | None = None,
 ) -> str:
-    if not settings.VISION_ENABLED:
+    if vision is False:
         return ""
+    if vision is None and not settings.VISION_ENABLED:
+        return ""
+        
     model = str(settings.OLLAMA_VISION_MODEL or "").strip()
     if not model:
         return ""
@@ -84,12 +88,14 @@ async def describe_images_batch(
     items: list[dict],
     *,
     concurrency: int = 2,
+    vision: bool | None = None,
 ) -> list[str]:
     """
     items: [{"image_bytes": bytes, "hint": str}]
     """
     if not items:
         return []
+        
     sem = asyncio.Semaphore(max(1, int(concurrency)))
 
     async def _one(item: dict) -> str:
@@ -97,6 +103,7 @@ async def describe_images_batch(
             return await describe_image(
                 image_bytes=item.get("image_bytes") or b"",
                 hint=str(item.get("hint") or "").strip(),
+                vision=vision
             )
 
     return await asyncio.gather(*[_one(item) for item in items], return_exceptions=True)

@@ -1,60 +1,56 @@
-<!-- SIDEBAR -->
-<aside class="sidebar">
+<aside class="sidebar" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="logo premium-card">
     <div class="logo-text">Knowledge</div>
     <div class="logo-sub">On-Premise AI Platform</div>
   </div>
 
   <nav class="nav">
-    <div class="nav-section">Workspace</div>
+    <div class="nav-section" x-text="$t('common.workspace', { defaultValue: 'Workspace' })">Workspace</div>
     <a href="/chat" class="nav-item active" data-navigo data-target="chat">
-      <span class="nav-icon">💬</span> Chat AI
+      <span class="nav-icon">💬</span> <span x-text="$t('nav.chat')">Chat AI</span>
     </a>
     <a href="/search" class="nav-item" data-navigo data-target="search">
-      <span class="nav-icon">🔍</span> Search
+      <span class="nav-icon">🔍</span> <span x-text="$t('nav.search')">Search</span>
     </a>
     <a href="/documents" class="nav-item" id="nav-documents" data-navigo data-target="documents">
-      <span class="nav-icon">📁</span> Knowledge Base
+      <span class="nav-icon">📁</span> <span x-text="$t('nav.documents')">Knowledge Base</span>
     </a>
     <a href="/drafts" class="nav-item" id="nav-drafts" data-navigo data-target="drafts">
-      <span class="nav-icon">📝</span> Drafts
+      <span class="nav-icon">📝</span> <span x-text="$t('nav.drafts')">Drafts</span>
       <span class="nav-badge" id="nav-drafts-badge" style="display: none;"></span>
     </a>
     <a href="/tasks" class="nav-item" id="nav-tasks" data-navigo data-target="tasks">
-      <span class="nav-icon">🤖</span> Tasks
+      <span class="nav-icon">🤖</span> <span x-text="$t('nav.tasks')">Tasks</span>
       <span class="nav-badge" id="nav-tasks-badge" style="display: none;"></span>
     </a>
-    <a href="/memory" class="nav-item" id="nav-memory" data-navigo data-target="memory">
-      <span class="nav-icon">🧠</span> Project Memory
-    </a>
     <a href="/graph" class="nav-item" id="nav-graph" data-navigo data-target="graph">
-      <span class="nav-icon">🕸️</span> Knowledge Graph
+      <span class="nav-icon">🕸️</span> <span x-text="$t('nav.graph')">Knowledge Graph</span>
     </a>
     <a href="/ba-suite" class="nav-item" id="nav-ba-suite" data-navigo data-target="ba-suite">
-      <span class="nav-icon">🚀</span> Auto Work
+      <span class="nav-icon">🚀</span> <span x-text="$t('nav.ba_suite')">Auto Work</span>
     </a>
     <a href="/pm-dashboard" class="nav-item" id="nav-pm-dashboard" data-navigo data-target="pm_dashboard">
-      <span class="nav-icon">📊</span> PM Dashboard
+      <span class="nav-icon">📊</span> <span x-text="$t('nav.pm_dashboard')">PM Dashboard</span>
     </a>
 
-    <div class="nav-section">Quản trị</div>
+    <div class="nav-section" x-text="$t('common.admin', { defaultValue: 'Quản trị' })">Quản trị</div>
     <a href="/connectors" class="nav-item" id="nav-connectors" data-navigo data-target="connectors">
-      <span class="nav-icon">🔗</span> Connectors
+      <span class="nav-icon">🔗</span> <span x-text="$t('nav.connectors')">Connectors</span>
     </a>
     <a href="/users" class="nav-item" id="nav-users" data-navigo data-target="users">
-      <span class="nav-icon">👥</span> Users
+      <span class="nav-icon">👥</span> <span x-text="$t('nav.users')">Users</span>
     </a>
     <a href="/prompts" class="nav-item" id="nav-prompts" data-navigo data-target="prompts">
-      <span class="nav-icon">🗂️</span> Skill Prompts
+      <span class="nav-icon">🗂️</span> <span x-text="$t('nav.prompts')">Skill Prompts</span>
     </a>
     <a href="/workflows" class="nav-item" id="nav-workflows" data-navigo data-target="workflows">
-      <span class="nav-icon">⚡</span> AI Workflows
+      <span class="nav-icon">⚡</span> <span x-text="$t('nav.workflows')">AI Workflows</span>
     </a>
     <a href="/models" class="nav-item" id="nav-models" data-navigo data-target="models">
-      <span class="nav-icon">🤖</span> Quản lý Model
+      <span class="nav-icon">🤖</span> <span x-text="$t('nav.models')">Quản lý Model</span>
     </a>
     <a href="/integrations" class="nav-item" id="nav-integration" data-navigo data-target="integration">
-      <span class="nav-icon">⚙️</span> Integrations
+      <span class="nav-icon">⚙️</span> <span x-text="$t('nav.integrations')">Integrations</span>
     </a>
   </nav>
 
@@ -64,9 +60,9 @@
       <div class="avatar" id="sidebarAvatar">A</div>
       <div class="user-info">
         <div class="user-name" id="sidebarUsername">Account</div>
-        <div class="user-role">Member</div>
+        <div class="user-role" x-text="$t('common.member', { defaultValue: 'Member' })">Member</div>
       </div>
-      <button class="logout-btn" id="logoutBtn" title="Đăng xuất">
+      <button class="logout-btn" id="logoutBtn" :title="$t('common.logout', { defaultValue: 'Đăng xuất' })">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
       </button>
     </div>

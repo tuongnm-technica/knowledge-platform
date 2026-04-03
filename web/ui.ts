@@ -1,6 +1,6 @@
 export async function readApiError(response: Response): Promise<string> {
     const payload = await response.json().catch(() => ({}));
-    return payload.detail || payload.message || `Request failed (${response.status})`;
+    return payload.detail || payload.message || `${(window as any).$t('common.err_request_failed')} (${response.status})`;
 }
 
 export function escapeHtml(value: string | null | undefined): string {
@@ -16,7 +16,17 @@ export function formatDateTime(value: string | number | Date | null | undefined)
     if (!value) return '—';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleString('vi-VN', {
+    
+    // Use current i18next language or fallback to vi-VN
+    const currentLang = (window as any).i18next?.language || 'vi';
+    const localeMapping: Record<string, string> = {
+        'vi': 'vi-VN',
+        'en': 'en-US',
+        'jp': 'ja-JP'
+    };
+    const locale = localeMapping[currentLang] || 'vi-VN';
+
+    return date.toLocaleString(locale, {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -26,7 +36,14 @@ export function formatDateTime(value: string | number | Date | null | undefined)
 }
 
 export function formatNumber(value: number | string | null | undefined): string {
-    return Number(value || 0).toLocaleString('vi-VN');
+    const currentLang = (window as any).i18next?.language || 'vi';
+    const localeMapping: Record<string, string> = {
+        'vi': 'vi-VN',
+        'en': 'en-US',
+        'jp': 'ja-JP'
+    };
+    const locale = localeMapping[currentLang] || 'vi-VN';
+    return Number(value || 0).toLocaleString(locale);
 }
 
 export function showToast(msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'success'): void {
@@ -141,7 +158,7 @@ export function _kpCloseModal<T>(result: T | null): void {
 
 export function _kpSetModalError(message: string): void {
     const els = _kpEnsureModalElements();
-    els.errorEl.textContent = String(message || 'Invalid input.');
+    els.errorEl.textContent = String(message || (window as any).$t('common.err_invalid_input'));
     els.errorEl.style.display = '';
 }
 
@@ -157,9 +174,12 @@ export interface OpenModalOptions<T = any> {
     onOk?: () => Promise<T | { error: string } | boolean> | T | { error: string } | boolean;
 }
 
-export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', cancelText = 'Cancel', okClass = 'primary-btn', modalClass = '', contentStyles, onOk }: OpenModalOptions<T> = {}): Promise<T | null> {
+export function kpOpenModal<T = any>({ title, subtitle, content, okText, cancelText, okClass = 'primary-btn', modalClass = '', contentStyles, onOk }: OpenModalOptions<T> = {}): Promise<T | null> {
     const els = _kpEnsureModalElements();
     if (KP_MODAL_STATE) _kpCloseModal(null);
+
+    const _okText = okText || (window as any).$t('common.ok');
+    const _cancelText = cancelText !== undefined ? cancelText : (window as any).$t('common.cancel');
 
     els.titleEl.textContent = String(title || '');
     els.subtitleEl.textContent = String(subtitle || '');
@@ -167,11 +187,11 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
     els.bodyEl.innerHTML = '';
     els.errorEl.style.display = 'none';
     els.errorEl.textContent = '';
-    els.okBtn.textContent = okText;
+    els.okBtn.textContent = _okText;
     els.okBtn.disabled = false;
-    els.cancelBtn.textContent = cancelText || '';
+    els.cancelBtn.textContent = _cancelText || '';
     els.cancelBtn.disabled = false;
-    els.cancelBtn.style.display = cancelText ? '' : 'none';
+    els.cancelBtn.style.display = _cancelText ? '' : 'none';
     els.okBtn.className = okClass;
     
     const modalEl = els.overlay.querySelector('.kp-modal') as HTMLElement;
@@ -203,7 +223,7 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
         const oldText = els.okBtn.textContent;
         try {
             els.okBtn.disabled = true;
-            els.okBtn.textContent = 'Đang xử lý...';
+            els.okBtn.textContent = (window as any).$t('common.processing');
             els.cancelBtn.disabled = true;
 
             const out = onOk ? await onOk() : true;
@@ -223,7 +243,7 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
             _kpCloseModal(out as T);
         } catch (err) {
             const error = err as Error;
-            _kpSetModalError(error.message || 'Action failed.');
+            _kpSetModalError(error.message || (window as any).$t('common.err_action_failed'));
             els.okBtn.disabled = false;
             els.okBtn.textContent = oldText;
             els.cancelBtn.disabled = false;
@@ -281,7 +301,7 @@ export function kpOpenModal<T = any>({ title, subtitle, content, okText = 'OK', 
     });
 }
 
-export function kpConfirm({ title, message, okText = 'OK', cancelText = 'Cancel', danger = false }: ConfirmOptions = {}): Promise<boolean> {
+export function kpConfirm({ title, message, okText, cancelText, danger = false }: ConfirmOptions = {}): Promise<boolean> {
     const body = document.createElement('div');
     body.className = 'kp-modal-confirm';
     const p = document.createElement('div');
@@ -292,14 +312,14 @@ export function kpConfirm({ title, message, okText = 'OK', cancelText = 'Cancel'
         title,
         subtitle: '',
         content: body,
-        okText,
-        cancelText,
+        okText: okText || (window as any).$t('common.ok'),
+        cancelText: cancelText || (window as any).$t('common.cancel'),
         okClass: danger ? 'danger-btn' : 'primary-btn',
         onOk: () => true,
     }).then(res => !!res);
 }
 
-export function kpPrompt({ title, message, placeholder = '', defaultValue = '', okText = 'OK', cancelText = 'Cancel' }: PromptOptions = {}): Promise<string | null> {
+export function kpPrompt({ title, message, placeholder = '', defaultValue = '', okText, cancelText }: PromptOptions = {}): Promise<string | null> {
     const body = document.createElement('div');
     body.className = 'kp-modal-confirm';
     if (message) {
@@ -315,16 +335,16 @@ export function kpPrompt({ title, message, placeholder = '', defaultValue = '', 
     input.value = defaultValue;
     body.appendChild(input);
 
-    return kpOpenModal({
+    return kpOpenModal<string>({
         title,
         subtitle: '',
         content: body,
-        okText,
-        cancelText,
+        okText: okText || (window as any).$t('common.ok'),
+        cancelText: cancelText || (window as any).$t('common.cancel'),
         okClass: 'primary-btn',
         onOk: () => {
             const val = input.value.trim();
-            if (!val) return { error: 'Vui lòng nhập giá trị' };
+            if (!val) return { error: (window as any).$t('common.prompt_enter_value') };
             return val;
         },
     });

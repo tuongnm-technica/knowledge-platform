@@ -118,7 +118,7 @@ class AssetIngestor:
             ordered.append(p)
         return ordered
 
-    async def enrich_document(self, doc: Any) -> dict[str, Any]:
+    async def enrich_document(self, doc: Any, vision: bool | None = None) -> dict[str, Any]:
         """
         Download/capture images referenced in doc.content, store them locally + in DB,
         and inject caption/OCR text into doc.content for embedding + retrieval.
@@ -309,11 +309,21 @@ class AssetIngestor:
         if not fetched:
             return {"content": content, "asset_ids": [], "ingested": 0, "replacements": {}}
 
-        # Batch caption/OCR (optional).
-        captions = await describe_images_batch(
-            [{"image_bytes": it["bytes"], "hint": str(getattr(doc, "title", "") or "")[:120]} for it in fetched],
-            concurrency=2,
-        )
+        # AI Vision logic with override
+        should_run_vision = vision
+        if should_run_vision is None:
+            should_run_vision = settings.VISION_ENABLED
+        
+        captions = []
+        if should_run_vision:
+            # Batch caption/OCR (optional).
+            captions = await describe_images_batch(
+                [{"image_bytes": it["bytes"], "hint": str(getattr(doc, "title", "") or "")[:120]} for it in fetched],
+                concurrency=2,
+                vision=should_run_vision
+            )
+        else:
+            captions = [""] * len(fetched)
 
         # Persist + inject into content.
         created_ids: list[str] = []

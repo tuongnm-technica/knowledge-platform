@@ -81,7 +81,7 @@ export class AdminModule {
         this.render();
         try {
             const resp = await authFetch(`${API}/users`);
-            if (!resp.ok) throw new Error('Không thể tải danh sách User');
+            if (!resp.ok) throw new Error((window as any).$t('users.err_load_users'));
             const data = await resp.json() as { users: User[], groups?: Group[] };
             this.users = data.users || [];
             if (data.groups) this.groups = data.groups;
@@ -99,7 +99,7 @@ export class AdminModule {
         this.render();
         try {
             const resp = await authFetch(`${API}/groups`);
-            if (!resp.ok) throw new Error('Không thể tải danh sách Group');
+            if (!resp.ok) throw new Error((window as any).$t('users.err_load_groups'));
             const data = await resp.json() as Group[] | { groups: Group[] };
             this.groups = Array.isArray(data) ? data : (data.groups || []);
         } catch (err) {
@@ -120,14 +120,14 @@ export class AdminModule {
 
         const { wrap: wName, input: nameIn } = _kpBuildModalField({ 
             id: 'uName', 
-            label: 'Tên hiển thị', 
+            label: (window as any).$t('users.label_display_name'), 
             value: existingUser?.display_name || '',
             placeholder: 'Nguyễn Văn A', 
             required: true 
         });
         const { wrap: wEmail, input: emailIn } = _kpBuildModalField({ 
             id: 'uEmail', 
-            label: 'Email', 
+            label: (window as any).$t('users.label_email', { defaultValue: 'Email' }), 
             type: 'email', 
             value: existingUser?.email || '',
             placeholder: 'user@technica.vn', 
@@ -135,36 +135,36 @@ export class AdminModule {
         });
         const { wrap: wPwd, input: pwdIn } = _kpBuildModalField({ 
             id: 'uPwd', 
-            label: isEdit ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu', 
+            label: isEdit ? (window as any).$t('users.label_password_edit') : (window as any).$t('users.label_password'), 
             type: 'password', 
             required: !isEdit 
         });
 
         const { wrap: wRole, input: roleIn } = _kpBuildModalField({ 
             id: 'uRole', 
-            label: 'Vai trò (Role)', 
+            label: (window as any).$t('users.label_role_field'), 
             type: 'select',
             value: existingUser?.role || 'standard',
             options: [
-                { label: 'Member (Standard)', value: 'standard' },
-                { label: 'Knowledge Architect', value: 'knowledge_architect' },
-                { label: 'PM / Product Owner', value: 'pm_po' },
-                { label: 'Business Analyst', value: 'ba_sa' },
-                { label: 'Developer / QA', value: 'dev_qa' },
-                { label: 'System Admin', value: 'system_admin' }
+                { label: (window as any).$t('users.role_standard'), value: 'standard' },
+                { label: (window as any).$t('users.role_ka'), value: 'knowledge_architect' },
+                { label: (window as any).$t('users.role_pm'), value: 'pm_po' },
+                { label: (window as any).$t('users.role_ba'), value: 'ba_sa' },
+                { label: (window as any).$t('users.role_dev'), value: 'dev_qa' },
+                { label: (window as any).$t('users.role_admin'), value: 'system_admin' }
             ]
         });
 
         const { wrap: wAdmin, input: adminIn } = _kpBuildModalField({ 
             id: 'uIsAdmin', 
-            label: 'Quyền quản trị hệ thống (Root Admin)', 
+            label: (window as any).$t('users.label_is_admin'), 
             type: 'checkbox',
             value: (existingUser?.is_admin ? 'true' : 'false') as any
         });
         
         const groupsWrap = document.createElement('div');
         groupsWrap.style.marginBottom = '12px';
-        groupsWrap.innerHTML = `<label class="kp-modal-label">Cơ quan / Nhóm (Groups)</label>`;
+        groupsWrap.innerHTML = `<label class="kp-modal-label">${(window as any).$t('users.label_groups_field')}</label>`;
         
         const groupList = document.createElement('div');
         groupList.className = 'connector-scope-list';
@@ -172,7 +172,7 @@ export class AdminModule {
         const userGroupIds = existingUser?.group_ids || [];
         
         if (this.groups.length === 0) {
-            groupList.innerHTML = `<div class="connector-scope-empty">Chưa có nhóm nào. Vui lòng tạo nhóm ở bảng bên dưới trước.</div>`;
+            groupList.innerHTML = `<div class="connector-scope-empty">${(window as any).$t('users.empty_groups_hint')}</div>`;
         } else {
             this.groups.forEach(g => {
                 const isChecked = userGroupIds.includes(g.id);
@@ -191,8 +191,8 @@ export class AdminModule {
         body.append(wName, wEmail, wPwd, wRole, wAdmin, groupsWrap);
 
         kpOpenModal({
-            title: isEdit ? '✏️ Sửa Người dùng' : '👤 Thêm Người dùng',
-            content: body, okText: 'Lưu',
+            title: isEdit ? (window as any).$t('users.modal_edit_user') : (window as any).$t('users.modal_create_user'),
+            content: body, okText: (window as any).$t('common.save'),
             onOk: async () => {
                 const checkedCbs = Array.from(body.querySelectorAll('.user-group-cb:checked')) as HTMLInputElement[];
                 const groupIds = checkedCbs.map(cb => cb.value);
@@ -202,15 +202,15 @@ export class AdminModule {
                 const pwd = (pwdIn as HTMLInputElement).value;
 
                 // Validation
-                if (!name) return { error: 'Tên hiển thị không được để trống' };
+                if (!name) return { error: (window as any).$t('users.err_no_name') };
                 if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                    return { error: 'Email không hợp lệ' };
+                    return { error: (window as any).$t('users.err_invalid_email') };
                 }
                 if (!isEdit && !pwd) {
-                    return { error: 'Mật khẩu là bắt buộc cho tài khoản mới' };
+                    return { error: (window as any).$t('users.err_no_pwd') };
                 }
                 if (pwd && pwd.length < 8) {
-                    return { error: 'Mật khẩu phải có ít nhất 8 ký tự' };
+                    return { error: (window as any).$t('users.err_pwd_short') };
                 }
 
                 const payload: Record<string, any> = {
@@ -229,8 +229,8 @@ export class AdminModule {
                         method, headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!res.ok) throw new Error('Lỗi lưu thông tin');
-                    showToast('Lưu thông tin User thành công', 'success');
+                    if (!res.ok) throw new Error((window as any).$t('users.err_save_failed'));
+                    showToast((window as any).$t('users.save_success'), 'success');
                     this.loadUsersTable();
                     return true;
                 } catch (err) {
@@ -241,11 +241,11 @@ export class AdminModule {
     }
 
     public async deleteUser(userId: string) {
-        if (!await kpConfirm({ title: 'Xóa User', message: 'Bạn có chắc chắn muốn xóa user này?', danger: true })) return;
+        if (!await kpConfirm({ title: (window as any).$t('users.confirm_delete_user_title'), message: (window as any).$t('users.confirm_delete_user_msg'), danger: true })) return;
         try {
             const res = await authFetch(`${API}/users/${userId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Không thể xóa user');
-            showToast('Đã xóa user', 'success');
+            if (!res.ok) throw new Error((window as any).$t('users.err_delete_user_failed'));
+            showToast((window as any).$t('users.delete_user_success'), 'success');
             this.loadUsersTable();
         } catch (err) {
             showToast((err as Error).message, 'error');
@@ -261,7 +261,7 @@ export class AdminModule {
 
         const { wrap: wName, input: nameIn } = _kpBuildModalField({ 
             id: 'gName', 
-            label: 'Tên Nhóm', 
+            label: (window as any).$t('users.label_group_name'), 
             value: existingGroup?.name || '',
             placeholder: 'Ban Giám đốc, Phòng Kỹ thuật...', 
             required: true 
@@ -270,11 +270,11 @@ export class AdminModule {
         body.append(wName);
 
         kpOpenModal({
-            title: isEdit ? '✏️ Sửa Nhóm' : '👨‍👩‍👧‍👦 Thêm Nhóm mới',
-            content: body, okText: 'Lưu',
+            title: isEdit ? (window as any).$t('users.modal_edit_group') : (window as any).$t('users.modal_create_group'),
+            content: body, okText: (window as any).$t('common.save'),
             onOk: async () => {
                 const name = (nameIn as HTMLInputElement).value.trim();
-                if (!name) return { error: 'Tên nhóm không được để trống' };
+                if (!name) return { error: (window as any).$t('users.err_group_no_name') };
                 try {
                     const url = isEdit ? `${API}/groups/${groupId}` : `${API}/groups`;
                     const method = isEdit ? 'PATCH' : 'POST';
@@ -282,8 +282,8 @@ export class AdminModule {
                         method, headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name })
                     });
-                    if (!res.ok) throw new Error('Lỗi lưu thông tin nhóm');
-                    showToast('Đã lưu thông tin Nhóm', 'success');
+                    if (!res.ok) throw new Error((window as any).$t('users.err_group_save_failed'));
+                    showToast((window as any).$t('users.group_save_success'), 'success');
                     this.loadGroupsTable();
                     return true;
                 } catch (err) {
@@ -295,15 +295,15 @@ export class AdminModule {
 
     public async deleteGroup(groupId: string) {
         if (!await kpConfirm({ 
-            title: 'Xóa Nhóm', 
-            message: 'Bạn có chắc chắn muốn xóa nhóm này? Các thành viên sẽ bị loại khỏi nhóm này.', 
+            title: (window as any).$t('users.confirm_delete_group_title'), 
+            message: (window as any).$t('users.confirm_delete_group_msg'), 
             danger: true 
         })) return;
 
         try {
             const res = await authFetch(`${API}/groups/${groupId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Không thể xóa nhóm');
-            showToast('Đã xóa nhóm thành công', 'success');
+            if (!res.ok) throw new Error((window as any).$t('users.err_delete_group_failed'));
+            showToast((window as any).$t('users.delete_group_success'), 'success');
             this.loadGroupsTable();
         } catch (err) {
             showToast((err as Error).message, 'error');
@@ -343,7 +343,7 @@ export class AdminModule {
             userLoading.style.display = this.isLoadingUsers ? 'block' : 'none';
             userTbody.innerHTML = this.users.map(u => {
                 const groupNames = (u.groups || []).map(g => g.name).join(', ') || '—';
-                const adminBadge = u.is_admin ? '<span class="status-badge status-active" style="background:var(--primary-light); color:var(--primary); border:1px solid var(--primary)">ROOT</span>' : '<span style="color:var(--text-muted)">Member</span>';
+                const adminBadge = u.is_admin ? '<span class="status-badge status-active" style="background:var(--primary-light); color:var(--primary); border:1px solid var(--primary)">ROOT</span>' : `<span style="color:var(--text-muted)">${(window as any).$t('users.badge_member')}</span>`;
                 const statusBadge = u.is_active !== false 
                     ? '<span style="color:var(--success)">●</span>' 
                     : '<span style="color:var(--danger)">●</span>';
@@ -383,8 +383,8 @@ export class AdminModule {
             groupTbody.innerHTML = this.groups.map(g => `
                 <tr>
                     <td style="font-weight: 600;">${escapeHtml(g.name)}</td>
-                    <td><span class="status-badge" style="background:var(--bg3)">${g.member_count || 0} tv</span></td>
-                    <td style="color:var(--text-muted); font-size:0.9em">ID: ${escapeHtml(g.id)}</td>
+                    <td><span class="status-badge" style="background:var(--bg3)">${g.member_count || 0} ${(window as any).$t('users.badge_tv')}</span></td>
+                    <td style="color:var(--text-muted); font-size:0.9em">${(window as any).$t('users.label_id')}: ${escapeHtml(g.id)}</td>
                     <td style="text-align: right;">
                         <button class="secondary-btn mini edit-group" data-id="${g.id}">✏️</button>
                         <button class="danger-btn mini ghost-btn delete-group" data-id="${g.id}">🗑</button>

@@ -50,7 +50,7 @@ export class SearchModule {
 
         const query = this.searchInput.value.trim();
         if (!query) {
-            showToast('Vui lòng nhập từ khóa', 'info');
+            showToast((window as any).$t('search.err_no_query'), 'info');
             return;
         }
 
@@ -64,7 +64,7 @@ export class SearchModule {
         this.searchPending = true;
         if (this.searchBtn) {
             this.searchBtn.disabled = true;
-            this.searchBtn.innerHTML = '<span class="spin">🔄</span> Đang tìm...';
+            this.searchBtn.innerHTML = `<span class="spin">🔄</span> ${(window as any).$t('search.searching')}`;
         }
         if (this.resultsContainer && this.currentSearchPage === 0) {
             this.resultsContainer.innerHTML = `
@@ -90,19 +90,19 @@ export class SearchModule {
                 }),
             });
             
-            if (!response.ok) throw new Error('Tìm kiếm thất bại');
+            if (!response.ok) throw new Error((window as any).$t('search.err_failed'));
             
             const data = await response.json();
             const results: SearchResult[] = Array.isArray(data) ? data : (data.results || []);
             this.renderSearchResults(results);
         } catch (err) {
             const error = err as Error;
-            showToast(`Lỗi: ${error.message}`, 'error');
+            showToast(`${(window as any).$t('common.error')}: ${error.message}`, 'error');
         } finally {
             this.searchPending = false;
             if (this.searchBtn) {
                 this.searchBtn.disabled = false;
-                this.searchBtn.textContent = 'Tìm kiếm';
+                this.searchBtn.textContent = (window as any).$t('search.btn_search');
             }
         }
     }
@@ -114,9 +114,9 @@ export class SearchModule {
         if (!results || results.length === 0) {
             if (this.currentSearchPage > 0) {
                 this.resultsContainer.innerHTML = `
-                    <div class="search-empty">Không còn kết quả nào khác</div>
+                    <div class="search-empty">${(window as any).$t('search.no_more_results')}</div>
                     <div class="search-pagination">
-                        <button class="pager-btn" id="kpPrevPageBtn">← Trang trước</button>
+                        <button class="pager-btn" id="kpPrevPageBtn">← ${(window as any).$t('search.prev_page')}</button>
                     </div>
                 `;
                 document.getElementById('kpPrevPageBtn')?.addEventListener('click', () => this.doSearch(this.currentSearchPage - 1));
@@ -124,7 +124,7 @@ export class SearchModule {
                 this.resultsContainer.innerHTML = `
                     <div class="search-empty" style="padding-top: 60px; display: flex; flex-direction: column; align-items: center;">
                         <div style="font-size: 40px; margin-bottom: 12px; opacity: 0.5;">📭</div>
-                        <div style="color: var(--text); font-weight: 500;">Không tìm thấy kết quả nào.</div>
+                        <div style="color: var(--text); font-weight: 500;">${(window as any).$t('search.no_results_found')}</div>
                     </div>`;
             }
             return;
@@ -139,7 +139,7 @@ export class SearchModule {
             
             const score = result.score != null ? Math.round(result.score * 100) : null;
             const docId = result.document_id || '';
-            const docTitle = result.title || 'Untitled Document';
+            const docTitle = result.title || (window as any).$t('search.untitled_doc');
             
             let snippet = (result.content || '').substring(0, 300);
             snippet = snippet.replace(/\[\[IMAGE_URL:[^\]]+\]\]/g, '[Image]')
@@ -156,10 +156,10 @@ export class SearchModule {
                     <div class="kp-result-actions">
                         ${score != null ? `
                             <div class="kp-result-score-wrap" title="${this.formatScoreBreakdown(result.score_breakdown)}">
-                                <span class="kp-result-score">${score}% match</span>
+                                <span class="kp-result-score">${score}% ${(window as any).$t('search.match')}</span>
                             </div>
                         ` : ''}
-                        <button class="secondary-btn mini kp-pin-btn" title="Ghim nháp" data-doc-id="${escapeHtml(docId)}" data-doc-title="${escapeHtml(docTitle)}">📌</button>
+                        <button class="secondary-btn mini kp-pin-btn" title="${(window as any).$t('search.pin_draft')}" data-doc-id="${escapeHtml(docId)}" data-doc-title="${escapeHtml(docTitle)}">📌</button>
                     </div>
                 </div>
                 <div class="kp-result-snippet">${escapeHtml(snippet)}...</div>
@@ -170,8 +170,8 @@ export class SearchModule {
                         ${dateStr ? `<span style="font-size: 11px; color: var(--text-muted);">🕒 ${dateStr}</span>` : ''}
                     </div>
                     <div class="kp-result-footer-actions">
-                        <button class="secondary-btn mini view-doc-btn" data-doc-id="${escapeHtml(docId)}">📄 Xem chi tiết</button>
-                        ${result.url ? `<a class="kp-result-url" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Link gốc ↗</a>` : ''}
+                        <button class="secondary-btn mini view-doc-btn" data-doc-id="${escapeHtml(docId)}">📄 ${(window as any).$t('search.view_details')}</button>
+                        ${result.url ? `<a class="kp-result-url" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">${(window as any).$t('search.original_link')} ↗</a>` : ''}
                     </div>
                 </div>
             `;
@@ -202,17 +202,17 @@ export class SearchModule {
         
         const prevBtn = document.createElement('button');
         prevBtn.className = 'secondary-btn';
-        prevBtn.textContent = '← Trang trước';
+        prevBtn.textContent = `← ${(window as any).$t('search.prev_page')}`;
         prevBtn.disabled = this.currentSearchPage === 0;
         prevBtn.addEventListener('click', () => this.doSearch(this.currentSearchPage - 1));
         
         const pageInfo = document.createElement('span');
         pageInfo.className = 'pager-info';
-        pageInfo.textContent = `Trang ${this.currentSearchPage + 1}`;
+        pageInfo.textContent = `${(window as any).$t('search.page')} ${this.currentSearchPage + 1}`;
         
         const nextBtn = document.createElement('button');
         nextBtn.className = 'secondary-btn';
-        nextBtn.textContent = 'Trang sau →';
+        nextBtn.textContent = `${(window as any).$t('search.next_page')} →`;
         nextBtn.disabled = results.length < this.resultsPerPage;
         nextBtn.addEventListener('click', () => this.doSearch(this.currentSearchPage + 1));
         
@@ -226,10 +226,10 @@ export class SearchModule {
     public async viewDocument(docId: string): Promise<void> {
         try {
             const res = await authFetch(`${API}/search/${docId}`);
-            if (!res.ok) throw new Error('Không thể tải nội dung tài liệu (hoặc bạn không có quyền truy cập).');
+            if (!res.ok) throw new Error((window as any).$t('search.err_load_content'));
             const doc = await res.json() as SearchResult;
 
-            let htmlContent = renderMarkdown(doc.content || 'Không có nội dung.');
+            let htmlContent = renderMarkdown(doc.content || (window as any).$t('search.no_content'));
 
             const body = document.createElement('div');
             body.innerHTML = `
@@ -237,7 +237,7 @@ export class SearchModule {
                     <span class="kp-result-badge">${escapeHtml(doc.source || 'N/A')}</span>
                     ${doc.author ? `<span>👤 ${escapeHtml(doc.author)}</span>` : ''}
                     ${doc.score_breakdown ? `<span style="color: var(--success); font-weight: 600;">🎯 ${this.formatScoreBreakdown(doc.score_breakdown)}</span>` : ''}
-                    ${doc.url ? `<a href="${escapeHtml(doc.url)}" target="_blank" style="color: var(--accent);">Mở URL gốc ↗</a>` : ''}
+                    ${doc.url ? `<a href="${escapeHtml(doc.url)}" target="_blank" style="color: var(--accent);">${(window as any).$t('search.open_original')} ↗</a>` : ''}
                 </div>
                 <div style="max-height: 60vh; overflow-y: auto; line-height: 1.6; color: var(--text); padding-right: 8px;">
                     ${htmlContent}
@@ -245,9 +245,9 @@ export class SearchModule {
             `;
 
             kpOpenModal({
-                title: doc.title || 'Chi tiết tài liệu',
+                title: doc.title || (window as any).$t('search.doc_details'),
                 content: body,
-                okText: 'Đóng',
+                okText: (window as any).$t('common.close'),
                 cancelText: null
             });
         } catch (err) {
@@ -259,9 +259,9 @@ export class SearchModule {
     private formatScoreBreakdown(breakdown: any): string {
         if (!breakdown || typeof breakdown !== 'object') return '';
         const parts: string[] = [];
-        if (breakdown.vector_score != null) parts.push(`Vector: ${Math.round(breakdown.vector_score * 100)}%`);
-        if (breakdown.keyword_score != null) parts.push(`Từ khóa: ${Math.round(breakdown.keyword_score * 100)}%`);
-        if (breakdown.rerank_score != null) parts.push(`Rerank: ${Math.round(breakdown.rerank_score * 100)}%`);
+        if (breakdown.vector_score != null) parts.push(`${(window as any).$t('search.vector_label')}: ${Math.round(breakdown.vector_score * 100)}%`);
+        if (breakdown.keyword_score != null) parts.push(`${(window as any).$t('search.keywords')}: ${Math.round(breakdown.keyword_score * 100)}%`);
+        if (breakdown.rerank_score != null) parts.push(`${(window as any).$t('search.rerank_label')}: ${Math.round(breakdown.rerank_score * 100)}%`);
         return parts.length > 0 ? parts.join(' | ') : '';
     }
 

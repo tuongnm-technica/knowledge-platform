@@ -1,17 +1,16 @@
-<!-- ── CHAT PAGE ── -->
-<div class="page" id="page-chat">
+<div class="page" id="page-chat" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="chat-wrapper">
     <div class="chat-history-sidebar" id="chatHistorySidebar">
       <div class="chat-history-header">
         <button class="new-chat-btn" id="newChatBtn">
-          <span style="font-size: 16px">+</span> Cuộc hội thoại mới
+          <span style="font-size: 16px">+</span> <span x-text="$t('chat.new_chat')">Cuộc hội thoại mới</span>
         </button>
         <div class="chat-history-search">
-          <input type="text" id="chatHistorySearchInput" placeholder="Tìm kiếm đoạn chat..." autocomplete="off">
+          <input type="text" id="chatHistorySearchInput" :placeholder="$t('chat.search_placeholder')" autocomplete="off">
         </div>
       </div>
       <div class="chat-history-list" id="chatHistoryList">
-        <div class="loading-state">Đang tải...</div>
+        <div class="loading-state" x-text="$t('common.loading')">Đang tải...</div>
       </div>
     </div>
   <div class="chat-container">
@@ -20,20 +19,20 @@
         <div class="empty-panel">
           <div class="empty-copy">
             <div class="empty-kicker">Knowledge cockpit</div>
-            <div class="empty-title">Knowledge Platform AI</div>
-            <div class="empty-sub">Hỏi xuyên suốt Confluence, Jira, Slack và tài liệu nội bộ với hybrid search + graph boost.</div>
+            <div class="empty-title" x-text="$t('chat.hero_title')">Knowledge Platform AI</div>
+            <div class="empty-sub" x-text="$t('chat.hero_sub')">Hỏi xuyên suốt Confluence, Jira, Slack và tài liệu nội bộ với hybrid search + graph boost.</div>
             
             <div class="hero-grid">
               <div class="hero-metric">
-                <strong>4 sources</strong>
+                <strong x-text="$t('chat.hero_metric_sources')">4 nguồn dữ liệu</strong>
                 <small>Slack, Jira, Confluence, File Server</small>
               </div>
               <div class="hero-metric">
-                <strong>Hybrid + graph</strong>
+                <strong x-text="$t('chat.hero_metric_hybrid')">Hybrid + graph</strong>
                 <small>Vector & Entity linking</small>
               </div>
               <div class="hero-metric">
-                <strong>Task-ready</strong>
+                <strong x-text="$t('chat.hero_metric_task')">Tạo Task</strong>
                 <small>From answer to task draft</small>
               </div>
             </div>
@@ -51,16 +50,16 @@
     <div class="chat-input-area">
       <div class="input-controls">
         <select id="modelSelector" class="model-select">
-          <option value="">Đang tải model...</option>
+          <option value="" x-text="$t('common.loading_model', { defaultValue: 'Đang tải model...' })">Đang tải model...</option>
         </select>
       </div>
       <div class="input-wrapper">
-        <textarea id="chatInput" placeholder="Hỏi về tài liệu nội bộ..." rows="1"></textarea>
+        <textarea id="chatInput" :placeholder="$t('chat.input_placeholder')" rows="1"></textarea>
         <button class="send-btn" id="sendBtn">➤</button>
       </div>
       <div class="input-footer">
         <div class="composer-status"><span class="composer-ping"></span>Graph-aware retrieval online</div>
-        <div class="input-hint">Enter gửi · Shift+Enter xuống dòng</div>
+        <div class="input-hint" x-text="$t('chat.input_hint')">Enter gửi · Shift+Enter xuống dòng</div>
       </div>
     </div>
   </div>

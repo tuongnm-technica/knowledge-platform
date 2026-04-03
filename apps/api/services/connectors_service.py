@@ -894,6 +894,9 @@ async def start_connector_sync(
     instance_id: str,
     *,
     incremental: bool = True,
+    summarize: bool | None = None,
+    relations: bool | None = None,
+    vision: bool | None = None,
 ) -> dict[str, Any]:
     inst = await _fetch_instance(session, connector_type, instance_id)
     connector_key = _connector_key(connector_type, instance_id)
@@ -929,11 +932,20 @@ async def start_connector_sync(
     try:
         redis = await get_redis_pool()
         queue_name = getattr(settings, "ARQ_INGESTION_QUEUE_NAME", "ingestion")
-        await redis.enqueue_job("sync_connector_job", connector_type, instance_id, incremental, _queue_name=queue_name)
+        await redis.enqueue_job(
+            "sync_connector_job", 
+            connector_type, 
+            instance_id, 
+            incremental, 
+            summarize, 
+            relations,
+            vision,
+            _queue_name=queue_name
+        )
         log.info("connectors.sync.queued", key=connector_key, queue=queue_name)
     except Exception as e:
-        log.error("connectors.sync.redis_failed_fallback", error=str(e), advice="Check if Redis is running and REDIS_URL is correct.")
-        background_tasks.add_task(_run_sync_task, connector_type, instance_id, incremental)
+        log.error("connectors.sync.redis_failed_fallback", error=str(e))
+        background_tasks.add_task(_run_sync_task, connector_type, instance_id, incremental, summarize, relations, vision)
 
     return {"status": "started", "connector": connector_key, "incremental": incremental}
 
@@ -962,7 +974,14 @@ async def stop_connector_sync(
     return {"status": "started", "connector": connector_key, "incremental": incremental}
 
 
-async def _run_sync_task(connector_type: str, instance_id: str, incremental: bool) -> None:
+async def _run_sync_task(
+    connector_type: str, 
+    instance_id: str, 
+    incremental: bool,
+    summarize: bool | None = None,
+    relations: bool | None = None,
+    vision: bool | None = None
+) -> None:
     connector_key = _connector_key(connector_type, instance_id)
     try:
         async with AsyncSessionLocal() as session:
@@ -973,7 +992,14 @@ async def _run_sync_task(connector_type: str, instance_id: str, incremental: boo
             pipeline = IngestionPipeline(session)
             
             start = perf_counter()
-            stats = await pipeline.run(connector, incremental=incremental, connector_key=connector_key)
+            stats = await pipeline.run(
+                connector, 
+                incremental=incremental, 
+                connector_key=connector_key,
+                summarize=summarize,
+                relations=relations,
+                vision=vision
+            )
             log.info("connectors.sync.done", key=connector_key, elapsed=round(perf_counter() - start, 2), **stats)
             
             # Post-sync: Trigger PM Metrics Aggregation if Jira
@@ -989,7 +1015,8 @@ async def _run_sync_task(connector_type: str, instance_id: str, incremental: boo
                     
                     for p in projects:
                         await redis.enqueue_job("aggregate_pm_metrics", p, _queue_name="arq:ai")
-                        log.info("pm_metrics.trigger.queued", project=p)
+                        await redis.enqueue_job("generate_pm_digest", [p], _queue_name="arq:ai")
+                        log.info("pm_metrics_and_digest.trigger.queued", project=p)
                 except Exception as e:
                     log.error("pm_metrics.trigger.failed", error=str(e))
     except Exception as e:

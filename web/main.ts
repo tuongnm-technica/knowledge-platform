@@ -18,7 +18,7 @@ import { TasksModule } from './tasks';
 import { DraftsModule } from './drafts';
 import { AdminModule } from './admin';
 import { PromptsModule } from './prompts';
-import { MemoryModule } from './memory';
+// import { MemoryModule } from './memory';
 import { WorkflowsModule } from './workflows';
 import { HistoryModule } from './history';
 import { SidebarModule } from './sidebar';
@@ -26,6 +26,7 @@ import { ThemeModule } from './theme';
 import { ModelsModule } from './models_page';
 import { integrationModule } from './integration';
 import { pmDashboardModule } from './pm_dashboard';
+import { initI18n } from './i18n';
 
 // --- Initialization ---
 
@@ -46,7 +47,7 @@ const tasksModule = new TasksModule();
 const draftsModule = new DraftsModule();
 const adminModule = new AdminModule();
 const promptsModule = new PromptsModule();
-const memoryModule = new MemoryModule();
+// const memoryModule = new MemoryModule();
 const workflowModule = new WorkflowsModule();
 const modelsModule = new ModelsModule();
 
@@ -117,7 +118,7 @@ async function initApp() {
             '/users': () => renderPage('users', () => adminModule.init('users')),
             '/groups': () => renderPage('users', () => adminModule.init('groups')),
             '/prompts': () => renderPage('prompts', () => promptsModule.init()),
-            '/memory': () => renderPage('memory', () => memoryModule.init()),
+            // '/memory': () => renderPage('memory', () => memoryModule.init()),
             '/ba-suite': () => renderPage('ba-suite'),
             '/workflows': () => renderPage('workflows', () => workflowModule.init()),
             '/models': () => renderPage('models', () => modelsModule.init()),
@@ -179,22 +180,21 @@ function markAllStepsComplete() {
 }
 
 const PAGE_TITLES: Record<string, string> = {
-    chat: 'Chat AI',
-    search: 'Search',
-    documents: 'Knowledge Base',
-    connectors: 'Connectors',
-    graph: 'Knowledge Graph',
-    tasks: 'AI Task Drafts',
-    drafts: 'Drafts',
-    users: 'Quản lý người dùng',
-    groups: 'Quản lý nhóm',
-    prompts: 'Skill Prompts',
-    memory: 'Project Memory',
-    'ba-suite': 'Auto Work - Dashboard',
-    workflows: 'AI Workflows',
-    models: 'Quản lý AI Models',
-    integration: 'Integrations',
-    pm_dashboard: 'PM Dashboard',
+    chat: 'nav.chat',
+    search: 'nav.search',
+    documents: 'nav.documents',
+    connectors: 'nav.connectors',
+    graph: 'nav.graph',
+    tasks: 'nav.tasks',
+    drafts: 'nav.drafts',
+    users: 'nav.users',
+    groups: 'nav.groups',
+    prompts: 'nav.prompts',
+    'ba-suite': 'nav.ba-suite',
+    workflows: 'nav.workflows',
+    models: 'nav.models',
+    integration: 'nav.integrations',
+    pm_dashboard: 'nav.pm_dashboard',
 };
 
 async function renderPage(target: string, initFn?: () => void) {
@@ -238,13 +238,14 @@ async function renderPage(target: string, initFn?: () => void) {
 
     // Update topbar page title
     const titleEl = document.getElementById('pageTitle');
-    if (titleEl) titleEl.textContent = PAGE_TITLES[target] || target;
+    if (titleEl) titleEl.textContent = (window as any).$t(PAGE_TITLES[target]) || target;
 
     if (initFn) initFn();
 }
 
 // Start
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await initI18n();
     ThemeModule.initTheme();
     initApp();
 });
@@ -266,11 +267,11 @@ document.addEventListener('click', async (e) => {
         const resultsDiv = document.getElementById('sdlc-results');
         
         if (!requestText) {
-            showToast("Vui lòng nhập yêu cầu nghiệp vụ!", "warning");
+            showToast((window as any).$t('ba.err_no_request'), "warning");
             return;
         }
         
-        if (progressDiv) progressDiv.innerHTML = "<b>🚀 Đang bắt đầu tác vụ ngầm (Async Work)...</b><br/>";
+        if (progressDiv) progressDiv.innerHTML = `<b>🚀 ${(window as any).$t('ba.starting_async')}</b><br/>`;
         if (resultsDiv) resultsDiv.style.display = "none";
 
         try {
@@ -293,13 +294,13 @@ document.addEventListener('click', async (e) => {
             const jobData = await response.json();
             const jobId = jobData.job_id;
 
-            if (progressDiv) progressDiv.innerHTML += `Job ID: <code>${jobId}</code><br/>Đang xếp hàng xử lý...<br/>`;
+            if (progressDiv) progressDiv.innerHTML += `Job ID: <code>${jobId}</code><br/>${(window as any).$t('ba.queued')}<br/>`;
 
             // 2. Bắt đầu polling
             pollSDLCStatus(jobId);
 
         } catch (error) {
-            if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">Lỗi: ${error}</span>`;
+            if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">${(window as any).$t('common.error')}: ${error}</span>`;
         }
     }
 });
@@ -318,7 +319,7 @@ async function pollSDLCStatus(jobId: string) {
 
             if (data.status === "completed") {
                 clearInterval(interval);
-                if (progressDiv) progressDiv.innerHTML += `<b>✅ Hoàn tất!</b><br/>`;
+                if (progressDiv) progressDiv.innerHTML += `<b>✅ ${(window as any).$t('ba.complete')}</b><br/>`;
                 
                 if (resultsDiv) resultsDiv.style.display = "block";
                 markAllStepsComplete();
@@ -334,18 +335,18 @@ async function pollSDLCStatus(jobId: string) {
 
             } else if (data.status === "failed") {
                 clearInterval(interval);
-                if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">❌ Lỗi: ${data.error}</span>`;
+                if (progressDiv) progressDiv.innerHTML += `<br><span style="color:red">❌ ${(window as any).$t('common.error')}: ${data.error}</span>`;
             } else {
                 // Đang xử lý
                 if (progressDiv && attempts % 5 === 0) {
-                    progressDiv.innerHTML += `... vẫn đang phân tích (${attempts}s)<br/>`;
+                    progressDiv.innerHTML += `... ${(window as any).$t('ba.still_analyzing')} (${attempts}s)<br/>`;
                     progressDiv.scrollTop = progressDiv.scrollHeight;
                 }
                 
                 // Giả lập cập nhật cards dựa trên thời gian
-                if (attempts === 5) addStepCard("Business Analysis Agent", "Đang soạn thảo BA...");
-                if (attempts === 15) addStepCard("System Architect Agent", "Đang thiết kế kiến trúc...", "Business Analysis Agent");
-                if (attempts === 25) addStepCard("Quality Assurance Agent", "Đang lập kế hoạch kiểm thử...", "System Architect Agent");
+                if (attempts === 5) addStepCard((window as any).$t('ba.agent_ba'), (window as any).$t('ba.step_ba_desc'));
+                if (attempts === 15) addStepCard((window as any).$t('ba.agent_sa'), (window as any).$t('ba.step_sa_desc'), (window as any).$t('ba.agent_ba'));
+                if (attempts === 25) addStepCard((window as any).$t('ba.agent_qa'), (window as any).$t('ba.step_qa_desc'), (window as any).$t('ba.agent_sa'));
             }
         } catch (e) {
             console.error("Polling error:", e);

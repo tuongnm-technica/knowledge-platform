@@ -1,19 +1,18 @@
-<!-- ── TASKS PAGE (REFAC) ── -->
-<div class="page" id="page-tasks">
+<div class="page" id="page-tasks" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="tasks-content container-xl">
     
     <div class="page-intro">
       <div class="intro-copy">
         <div class="intro-kicker">Automation</div>
-        <div class="intro-title">AI Task Drafts</div>
-        <div class="intro-sub">Review task drafts từ Slack và Confluence trước khi đẩy sang Jira.</div>
+        <div class="intro-title" x-text="$t('tasks.title')">AI Task Drafts</div>
+        <div class="intro-sub" x-text="$t('tasks.intro_sub')">Review task drafts từ Slack và Confluence trước khi đẩy sang Jira.</div>
       </div>
       <div class="header-actions">
         <span class="count-pill">
             <span class="count-bold" id="tasks-open-count">0</span> open
         </span>
         <div class="scan-settings-pill">
-            <span class="pill-label">Scan depth:</span>
+            <span class="pill-label" x-text="$t('tasks.scan_depth')">Scan depth:</span>
             <input class="mini-input" type="number" min="1" max="30" id="tasks-slack-days" value="1" title="Số ngày quét Slack">
             <span class="pill-unit">Slack</span>
             <input class="mini-input" type="number" min="1" max="30" id="tasks-conf-days" value="1" title="Số ngày quét Confluence">
@@ -21,10 +20,10 @@
         </div>
         <label class="checkbox-label">
           <input type="checkbox" id="tasks-show-submitted">
-          <span>Show submitted</span>
+          <span x-text="$t('tasks.show_submitted')">Show submitted</span>
         </label>
-        <button id="tasks-refresh-btn" class="secondary-btn">🔄 Refresh</button>
-        <button id="tasks-scan-btn" class="primary-btn">🚀 Scan Sources</button>
+        <button id="tasks-refresh-btn" class="secondary-btn">🔄 <span x-text="$t('common.refresh')">Refresh</span></button>
+        <button id="tasks-scan-btn" class="primary-btn">🚀 <span x-text="$t('tasks.btn_scan')">Scan Sources</span></button>
       </div>
     </div>
 
@@ -32,23 +31,23 @@
     <div class="bulk-actions-bar" style="display: none;">
       <span class="selection-count">0 selected</span>
       <div class="v-divider"></div>
-      <button id="tasks-bulk-confirm" class="primary-btn mini confirm-btn">✅ Confirm</button>
-      <button id="tasks-bulk-reject" class="danger-btn mini">🗑 Dismiss</button>
+      <button id="tasks-bulk-confirm" class="primary-btn mini confirm-btn">✅ <span x-text="$t('tasks.bulk_confirm')">Confirm</span></button>
+      <button id="tasks-bulk-reject" class="danger-btn mini">🗑 <span x-text="$t('tasks.bulk_dismiss')">Dismiss</span></button>
       <div class="v-divider"></div>
-      <button id="tasks-clear-selection" class="clear-btn">Clear</button>
+      <button id="tasks-clear-selection" class="clear-btn" x-text="$t('tasks.bulk_clear')">Clear</button>
     </div>
 
     <div class="info-banner">
-      <span class="info-icon">💡</span> AI quét Slack và Confluence tự động lúc <b>11:00 PM</b> mỗi ngày. Bạn có thể bấm <b>Scan Sources</b> để lấy draft task mới ngay lập tức.
+      <span class="info-icon">💡</span> <span x-text="$t('tasks.info_banner')">AI quét Slack và Confluence tự động lúc 11:00 PM mỗi ngày. Bạn có thể bấm Scan Sources để lấy draft task mới ngay lập tức.</span>
     </div>
       
     <div class="tasks-scroll-area">
-      <div id="tasks-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> Đang tải dữ liệu...</div>
+      <div id="tasks-loading" class="loading-overlay" style="display: none;"><span class="spin">🔄</span> <span x-text="$t('tasks.loading')">Đang tải dữ liệu...</span></div>
       
       <div id="tasks-empty-state" class="empty-state-centered" style="display: none;">
         <div class="empty-icon">📭</div>
-        <div class="empty-msg">Chưa có draft tasks nào.</div>
-        <div class="empty-sub-hint">Bấm "Scan Sources" để bắt đầu quét dữ liệu.</div>
+        <div class="empty-msg" x-text="$t('tasks.empty_title')">Chưa có draft tasks nào.</div>
+        <div class="empty-sub-hint" x-text="$t('tasks.empty_sub')">Bấm "Scan Sources" để bắt đầu quét dữ liệu.</div>
       </div>
       
       <div class="task-list-flex">

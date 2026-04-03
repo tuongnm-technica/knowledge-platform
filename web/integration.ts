@@ -11,7 +11,7 @@ export class IntegrationModule {
         console.log('Integrations Module rendering...');
         const user = await AuthModule.getCurrentUser();
         if (!user || (!user.is_admin && user.role !== 'system_admin')) {
-            showToast('Bạn không có quyền truy cập trang này.', 'error');
+            showToast((window as any).$t('settings.err_no_permission'), 'error');
             return;
         }
 
@@ -84,14 +84,14 @@ export class IntegrationModule {
                 (document.getElementById('smtpSenderEmail') as HTMLInputElement).value = data.sender_email_address || '';
                 (document.getElementById('smtpSenderName') as HTMLInputElement).value = data.sender_display_name || '';
                 
-                document.getElementById('smtpStatusText')!.innerHTML = '<span style="color:var(--success)">Saved</span>';
+                document.getElementById('smtpStatusText')!.innerHTML = `<span style="color:var(--success)">${(window as any).$t('settings.status_saved')}</span>`;
             } else {
-                document.getElementById('smtpStatusText')!.innerHTML = '<span style="color:var(--text-dim)">Never Tested / No Config</span>';
+                document.getElementById('smtpStatusText')!.innerHTML = `<span style="color:var(--text-dim)">${(window as any).$t('settings.status_no_config')}</span>`;
             }
             }
         } catch (error) {
             console.error('Failed to load SMTP settings:', error);
-            showToast('Không thể tải cấu hình SMTP.', 'error');
+            showToast((window as any).$t('settings.err_load_smtp'), 'error');
         }
     }
 
@@ -108,32 +108,32 @@ export class IntegrationModule {
         };
 
         if (!payload.smtp_host || !payload.smtp_port || !payload.sender_email_address || !payload.sender_display_name) {
-            showToast('Vui lòng điền đầy đủ các trường bắt buộc (*)', 'warning');
+            showToast((window as any).$t('settings.err_required_fields'), 'warning');
             return;
         }
 
         try {
             const btn = document.getElementById('saveSmtpBtn') as HTMLButtonElement;
             btn.disabled = true;
-            btn.innerHTML = '<span class="btn-icon">⏳</span> Saving...';
+            btn.innerHTML = `<span class="btn-icon">⏳</span> ${(window as any).$t('settings.btn_saving')}`;
             
             const req = await authFetch('/api/settings/smtp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            if (!req.ok) throw new Error(await req.text() || 'Save failed');
+            if (!req.ok) throw new Error(await req.text() || (window as any).$t('settings.err_save_smtp_failed'));
             
-            showToast('Đã lưu cấu hình SMTP thành công!', 'success');
-            document.getElementById('smtpStatusText')!.innerHTML = '<span style="color:var(--success)">Configuration Saved</span>';
+            showToast((window as any).$t('settings.save_success_smtp'), 'success');
+            document.getElementById('smtpStatusText')!.innerHTML = `<span style="color:var(--success)">${(window as any).$t('settings.status_config_saved')}</span>`;
             await this.loadSmtpSettings(); // Reload to capture masked password
         } catch (error: any) {
             console.error('Save failed:', error);
-            showToast(error.message || 'Lưu cấu hình thất bại.', 'error');
+            showToast(error.message || (window as any).$t('settings.err_save_smtp_failed'), 'error');
         } finally {
             const btn = document.getElementById('saveSmtpBtn') as HTMLButtonElement;
             btn.disabled = false;
-            btn.innerHTML = '<span class="btn-icon">📌</span> Lưu cấu hình';
+            btn.innerHTML = `<span class="btn-icon">📌</span> ${(window as any).$t('settings.btn_save_config')}`;
         }
     }
     
@@ -144,29 +144,29 @@ export class IntegrationModule {
         };
         
         if (!payload.recipient) {
-            showToast('Vui lòng nhập email người nhận.', 'warning');
+            showToast((window as any).$t('settings.err_no_recipient'), 'warning');
             return;
         }
 
         try {
             const btn = document.getElementById('sendTestMailBtn') as HTMLButtonElement;
             btn.disabled = true;
-            btn.textContent = 'Sending test email...';
+            btn.textContent = (window as any).$t('settings.btn_sending_test');
             
             const reqRes = await authFetch('/api/settings/smtp/test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const res = reqRes.ok ? await reqRes.json() : { message: 'Lỗi máy chủ' };
-            showToast(res.message || 'Email thử nghiệm đã được gửi.', 'success');
+            const res = reqRes.ok ? await reqRes.json() : { message: (window as any).$t('settings.err_server_error') };
+            showToast(res.message || (window as any).$t('settings.test_mail_sent'), 'success');
         } catch (error: any) {
             console.error('Test mail failed:', error);
-            showToast(error.message || 'Gửi test mail thất bại.', 'error');
+            showToast(error.message || (window as any).$t('settings.err_test_failed'), 'error');
         } finally {
             const btn = document.getElementById('sendTestMailBtn') as HTMLButtonElement;
             btn.disabled = false;
-            btn.textContent = 'Send Test Mail';
+            btn.textContent = (window as any).$t('settings.btn_send_test');
         }
     }
 }

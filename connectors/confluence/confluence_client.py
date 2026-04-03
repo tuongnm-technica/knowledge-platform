@@ -133,7 +133,7 @@ class ConfluenceClient:
                     space_key,
                     start=start,
                     limit=limit,
-                    expand="version,history,space",
+                    expand="body.storage,version,history,space",
                 )
                 if not batch:
                     break
@@ -166,7 +166,7 @@ class ConfluenceClient:
                     cql,
                     start=start,
                     limit=limit,
-                    expand="content.version,content.history,content.space",
+                    expand="content.body.storage,content.version,content.history,content.space",
                 )
                 batch = result.get("results", []) if isinstance(result, dict) else []
                 if not batch:

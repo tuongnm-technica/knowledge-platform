@@ -16,6 +16,7 @@ export interface User {
     group_ids?: string[];
     groups?: Group[];
     is_active?: boolean;
+    language?: string;
 }
 
 export interface AuthResponse extends User {

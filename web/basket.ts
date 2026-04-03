@@ -62,11 +62,11 @@ export class BasketModule {
 
     public addItem(id: string, title: string) {
         if (this.items.some(i => i.id === id)) {
-            showToast(`"${title}" đã có trong giỏ`, 'info');
+            showToast((window as any).$t('basket.err_already_in', { title }), 'info');
             return;
         }
         this.items.push({ id, title, source: 'Knowledge Base' });
-        showToast(`Đã thêm "${title}" vào giỏ`, 'success');
+        showToast((window as any).$t('basket.add_success', { title }), 'success');
         this.saveBasket();
     }
 
@@ -78,7 +78,7 @@ export class BasketModule {
     public clearAll() {
         this.items = [];
         this.saveBasket();
-        showToast('Đã dọn sạch giỏ ngữ cảnh', 'info');
+        showToast((window as any).$t('basket.clear_success'), 'info');
     }
 
     private calculateTokens(): number {
@@ -93,7 +93,7 @@ export class BasketModule {
 
     public async basketRunSkill() {
         if (this.items.length === 0) {
-            showToast('Giỏ hàng trống. Vui lòng thêm tài liệu!', 'warning');
+            showToast((window as any).$t('basket.err_empty_run'), 'warning');
             return;
         }
 
@@ -108,50 +108,50 @@ export class BasketModule {
                 prompts.sort((a: PromptSkill, b: PromptSkill) => (a.group || '').localeCompare(b.group || ''));
             }
         } catch (err) {
-            showToast('Không thể nạp danh sách Kỹ năng AI', 'error');
+            showToast((window as any).$t('basket.err_load_skills'), 'error');
         }
 
         const body = document.createElement('div');
         body.className = 'basket-run-form';
         body.innerHTML = `
             <div style="margin-bottom:12px;">
-                <label class="kp-modal-label">Chọn Kỹ năng / Tác vụ AI</label>
+                <label class="kp-modal-label">${(window as any).$t('basket.label_select_skill')}</label>
                 <select id="runSkillSelect" class="form-select kp-modal-input" style="width:100%">
-                    <option value="">-- Chọn kỹ năng --</option>
+                    <option value="">${(window as any).$t('basket.opt_select_skill')}</option>
                     ${prompts.map((p: PromptSkill) => `
-                        <option value="${p.doc_type}">[${escapeHtml(p.group || 'General')}] ${escapeHtml(p.label || p.doc_type || 'Kỹ năng')}</option>
+                        <option value="${p.doc_type}">[${escapeHtml(p.group || (window as any).$t('basket.fallback_group'))}] ${escapeHtml(p.label || p.doc_type || (window as any).$t('basket.fallback_skill'))}</option>
                     `).join('')}
                 </select>
             </div>
             <div style="padding:12px; background:var(--bg3); border-radius:8px; border:1px solid var(--border); font-size:12px;">
-                <strong>Ngữ cảnh:</strong> ${this.items.length} tài liệu (${this.currentTokens} tokens)
+                <strong>${(window as any).$t('basket.label_context')}</strong> ${(window as any).$t('basket.label_context_docs', { count: this.items.length, tokens: this.currentTokens })}
             </div>
             <div style="margin-top:12px;">
-                <label class="kp-modal-label">Mục tiêu / Yêu cầu chi tiết (Goal)</label>
-                <textarea id="runGoalInput" class="form-control kp-modal-input" style="width:100%; min-height:80px;" placeholder="Ví dụ: Viết SRS cho module quản lý người dùng dựa trên các tài liệu đã chọn..."></textarea>
+                <label class="kp-modal-label">${(window as any).$t('basket.label_goal')}</label>
+                <textarea id="runGoalInput" class="form-control kp-modal-input" style="width:100%; min-height:80px;" placeholder="${(window as any).$t('basket.placeholder_goal')}"></textarea>
             </div>
             <div style="margin-top:16px;">
                 <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
                     <input type="checkbox" id="runPipelineCheck">
-                    <span>Chạy toàn bộ Pipeline (Multi-Agent)</span>
+                    <span>${(window as any).$t('basket.label_run_pipeline')}</span>
                 </label>
             </div>
         `;
 
         kpOpenModal({
-            title: '🚀 Chạy Phân tích AI',
+            title: '🚀 ' + (window as any).$t('basket.run_modal_title'),
             content: body,
-            okText: 'Bắt đầu',
+            okText: (window as any).$t('basket.run_modal_ok'),
             onOk: async () => {
                 const skillId = (body.querySelector('#runSkillSelect') as HTMLSelectElement).value;
                 const goal = (body.querySelector('#runGoalInput') as HTMLTextAreaElement).value;
                 const isPipeline = (body.querySelector('#runPipelineCheck') as HTMLInputElement).checked;
 
-                if (!skillId) return { error: 'Vui lòng chọn kỹ năng' };
+                if (!skillId) return { error: (window as any).$t('basket.err_no_skill') };
 
                 // Find the selected skill object
                 const selectedSkill = prompts.find((p: any) => p.doc_type === skillId);
-                if (!selectedSkill) return { error: 'Kỹ năng đã chọn không hợp lệ' };
+                if (!selectedSkill) return { error: (window as any).$t('basket.err_invalid_skill') };
 
                 const itemIds = this.items.map(i => i.id);
                 const title = `Draft từ ${selectedSkill.label || selectedSkill.doc_type} (${this.items.length} tài liệu)`;
@@ -171,7 +171,7 @@ export class BasketModule {
 
                     if (!res.ok) {
                         const errData = await res.json();
-                        throw new Error(errData.detail || 'Lỗi khi chạy skill');
+                        throw new Error(errData.detail || (window as any).$t('basket.err_run_failed'));
                     }
 
                     // Redirect to drafts tab immediately
@@ -180,7 +180,7 @@ export class BasketModule {
                         draftsTab.click();
                     }
 
-                    showToast('Đang khởi tạo bản thảo AI...', 'info');
+                    showToast((window as any).$t('basket.run_init_info'), 'info');
                     return true; // Close modal
                 } catch (err) {
                     return { error: (err as Error).message };
@@ -219,8 +219,8 @@ export class BasketModule {
                 list.innerHTML = `
                     <div class="basket-empty">
                         <div style="font-size:32px; margin-bottom:12px;">📥</div>
-                        <div>Giỏ hàng trống</div>
-                        <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">Thêm tài liệu từ Knowledge Base để bắt đầu phân tích.</div>
+                        <div>${(window as any).$t('basket.empty_hint')}</div>
+                        <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">${(window as any).$t('basket.empty_sub')}</div>
                     </div>
                 `;
             } else {

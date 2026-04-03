@@ -1,11 +1,10 @@
-<!-- ── INTEGRATION PAGE (UI for SMTP, LDAP, SSO etc.) ── -->
-<div class="page" id="page-integration" style="display: none;">
+<div class="page" id="page-integration" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail" style="display: none;">
   <div class="integration-content">
     <div class="page-intro">
       <div class="intro-copy">
         <div class="integration-intro-kicker">Settings</div>
-        <div class="intro-title">Integration Settings</div>
-        <div class="intro-sub">Cấu hình kết nối hệ thống cốt lõi: Mail server, Single Sign-On, và External User Directories.</div>
+        <div class="intro-title" x-text="$t('settings.title')">Integration Settings</div>
+        <div class="intro-sub" x-text="$t('settings.intro_sub')">Cấu hình kết nối hệ thống cốt lõi: Mail server, Single Sign-On, và External User Directories.</div>
       </div>
     </div>
 
@@ -21,14 +20,14 @@
       <div class="panel active" id="panel-smtp">
         
         <div class="status-banner" style="background: var(--surface-hover); padding: 12px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid var(--accent-light);">
-          <strong>SMTP Configuration Status:</strong> <span id="smtpStatusText">Checking...</span>
-          <div style="font-size: 0.85em; color: var(--text-dim); margin-top: 4px;">
+          <strong x-text="$t('settings.smtp_status')">SMTP Configuration Status:</strong> <span id="smtpStatusText" x-text="$t('settings.smtp_checking')">Checking...</span>
+          <div style="font-size: 0.85em; color: var(--text-dim); margin-top: 4px;" x-text="$t('settings.smtp_info')">
             Khi cấu hình được lưu và kiểm tra thành công, hệ thống sẽ tự động sử dụng cấu hình này để gửi PM Digest và Notification thay cho fallback qua console.
           </div>
         </div>
 
         <form id="smtpForm" class="settings-form">
-          <div class="form-section-title" style="margin-bottom: 16px; font-weight: 600;">SMTP Configuration</div>
+          <div class="form-section-title" style="margin-bottom: 16px; font-weight: 600;" x-text="$t('settings.smtp_config_title')">SMTP Configuration</div>
           
           <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
             <div class="form-group">
@@ -38,11 +37,11 @@
             
             <div class="form-group">
               <label>SMTP Port <span class="required" style="color:var(--danger)">*</span></label>
-              <input type="number" id="smtpPort" name="smtp_port" class="form-control" placeholder="25 | 465 (SSL) | 587 (STARTTLS)" required>
+              <input type="number" id="smtpPort" name="smtp_port" class="form-control" placeholder="..." required>
             </div>
             
             <div class="form-group">
-              <label>Security Mode <span class="required" style="color:var(--danger)">*</span></label>
+              <label x-text="$t('settings.security_mode')">Security Mode</label> <span class="required" style="color:var(--danger)">*</span>
               <select id="smtpSecurity" name="security_mode" class="form-control" required>
                 <option value="STARTTLS" selected>STARTTLS (Recommended)</option>
                 <option value="SSL">SSL</option>
@@ -52,51 +51,47 @@
             
             <div class="form-group" style="display: flex; align-items: center; gap: 12px; padding-top: 32px;">
               <input type="checkbox" id="smtpAuthEnabled" name="authentication_enabled" style="transform: scale(1.2);">
-              <label for="smtpAuthEnabled" style="margin: 0;">Authentication Enabled</label>
+              <label for="smtpAuthEnabled" style="margin: 0;" x-text="$t('settings.auth_enabled')">Authentication Enabled</label>
             </div>
             
             <div class="form-group auth-group">
-              <label>SMTP Username</label>
-              <input type="text" id="smtpUsername" name="smtp_username" class="form-control" placeholder="Enter username / email">
+              <label x-text="$t('settings.smtp_user')">SMTP Username</label>
+              <input type="text" id="smtpUsername" name="smtp_username" class="form-control" placeholder="...">
             </div>
             
             <div class="form-group auth-group">
-              <label>SMTP Password</label>
-              <input type="password" id="smtpPassword" name="smtp_password" class="form-control" placeholder="Enter password or App Password">
+              <label x-text="$t('settings.smtp_pass')">SMTP Password</label>
+              <input type="password" id="smtpPassword" name="smtp_password" class="form-control" placeholder="••••••••••••••••">
             </div>
             
             <div class="form-group">
-              <label>Sender Email Address <span class="required" style="color:var(--danger)">*</span></label>
-              <input type="email" id="smtpSenderEmail" name="sender_email_address" class="form-control" placeholder="noreply@yourbiz.com" required>
+              <label x-text="$t('settings.sender_email')">Sender Email Address</label> <span class="required" style="color:var(--danger)">*</span>
+              <input type="email" id="smtpSenderEmail" name="sender_email_address" class="form-control" placeholder="..." required>
             </div>
             
             <div class="form-group">
-              <label>Sender Display Name <span class="required" style="color:var(--danger)">*</span></label>
-              <input type="text" id="smtpSenderName" name="sender_display_name" class="form-control" placeholder="Knowledge Platform" required>
+              <label x-text="$t('settings.sender_name')">Sender Display Name</label> <span class="required" style="color:var(--danger)">*</span>
+              <input type="text" id="smtpSenderName" name="sender_display_name" class="form-control" placeholder="..." required>
             </div>
-          </div>
-          
-          <div class="form-actions" style="margin-top: 24px;">
-            <!-- Nút Save giờ đã trở thành Floating Action Button (FAB) -->
           </div>
         </form>
         
-        <button type="button" class="integration-fab-save" id="saveSmtpBtn" title="Lưu cấu hình">
-          <span class="btn-icon">📌</span> Lưu cấu hình
+        <button type="button" class="integration-fab-save" id="saveSmtpBtn" :title="$t('settings.btn_save')">
+          <span class="btn-icon">📌</span> <span x-text="$t('settings.btn_save')">Lưu cấu hình</span>
         </button>
 
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 32px 0;">
 
         <form id="testMailForm" class="settings-form">
-          <div class="form-section-title" style="margin-bottom: 16px; font-weight: 600;">Test Mail</div>
+          <div class="form-section-title" style="margin-bottom: 16px; font-weight: 600;" x-text="$t('settings.test_mail_title')">Test Mail</div>
           
           <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
             <div class="form-group">
-              <label>Test Email Recipient <span class="required" style="color:var(--danger)">*</span></label>
-              <input type="email" id="testEmailRecipient" name="recipient" class="form-control" placeholder="Enter your email to test" required>
+              <label x-text="$t('settings.test_recipient')">Test Email Recipient</label> <span class="required" style="color:var(--danger)">*</span>
+              <input type="email" id="testEmailRecipient" name="recipient" class="form-control" placeholder="..." required>
             </div>
             <div class="form-group">
-              <label>Body Type</label>
+              <label x-text="$t('settings.test_body_type')">Body Type</label>
               <select class="form-control" disabled>
                 <option>Plain text</option>
               </select>
@@ -104,12 +99,12 @@
           </div>
           
           <div class="form-group" style="margin-top: 16px;">
-            <label>Email Body <span class="required" style="color:var(--danger)">*</span></label>
+            <label x-text="$t('settings.test_body')">Email Body</label> <span class="required" style="color:var(--danger)">*</span>
             <textarea id="testEmailBody" name="body" class="form-control" rows="4" style="resize: vertical;" required>This is a test email sent from Knowledge Platform SMTP configurations.</textarea>
           </div>
           
           <div class="form-actions" style="margin-top: 16px;">
-            <button type="submit" class="secondary-btn" id="sendTestMailBtn">Send Test Mail</button>
+            <button type="submit" class="secondary-btn" id="sendTestMailBtn" x-text="$t('settings.btn_test')">Send Test Mail</button>
           </div>
         </form>
 

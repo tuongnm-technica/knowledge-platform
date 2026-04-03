@@ -14,7 +14,7 @@ export class DocumentsModule {
         const container = document.getElementById('page-documents');
         if (container) {
             const list = container.querySelector('#documentsList');
-            if (list) list.innerHTML = '<div style="padding:40px; text-align:center;">Đang tải danh sách tài liệu...</div>';
+            if (list) list.innerHTML = `<div style="padding:40px; text-align:center;">${(window as any).$t('docs.loading')}</div>`;
         }
 
         try {
@@ -24,7 +24,7 @@ export class DocumentsModule {
             if (query) url.searchParams.set('q', query);
 
             const res = await authFetch(url.toString());
-            if (!res.ok) throw new Error('Không thể tải danh sách tài liệu');
+            if (!res.ok) throw new Error((window as any).$t('docs.err_load_list'));
             const data = await res.json() as { documents: any[], total: number, page: number, pages: number };
             
             this.totalPages = data.pages || 1;
@@ -43,7 +43,7 @@ export class DocumentsModule {
 
     private updatePaginationUI(): void {
         const pageInfo = document.getElementById('docPageInfo');
-        if (pageInfo) pageInfo.textContent = `Trang ${this.currentPage} / ${this.totalPages}`;
+        if (pageInfo) pageInfo.textContent = `${(window as any).$t('docs.page')} ${this.currentPage} / ${this.totalPages}`;
         
         const prevBtn = document.getElementById('prevDocsBtn') as HTMLButtonElement;
         const nextBtn = document.getElementById('nextDocsBtn') as HTMLButtonElement;
@@ -57,7 +57,7 @@ export class DocumentsModule {
         if (!list) return;
 
         if (!docs || docs.length === 0) {
-            list.innerHTML = '<div class="search-empty">Không tìm thấy tài liệu nào.</div>';
+            list.innerHTML = `<div class="search-empty">${(window as any).$t('docs.empty_hint')}</div>`;
             return;
         }
 
@@ -66,10 +66,7 @@ export class DocumentsModule {
                 <thead>
                     <tr>
                         <th style="width: 40px"><input type="checkbox" id="selectAllDocs"></th>
-                        <th>Tiêu đề</th>
-                        <th>Nguồn</th>
-                        <th>Cập nhật</th>
-                        <th style="width: 150px">Thao tác</th>
+                        <th style="width: 150px">${(window as any).$t('docs.col_actions')}</th>
                     </tr>
                 </thead>
                 <tbody id="documentsTableBody">
@@ -77,17 +74,17 @@ export class DocumentsModule {
                         <tr data-id="${doc.id}" style="cursor:context-menu">
                             <td><input type="checkbox" class="doc-checkbox" value="${doc.id}" data-title="${escapeHtml(doc.title)}"></td>
                             <td>
-                                <div style="font-weight:600">${escapeHtml(doc.title || 'Untitled')}</div>
+                                <div style="font-weight:600">${escapeHtml(doc.title || (window as any).$t('docs.untitled'))}</div>
                                 <div style="font-size:11px; color:var(--text-dim)">${escapeHtml(doc.url || '')}</div>
                             </td>
                             <td><span class="connector-status-badge info" style="font-size:10px">${escapeHtml(doc.source)}</span></td>
                             <td style="font-size:12px">${formatDateTime(doc.updated_at)}</td>
                             <td>
                                 <div style="display:flex; gap:8px">
-                                    <button class="secondary-btn mini view-doc-btn" data-id="${doc.id}" title="Xem nội dung">👁️</button>
-                                    <button class="secondary-btn mini add-basket-btn" data-id="${doc.id}" data-title="${escapeHtml(doc.title)}" title="Thêm vào giỏ">📌</button>
-                                    <button class="secondary-btn mini view-source-btn" data-url="${doc.url}" title="Xem nguồn">🔗</button>
-                                    <button class="danger-btn mini delete-doc-btn" data-id="${doc.id}" title="Xóa">🗑</button>
+                                    <button class="secondary-btn mini view-doc-btn" data-id="${doc.id}" title="${(window as any).$t('docs.btn_view')}">👁️</button>
+                                    <button class="secondary-btn mini add-basket-btn" data-id="${doc.id}" data-title="${escapeHtml(doc.title)}" title="${(window as any).$t('docs.btn_add_basket')}">📌</button>
+                                    <button class="secondary-btn mini view-source-btn" data-url="${doc.url}" title="${(window as any).$t('docs.btn_view_source')}">🔗</button>
+                                    <button class="danger-btn mini delete-doc-btn" data-id="${doc.id}" title="${(window as any).$t('docs.btn_delete')}">🗑</button>
                                 </div>
                             </td>
                         </tr>
@@ -135,7 +132,7 @@ export class DocumentsModule {
             tr.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const id = (e.currentTarget as HTMLElement).getAttribute('data-id')!;
-                const title = (e.currentTarget as HTMLElement).querySelector('.doc-checkbox')?.getAttribute('data-title') || 'Tài liệu';
+                const title = (e.currentTarget as HTMLElement).querySelector('.doc-checkbox')?.getAttribute('data-title') || (window as any).$t('docs.fallback_title');
                 this.addToBasket(id, title);
             });
         });
@@ -165,7 +162,7 @@ export class DocumentsModule {
     private async viewDocument(docId: string): Promise<void> {
         try {
             const res = await authFetch(`${API}/documents/${docId}`);
-            if (!res.ok) throw new Error('Không thể tải nội dung tài liệu');
+            if (!res.ok) throw new Error((window as any).$t('docs.err_load_content'));
             const data = await res.json() as { document: any };
             const doc = data.document;
 
@@ -178,14 +175,14 @@ export class DocumentsModule {
                     <div style="font-size:12px; color:var(--accent); word-break:break-all">${escapeHtml(doc.url)}</div>
                 </div>
                 <div class="markdown-body" style="max-height:60vh; overflow-y:auto; line-height:1.6; font-size:14px;">
-                    ${renderMarkdown(doc.content || 'Không có nội dung.')}
+                    ${renderMarkdown(doc.content || (window as any).$t('docs.empty_content'))}
                 </div>
             `;
 
             kpOpenModal({
-                title: '📄 Chi tiết tài liệu',
+                title: '📄 ' + (window as any).$t('docs.modal_title'),
                 content: body,
-                okText: 'Đóng',
+                okText: (window as any).$t('common.close'),
                 onOk: () => true
             });
         } catch (err) {
@@ -202,17 +199,17 @@ export class DocumentsModule {
     private batchAddToBasket(): void {
         const checkboxes = document.querySelectorAll('.doc-checkbox:checked') as NodeListOf<HTMLInputElement>;
         if (checkboxes.length === 0) {
-            showToast('Vui lòng chọn ít nhất một tài liệu', 'warning');
+            showToast((window as any).$t('docs.err_at_least_one'), 'warning');
             return;
         }
-        checkboxes.forEach(cb => this.addToBasket(cb.value, cb.getAttribute('data-title') || 'Tài liệu'));
-        showToast(`Đã thêm ${checkboxes.length} tài liệu vào giỏ`, 'success');
+        checkboxes.forEach(cb => this.addToBasket(cb.value, cb.getAttribute('data-title') || (window as any).$t('docs.fallback_title')));
+        showToast((window as any).$t('docs.batch_add_success', { count: checkboxes.length }), 'success');
     }
 
     private async deleteDocument(docId: string): Promise<void> {
         const confirmed = await kpConfirm({
-            title: 'Xóa tài liệu',
-            message: 'Bạn có chắc chắn muốn xóa tài liệu này khỏi Knowledge Base? Hành động này không thể hoàn tác.',
+            title: (window as any).$t('docs.confirm_delete_title'),
+            message: (window as any).$t('docs.confirm_delete_msg'),
             danger: true
         });
         if (!confirmed) return;
@@ -223,8 +220,8 @@ export class DocumentsModule {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ids: [docId] })
             });
-            if (!res.ok) throw new Error('Xóa thất bại');
-            showToast('Đã xóa tài liệu', 'success');
+            if (!res.ok) throw new Error((window as any).$t('docs.err_delete_failed'));
+            showToast((window as any).$t('docs.delete_success'), 'success');
             this.loadDocumentsPage(this.currentPage, this.searchQuery);
         } catch (err) {
             showToast((err as Error).message, 'error');
@@ -235,13 +232,13 @@ export class DocumentsModule {
         const checkboxes = document.querySelectorAll('.doc-checkbox:checked') as NodeListOf<HTMLInputElement>;
         const ids = Array.from(checkboxes).map(cb => cb.value);
         if (ids.length === 0) {
-            showToast('Vui lòng chọn ít nhất một tài liệu', 'warning');
+            showToast((window as any).$t('docs.err_at_least_one'), 'warning');
             return;
         }
 
         const confirmed = await kpConfirm({
-            title: 'Xóa hàng loạt',
-            message: `Bạn có chắc muốn xóa ${ids.length} tài liệu đã chọn?`,
+            title: (window as any).$t('docs.confirm_batch_delete_title'),
+            message: (window as any).$t('docs.confirm_batch_delete_msg', { count: ids.length }),
             danger: true
         });
         if (!confirmed) return;
@@ -252,8 +249,8 @@ export class DocumentsModule {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ids })
             });
-            if (!res.ok) throw new Error('Xóa hàng loạt thất bại');
-            showToast(`Đã xóa ${ids.length} tài liệu`, 'success');
+            if (!res.ok) throw new Error((window as any).$t('docs.err_batch_delete_failed'));
+            showToast((window as any).$t('docs.batch_delete_success', { count: ids.length }), 'success');
             this.loadDocumentsPage(1, this.searchQuery);
         } catch (err) {
             showToast((err as Error).message, 'error');

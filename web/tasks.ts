@@ -31,12 +31,12 @@ export class TasksModule {
         try {
             const query = this.includeSubmitted ? '?limit=50' : '?limit=50&status=pending';
             const res = await authFetch(`${API}/tasks${query}`);
-            if (!res.ok) throw new Error('Failed to load tasks');
+            if (!res.ok) throw new Error((window as any).$t('tasks.err_load_list'));
             const data = await res.json() as { tasks: Task[] };
             this.tasks = data.tasks || [];
         } catch (err) {
             console.error(err);
-            showToast('Lỗi tải danh sách task', 'error');
+            showToast((window as any).$t('tasks.err_load_list'), 'error');
         } finally {
             this.isLoading = false;
             this.render();
@@ -58,22 +58,22 @@ export class TasksModule {
     }
 
     public async triggerScan() {
-        showToast('Đang quét dữ liệu từ Slack & Confluence...', 'info');
+        showToast((window as any).$t('tasks.scanning_info'), 'info');
         try {
             const res = await authFetch(`${API}/tasks/scan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ slack_days: this.slackDays, confluence_days: this.confluenceDays })
             });
-            if (!res.ok) throw new Error('Lỗi khi quét');
+            if (!res.ok) throw new Error((window as any).$t('tasks.err_scan_failed'));
             const data = await res.json() as { status: string, stats?: any };
 
-            let message = 'Đã quét xong.';
+            let message = (window as any).$t('tasks.scan_complete');
             if (data.stats) {
                 const s = data.stats;
                 const slack = s.slack_tasks_created || 0;
                 const confluence = s.confluence_tasks_created || 0;
-                message = `Quét hoàn tất: +${slack} task từ Slack, +${confluence} từ Confluence.`;
+                message = (window as any).$t('tasks.scan_result_stats', { slack, confluence });
             }
 
             showToast(message, 'success');
@@ -100,10 +100,10 @@ export class TasksModule {
             });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(`Duyệt thất bại: ${errorData.detail || res.statusText}`);
+                throw new Error(`${(window as any).$t('tasks.err_approve_failed')}: ${errorData.detail || res.statusText}`);
             }
             if (!skipReload) {
-                showToast('Đã duyệt thành công', 'success');
+                showToast((window as any).$t('tasks.approve_success'), 'success');
                 await this.loadTasks();
                 await this.loadTasksCount();
             }
@@ -114,8 +114,8 @@ export class TasksModule {
 
     public async deleteTask(id: string) {
         if (!await kpConfirm({
-            title: 'Hủy bỏ Task',
-            message: 'Khi hủy bỏ, task này sẽ không xuất hiện lại trong các lần quét sau. Bạn chắc chắn muốn hủy?',
+            title: (window as any).$t('tasks.confirm_delete_title'),
+            message: (window as any).$t('tasks.confirm_delete_msg'),
             danger: true
         })) return;
         try {
@@ -124,8 +124,8 @@ export class TasksModule {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'rejected' })
             });
-            if (!res.ok) throw new Error('Hủy bỏ thất bại');
-            showToast('Đã hủy bỏ task (sẽ không bị quét trùng)', 'success');
+            if (!res.ok) throw new Error((window as any).$t('tasks.err_delete_failed'));
+            showToast((window as any).$t('tasks.delete_success'), 'success');
             await this.loadTasks();
             await this.loadTasksCount();
         } catch (err) {
@@ -136,16 +136,16 @@ export class TasksModule {
     private async bulkConfirmTasks() {
         if (this.selectedIds.length === 0) return;
         if (!await kpConfirm({
-            title: 'Duyệt hàng loạt',
-            message: `Bạn có chắc muốn duyệt ${this.selectedIds.length} tasks đã chọn?`
+            title: (window as any).$t('tasks.bulk_approve_title'),
+            message: (window as any).$t('tasks.bulk_approve_msg', { count: this.selectedIds.length })
         })) return;
 
-        showToast(`Đang duyệt ${this.selectedIds.length} tasks...`, 'info');
+        showToast((window as any).$t('tasks.bulk_approving', { count: this.selectedIds.length }), 'info');
         for (const id of this.selectedIds) {
             await this.approveTask(id, true);
         }
         this.selectedIds = [];
-        showToast('Đã duyệt xong hàng loạt', 'success');
+        showToast((window as any).$t('tasks.bulk_approve_complete'), 'success');
         await this.loadTasks();
         await this.loadTasksCount();
     }
@@ -153,12 +153,12 @@ export class TasksModule {
     private async bulkRejectTasks() {
         if (this.selectedIds.length === 0) return;
         if (!await kpConfirm({
-            title: 'Hủy bỏ hàng loạt',
-            message: `Bạn có chắc muốn hủy bỏ ${this.selectedIds.length} tasks đã chọn? Khi hủy bỏ, chúng sẽ không bị quét trùng lại.`,
+            title: (window as any).$t('tasks.bulk_delete_title'),
+            message: (window as any).$t('tasks.bulk_delete_msg', { count: this.selectedIds.length }),
             danger: true
         })) return;
 
-        showToast(`Đang hủy bỏ ${this.selectedIds.length} tasks...`, 'info');
+        showToast((window as any).$t('tasks.bulk_deleting', { count: this.selectedIds.length }), 'info');
         for (const id of this.selectedIds) {
             try { 
                 await authFetch(`${API}/tasks/${id}/status`, { 
@@ -169,7 +169,7 @@ export class TasksModule {
             } catch (e) {}
         }
         this.selectedIds = [];
-        showToast('Đã hủy bỏ xong hàng loạt', 'success');
+        showToast((window as any).$t('tasks.bulk_delete_complete'), 'success');
         await this.loadTasks();
         await this.loadTasksCount();
     }
@@ -196,28 +196,28 @@ export class TasksModule {
         body.innerHTML = `
             <div style="display: flex; flex-direction: column; gap: 16px;">
                 <div>
-                    <label class="kp-modal-label">Tiêu đề (Title)</label>
+                    <label class="kp-modal-label">${(window as any).$t('tasks.label_title')}</label>
                     <input type="text" id="editTaskTitle" class="admin-input" style="width: 100%; font-weight: 600;" value="${escapeHtml(task.title)}">
                 </div>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 120px;">
-                        <label class="kp-modal-label">Loại Issue</label>
+                        <label class="kp-modal-label">${(window as any).$t('tasks.label_issue_type')}</label>
                         <select id="editTaskType" class="admin-input" style="width: 100%">
-                            <option value="">-- Chọn --</option>
+                            <option value="">${(window as any).$t('tasks.label_select_placeholder')}</option>
                             ${typeOptions}
                         </select>
                     </div>
                     <div style="flex: 1; min-width: 120px;">
-                        <label class="kp-modal-label">Assignee</label>
+                        <label class="kp-modal-label">${(window as any).$t('tasks.label_assignee')}</label>
                         <input type="text" id="editTaskAssignee" class="admin-input" style="width: 100%" value="${escapeHtml(assignee)}">
                     </div>
                     <div style="flex: 1; min-width: 120px;">
-                        <label class="kp-modal-label">Parent Key</label>
+                        <label class="kp-modal-label">${(window as any).$t('tasks.label_parent_key')}</label>
                         <input type="text" id="editTaskParent" class="admin-input" style="width: 100%" value="${escapeHtml(parentKey)}">
                     </div>
                 </div>
                 <div>
-                    <label class="kp-modal-label">Mô tả chi tiết</label>
+                    <label class="kp-modal-label">${(window as any).$t('tasks.label_description')}</label>
                     <textarea id="editTaskDesc" class="admin-input" style="width: 100%; height: 180px; resize: vertical; font-family: monospace;">${escapeHtml(desc)}</textarea>
                 </div>
                 ${evidence ? `<div style="border-top: 1px dashed var(--border); padding-top: 16px;">
@@ -227,8 +227,8 @@ export class TasksModule {
             </div>`;
 
         kpOpenModal({
-            title: '✏️ Chỉnh sửa & Duyệt Task',
-            content: body, okText: '💾 Lưu & Duyệt',
+            title: '✏️ ' + (window as any).$t('tasks.edit_modal_title'),
+            content: body, okText: '💾 ' + (window as any).$t('tasks.edit_modal_ok'),
             onOk: async () => {
                 const issueTypeVal = (document.getElementById('editTaskType') as HTMLSelectElement).value.trim();
                 const assigneeVal = (document.getElementById('editTaskAssignee') as HTMLInputElement).value.trim();
@@ -285,7 +285,7 @@ export class TasksModule {
             emptyDiv.style.display = 'none';
             bulkBar.style.display = this.selectedIds.length > 0 ? 'flex' : 'none';
             const countLabel = bulkBar.querySelector('.selection-count');
-            if (countLabel) countLabel.textContent = `${this.selectedIds.length} selected`;
+            if (countLabel) countLabel.textContent = `${this.selectedIds.length} ${(window as any).$t('tasks.selection_suffix')}`;
 
             listDiv.innerHTML = this.tasks.map(task => {
                 const isSelected = this.selectedIds.includes(task.id);
@@ -297,21 +297,21 @@ export class TasksModule {
                         </div>
                         <div class="task-card-body">
                             <div class="task-card-header">
-                                <div class="task-card-title">${escapeHtml(task.title || 'Untitled')}</div>
+                                <div class="task-card-title">${escapeHtml(task.title || (window as any).$t('tasks.untitled'))}</div>
                                 <div class="task-status-wrap">
                                     <span class="status-badge status-${task.status || 'pending'}">${task.status || 'pending'}</span>
                                 </div>
                             </div>
                             <div class="task-card-meta">
                                 <span class="source-tag">${sourceEmoji} ${(task.source || 'system').toUpperCase()}</span>
-                                <span>Tạo lúc: ${formatDateTime(task.created_at)}</span>
+                                <span>${(window as any).$t('tasks.created_at')}: ${formatDateTime(task.created_at)}</span>
                                 ${task.meta?.issue_type ? `<span class="meta-tag type-tag">Type: ${task.meta.issue_type}</span>` : ''}
                                 ${task.meta?.assignee ? `<span class="meta-tag assignee-tag">👤 ${task.meta.assignee}</span>` : ''}
                             </div>
                         </div>
                         <div class="task-card-actions">
-                            ${task.status !== 'approved' ? `<button class="secondary-btn mini approve-btn" data-id="${task.id}">✅ Duyệt</button>` : ''}
-                            <button class="danger-btn mini ghost-btn delete-btn" data-id="${task.id}">🗑 Xóa</button>
+                            ${task.status !== 'approved' ? `<button class="secondary-btn mini approve-btn" data-id="${task.id}">✅ ${(window as any).$t('tasks.approve_btn')}</button>` : ''}
+                            <button class="danger-btn mini ghost-btn delete-btn" data-id="${task.id}">🗑 ${(window as any).$t('tasks.delete_btn')}</button>
                         </div>
                     </div>
                 `;

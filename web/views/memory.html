@@ -1,14 +1,13 @@
-<!-- ── PROJECT MEMORY PAGE ── -->
-<div class="page" id="page-memory">
+<div class="page" id="page-memory" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="connectors-content">
     <div class="page-intro">
       <div>
         <div class="intro-kicker">AI Context Manager</div>
-        <div class="intro-title">🧠 Project Memory</div>
-        <div class="intro-sub">Dưới đây là những <strong>Actors</strong>, <strong>Thuật ngữ</strong> và <strong>Quy tắc</strong> mà AI đã tự động học được từ các tài liệu đã sinh. Chúng sẽ được bơm vào mọi lần sinh tài liệu tiếp theo.</div>
+        <div class="intro-title">🧠 <span x-text="$t('memory.title')">Project Memory</span></div>
+        <div class="intro-sub" x-text="$t('memory.intro_sub')">Dưới đây là những Actors, Thuật ngữ và Quy tắc mà AI đã tự động học được từ các tài liệu đã sinh. Chúng sẽ được bơm vào mọi lần sinh tài liệu tiếp theo.</div>
       </div>
       <div class="connectors-toolbar-actions">
-        <button class="secondary-btn" id="refreshMemoryBtn">Refresh</button>
+        <button class="secondary-btn" id="refreshMemoryBtn">🔄 <span x-text="$t('common.refresh')">Refresh</span></button>
       </div>
     </div>
     <div id="memoryContent" style="padding:0 20px 24px"></div>

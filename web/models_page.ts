@@ -86,10 +86,10 @@ export class ModelsModule {
             ]);
 
             if (!modelsRes.ok) {
-                throw new Error(await this.readError(modelsRes, 'Không thể tải danh sách model'));
+                throw new Error(await this.readError(modelsRes, (window as any).$t('models.err_load_models')));
             }
             if (!bindingsRes.ok) {
-                throw new Error(await this.readError(bindingsRes, 'Không thể tải cấu hình binding'));
+                throw new Error(await this.readError(bindingsRes, (window as any).$t('models.err_load_bindings')));
             }
 
             this.models = await modelsRes.json();
@@ -108,7 +108,7 @@ export class ModelsModule {
             this.renderModels();
         } catch (err) {
             console.error('Failed to fetch models data', err);
-            showToast((err as Error).message || 'Không thể tải dữ liệu models', 'error');
+            showToast((err as Error).message || (window as any).$t('models.err_load_data'), 'error');
         }
     }
 
@@ -118,12 +118,12 @@ export class ModelsModule {
 
         const activeModels = this.models.filter((model) => model.is_active);
         const tasks: { type: TaskType; label: string; desc: string }[] = [
-            { type: 'chat', label: 'Hội thoại (Chat AI)', desc: 'Dùng cho trao đổi trực tiếp, hỗ trợ chọn nhiều model.' },
-            { type: 'ingestion_llm', label: 'Xử lý dữ liệu (RAG)', desc: 'Dùng để trích xuất thông tin, tóm tắt tài liệu.' },
-            { type: 'agent', label: 'Suy luận Agent', desc: 'Dùng cho các tác vụ phức tạp cần lập kế hoạch.' },
-            { type: 'embedding', label: 'Vector hóa', desc: 'Dùng để chuyển văn bản thành số học để tìm kiếm.' },
-            { type: 'vision', label: 'Thị giác máy tính', desc: 'Dùng để mô tả hình ảnh và OCR.' },
-            { type: 'skill', label: 'Skill chuyên môn', desc: 'Dùng cho các module kỹ năng riêng biệt.' },
+            { type: 'chat', label: (window as any).$t('models.task_chat_label'), desc: (window as any).$t('models.task_chat_desc') },
+            { type: 'ingestion_llm', label: (window as any).$t('models.task_rag_label'), desc: (window as any).$t('models.task_rag_desc') },
+            { type: 'agent', label: (window as any).$t('models.task_agent_label'), desc: (window as any).$t('models.task_agent_desc') },
+            { type: 'embedding', label: (window as any).$t('models.task_vector_label'), desc: (window as any).$t('models.task_vector_desc') },
+            { type: 'vision', label: (window as any).$t('models.task_vision_label'), desc: (window as any).$t('models.task_vision_desc') },
+            { type: 'skill', label: (window as any).$t('models.task_skill_label'), desc: (window as any).$t('models.task_skill_desc') },
         ];
 
         tbody.innerHTML = tasks
@@ -145,15 +145,15 @@ export class ModelsModule {
                         }).join('');
 
                         infoContainer = `<div style="max-height:120px; overflow-y:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background:var(--bg2);">
-                            <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; font-weight:700;">Model khả dụng trong Chat:</div>
+                            <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; font-weight:700;">${(window as any).$t('models.hint_chat_available')}</div>
                             ${checkList}
                         </div>`;
                     } else {
                         const chatEnabledCount = this.models.filter(m => m.is_chat_enabled && m.is_active).length;
-                        infoContainer = `<span class="count-badge">${chatEnabledCount}</span> model khả dụng`;
+                        infoContainer = `<span class="count-badge">${chatEnabledCount}</span> ${(window as any).$t('models.models_available_suffix')}`;
                     }
                 } else {
-                    infoContainer = `<span style="color:var(--text-dim); font-size:11px;">Mặc định hệ thống</span>`;
+                    infoContainer = `<span style="color:var(--text-dim); font-size:11px;">${(window as any).$t('models.system_default_hint')}</span>`;
                 }
 
                 // Filter dropdown for Chat task: only show chat-enabled models
@@ -171,7 +171,7 @@ export class ModelsModule {
                     </td>
                     <td>
                         <select class="form-select task-binding-select" data-task="${task.type}" ${isCurrentlyEditing ? '' : 'disabled'} style="width:100%; border-radius:8px;">
-                            <option value="">-- Chọn Model mặc định --</option>
+                            <option value="">${(window as any).$t('models.select_default_model')}</option>
                             ${dropdownModels
                                 .map(
                                     (model) =>
@@ -186,11 +186,11 @@ export class ModelsModule {
                             <div style="display:flex; flex-direction:column; gap:6px;">
                                 <button class="btn-binding-toggle ${isCurrentlyEditing ? 'save' : 'edit'}" 
                                         onclick="window.modelsModule.toggleBindingEdit('${task.type}', this)">
-                                    ${isCurrentlyEditing ? '✅ Lưu' : '✏️ Sửa'}
+                                    ${isCurrentlyEditing ? (window as any).$t('models.action_save') : (window as any).$t('models.action_edit')}
                                 </button>
                                 ${isCurrentlyEditing ? `
                                 <button class="btn-binding-toggle cancel" onclick="window.modelsModule.cancelBindingEdit()">
-                                    ❌ Hủy
+                                    ${(window as any).$t('models.action_cancel')}
                                 </button>` : ''}
                             </div>
                         </div>
@@ -211,7 +211,7 @@ export class ModelsModule {
 
             const modelId = select.value;
             if (!modelId) {
-                showToast('Vui lòng chọn một model', 'warning');
+                showToast((window as any).$t('models.err_no_model_selected'), 'warning');
                 return;
             }
 
@@ -244,7 +244,7 @@ export class ModelsModule {
             });
 
             if (!res.ok) {
-                throw new Error('Lỗi khi bật/tắt chat model');
+                throw new Error((window as any).$t('models.err_toggle_chat_failed'));
             }
 
             const updatedModel = await res.json();
@@ -254,7 +254,8 @@ export class ModelsModule {
                 this.models[idx].is_chat_enabled = updatedModel.is_chat_enabled;
             }
             
-            showToast(`Đã ${updatedModel.is_chat_enabled ? 'bật' : 'tắt'} model cho Chat`, 'success');
+            const actionLabel = updatedModel.is_chat_enabled ? (window as any).$t('models.action_on') : (window as any).$t('models.action_off');
+            showToast((window as any).$t('models.toggle_chat_success', { action: actionLabel }), 'success');
         } catch (err) {
             showToast((err as Error).message, 'error');
         }
@@ -269,14 +270,14 @@ export class ModelsModule {
             });
 
             if (!res.ok) {
-                throw new Error(await this.readError(res, 'Lỗi khi cập nhật binding'));
+                throw new Error(await this.readError(res, (window as any).$t('models.err_update_binding_failed')));
             }
 
             this.bindings[taskType] = modelId;
-            showToast(`Đã gán model mặc định cho ${taskType}`, 'success');
+            showToast((window as any).$t('models.update_binding_success', { task: taskType }), 'success');
             return true;
         } catch (err) {
-            showToast((err as Error).message || 'Lỗi kết nối', 'error');
+            showToast((err as Error).message || (window as any).$t('models.err_connection'), 'error');
             return false;
         }
     }
@@ -287,14 +288,14 @@ export class ModelsModule {
 
         if (this.models.length === 0) {
             grid.innerHTML =
-                '<div style="grid-column: 1/-1; padding: 60px; text-align: center; color: var(--text-dim);"><h3>Registry trống</h3><p>Hãy thêm model đầu tiên của bạn.</p></div>';
+                `<div style="grid-column: 1/-1; padding: 60px; text-align: center; color: var(--text-dim);"><h3>${(window as any).$t('models.registry_empty_title')}</h3><p>${(window as any).$t('models.registry_empty_sub')}</p></div>`;
             return;
         }
 
         grid.innerHTML = this.models
             .map((model) => {
                 const statusClass = model.is_active ? 'active' : 'inactive';
-                const statusLabel = model.is_active ? 'Online' : 'Offline';
+                const statusLabel = model.is_active ? (window as any).$t('models.status_online') : (window as any).$t('models.status_offline');
                 const isUsedInChat = model.is_chat_enabled && model.is_active;
 
                 return `
@@ -309,18 +310,18 @@ export class ModelsModule {
                         </div>
                         <div class="mc-pill-row" style="margin-top:8px;">
                             <span class="status-pill ${statusClass}">${statusLabel}</span>
-                            ${isUsedInChat ? '<span class="status-pill chat">In Chat</span>' : ''}
-                            ${model.is_default ? '<span class="status-pill default">System Default</span>' : ''}
+                            ${isUsedInChat ? `<span class="status-pill chat">${(window as any).$t('models.badge_in_chat')}</span>` : ''}
+                            ${model.is_default ? `<span class="status-pill default">${(window as any).$t('models.badge_default')}</span>` : ''}
                         </div>
                     </div>
                 </div>
                 <div class="mc-body" style="flex:1;">
                     <div style="font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px;">${model.name}</div>
-                    <div class="mc-description">${model.description || 'Không có mô tả.'}</div>
+                    <div class="mc-description">${model.description || (window as any).$t('models.no_description')}</div>
                 </div>
                 <div class="mc-footer">
-                    <button class="secondary-btn mini" onclick="window.modelsModule.showModal('${model.id}')">Thiết lập</button>
-                    <button class="danger-btn mini" onclick="window.modelsModule.confirmDelete('${model.id}')">Gỡ bỏ</button>
+                    <button class="secondary-btn mini" onclick="window.modelsModule.showModal('${model.id}')">${(window as any).$t('common.config')}</button>
+                    <button class="danger-btn mini" onclick="window.modelsModule.confirmDelete('${model.id}')">${(window as any).$t('common.remove')}</button>
                 </div>
             </div>
         `;
@@ -339,10 +340,9 @@ export class ModelsModule {
 
     public async handleResetToDefaults() {
         const confirmed = await kpConfirm({
-            title: 'Khôi phục cấu hình gốc?',
-            message:
-                'Toàn bộ danh sách model và gán tác vụ sẽ bị xóa để nạp lại cấu hình chuẩn. Bạn có chắc không?',
-            okText: 'Xác nhận Reset',
+            title: (window as any).$t('models.confirm_reset_title'),
+            message: (window as any).$t('models.confirm_reset_msg'),
+            okText: (window as any).$t('models.btn_confirm_reset'),
         });
 
         if (!confirmed) return;
@@ -350,13 +350,13 @@ export class ModelsModule {
         try {
             const res = await authFetch('/api/models/reset-defaults', { method: 'POST' });
             if (!res.ok) {
-                throw new Error(await this.readError(res, 'Lỗi khi khôi phục'));
+                throw new Error(await this.readError(res, (window as any).$t('models.err_reset_failed')));
             }
 
-            showToast('Đã khôi phục cấu hình mặc định', 'success');
+            showToast((window as any).$t('models.reset_success'), 'success');
             await this.refreshData();
         } catch (err) {
-            showToast((err as Error).message || 'Lỗi kết nối', 'error');
+            showToast((err as Error).message || (window as any).$t('models.err_connection'), 'error');
         }
     }
 
@@ -373,7 +373,7 @@ export class ModelsModule {
         if (id) {
             const model = this.models.find((item) => item.id === id);
             if (model) {
-                if (title) title.textContent = 'Cập nhật AI Model';
+                if (title) title.textContent = (window as any).$t('models.modal_update_title');
                 (document.getElementById('m-name') as HTMLInputElement).value = model.name || '';
                 (document.getElementById('m-provider') as HTMLSelectElement).value = model.provider || 'ollama';
                 (document.getElementById('m-model-name') as HTMLInputElement).value = model.llm_model_name || '';
@@ -385,7 +385,7 @@ export class ModelsModule {
                 (document.getElementById('m-chat-enabled') as HTMLInputElement).checked = !!model.is_chat_enabled;
             }
         } else if (title) {
-            title.textContent = 'Thêm AI Model mới';
+            title.textContent = (window as any).$t('models.modal_create_title');
         }
 
         this.toggleProviderFields();
@@ -425,22 +425,22 @@ export class ModelsModule {
             });
 
             if (!res.ok) {
-                throw new Error(await this.readError(res, 'Không thể lưu model'));
+                throw new Error(await this.readError(res, (window as any).$t('models.err_save_failed')));
             }
 
-            showToast(id ? 'Đã cập nhật model' : 'Đã thêm model mới', 'success');
+            showToast(id ? (window as any).$t('models.save_update_success') : (window as any).$t('models.save_create_success'), 'success');
             this.hideModal();
             await this.refreshData();
         } catch (err) {
-            showToast((err as Error).message || 'Lỗi kết nối', 'error');
+            showToast((err as Error).message || (window as any).$t('models.err_connection'), 'error');
         }
     }
 
     public async confirmDelete(id: string) {
         const confirmed = await kpConfirm({
-            title: 'Xóa model khỏi Registry?',
-            message: 'Hành động này sẽ gỡ bỏ model khỏi hệ thống. Các gán tác vụ liên quan sẽ bị lỗi.',
-            okText: 'Xóa model',
+            title: (window as any).$t('models.confirm_delete_title'),
+            message: (window as any).$t('models.confirm_delete_msg'),
+            okText: (window as any).$t('models.btn_delete_confirm'),
         });
         if (!confirmed) return;
 
@@ -450,13 +450,13 @@ export class ModelsModule {
             });
 
             if (res.status !== 204) {
-                throw new Error(await this.readError(res, 'Không thể xóa model'));
+                throw new Error(await this.readError(res, (window as any).$t('models.err_delete_failed')));
             }
 
-            showToast('Đã xóa model', 'success');
+            showToast((window as any).$t('models.delete_success'), 'success');
             await this.refreshData();
         } catch (err) {
-            showToast((err as Error).message || 'Lỗi kết nối', 'error');
+            showToast((err as Error).message || (window as any).$t('models.err_connection'), 'error');
         }
     }
 

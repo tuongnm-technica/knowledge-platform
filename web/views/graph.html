@@ -1,40 +1,39 @@
-<!-- ── GRAPH PAGE ── -->
-<div class="page" id="page-graph">
+<div class="page" id="page-graph" x-data="{ lang: 'vi' }" @kp-lang-changed.window="lang = $event.detail">
   <div class="connectors-content">
     <div class="page-intro">
       <div class="intro-copy">
         <div class="intro-kicker">Data quality</div>
-        <div class="intro-title">Knowledge Health Dashboard</div>
-        <div class="intro-sub">Theo dõi độ phủ dữ liệu theo nguồn, độ tươi mới, và khám phá knowledge graph theo entities và relations.</div>
+        <div class="intro-title" x-text="$t('graph.title')">Knowledge Health Dashboard</div>
+        <div class="intro-sub" x-text="$t('graph.intro_sub')">Theo dõi độ phủ dữ liệu theo nguồn, độ tươi mới, và khám phá knowledge graph theo entities và relations.</div>
       </div>
       <div class="header-actions">
-        <button class="secondary-btn" id="refreshGraphBtn">Refresh</button>
+        <button class="secondary-btn" id="refreshGraphBtn">🔄 <span x-text="$t('common.refresh')">Refresh</span></button>
       </div>
     </div>
 
     <div class="health-grid" id="graphHealthGrid">
       <div class="connector-summary-card">
-        <span>Loading health...</span>
+        <span x-text="$t('graph.loading_health')">Loading health...</span>
         <strong>—</strong>
-        <small>Please wait</small>
+        <small x-text="$t('common.loading')">Please wait</small>
       </div>
     </div>
 
     <div class="graph-panel">
       <div class="graph-toolbar">
         <div class="graph-toolbar-left">
-          <div class="connectors-toolbar-title">Interactive graph</div>
-          <div class="connectors-toolbar-sub">Kéo node để khám phá. Dùng search để highlight thực thể.</div>
+          <div class="connectors-toolbar-title" x-text="$t('graph.interactive_graph')">Interactive graph</div>
+          <div class="connectors-toolbar-sub" x-text="$t('graph.interactive_graph_sub', { defaultValue: 'Kéo node để khám phá. Dùng search để highlight thực thể.' })">Kéo node để khám phá. Dùng search để highlight thực thể.</div>
         </div>
         <div class="graph-toolbar-actions">
-          <input id="graphSearchInput" class="time-input" type="text" placeholder="Search entity...">
-          <button class="secondary-btn" id="resetGraphBtn">Reset view</button>
+          <input id="graphSearchInput" class="time-input" type="text" :placeholder="$t('graph.search_entity')">
+          <button class="secondary-btn" id="resetGraphBtn" x-text="$t('graph.btn_reset_view')">Reset view</button>
         </div>
       </div>
       <div id="graphInsights" class="graph-insights panel-hidden"></div>
       <div class="graph-canvas-wrap">
         <canvas id="graphCanvas" width="1100" height="520" aria-label="Knowledge graph"></canvas>
-        <div id="graphHint" class="graph-hint">Tip: Wheel to zoom, drag background to pan, drag a node to pin it.</div>
+        <div id="graphHint" class="graph-hint" x-text="$t('graph.graph_hint')">Tip: Wheel to zoom, drag background to pan, drag a node to pin it.</div>
       </div>
       <div id="graphNodeDetail" class="graph-detail panel-hidden"></div>
     </div>

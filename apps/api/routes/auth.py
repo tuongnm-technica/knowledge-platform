@@ -44,6 +44,7 @@ class TokenResponse(BaseModel):
     display_name: str | None = None
     is_admin: bool
     role: str = "standard"
+    language: str = "vi"
 
 
 class RefreshRequest(BaseModel):
@@ -56,6 +57,12 @@ class MeResponse(BaseModel):
     display_name: str | None
     is_admin: bool
     role: str = "standard"
+    language: str = "vi"
+
+
+class MeUpdateRequest(BaseModel):
+    display_name: str | None = None
+    language: str | None = None
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -64,6 +71,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         text("""
             SELECT id, email, display_name, password_hash, is_active, is_admin
                  , COALESCE(role, 'standard') AS role
+                 , COALESCE(language, 'vi') AS language
             FROM users
             WHERE email = :email
         """),
@@ -90,6 +98,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         display_name=row["display_name"],
         is_admin=effective_admin,
         role=role,
+        language=row.get("language") or "vi",
     )
 
 
@@ -107,7 +116,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
         )
 
     result = await db.execute(
-        text("SELECT id, email, display_name, is_active, is_admin, COALESCE(role, 'standard') AS role FROM users WHERE id = :id"),
+        text("SELECT id, email, display_name, is_active, is_admin, COALESCE(role, 'standard') AS role, COALESCE(language, 'vi') AS language FROM users WHERE id = :id"),
         {"id": payload["sub"]},
     )
     row = result.mappings().first()
@@ -131,6 +140,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
         display_name=row["display_name"],
         is_admin=effective_admin,
         role=role,
+        language=row.get("language") or "vi",
     )
 
 
@@ -140,7 +150,7 @@ async def me(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        text("SELECT id, email, display_name, is_admin, COALESCE(role, 'standard') AS role FROM users WHERE id = :id"),
+        text("SELECT id, email, display_name, is_admin, COALESCE(role, 'standard') AS role, COALESCE(language, 'vi') AS language FROM users WHERE id = :id"),
         {"id": current_user.user_id},
     )
     row = result.mappings().first()
@@ -156,4 +166,35 @@ async def me(
         display_name=row["display_name"],
         is_admin=effective_admin,
         role=role,
+        language=row.get("language") or "vi",
     )
+
+
+@router.patch("/me")
+async def update_me(
+    req: MeUpdateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    updates = []
+    params = {"id": current_user.user_id}
+
+    if req.display_name is not None:
+        updates.append("display_name = :display_name")
+        params["display_name"] = req.display_name.strip()
+
+    if req.language is not None:
+        lang = req.language.lower()
+        if lang not in ["vi", "en", "jp"]:
+             raise HTTPException(status_code=400, detail="Ngon ngu khong duoc ho tro (ho tro: vi, en, jp)")
+        updates.append("language = :language")
+        params["language"] = lang
+
+    if updates:
+        await db.execute(
+            text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id"),
+            params,
+        )
+        await db.commit()
+
+    return {"status": "updated"}

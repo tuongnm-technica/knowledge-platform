@@ -23,7 +23,13 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from config.settings import settings
 
 
-engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG, pool_size=10)
+engine = create_async_engine(
+    settings.DATABASE_URL, 
+    echo=settings.DEBUG, 
+    pool_size=30, 
+    max_overflow=10,
+    pool_recycle=3600
+)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 # Synchronous engine for maintenance/scripts if needed
@@ -137,6 +143,7 @@ class UserORM(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     is_admin = Column(Boolean, nullable=False, default=False)
     role = Column(String(50), nullable=False, default="standard")
+    language = Column(String(10), nullable=False, default="vi")
 
 
 class GroupORM(Base):
@@ -428,6 +435,7 @@ class PMMetricsDailyORM(Base):
     done_count = Column(Integer, default=0)
     high_priority_count = Column(Integer, default=0)
     avg_lead_time_days = Column(Float, default=0.0)
+    permissions = Column(ARRAY(String), default=[])
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class PMMetricsByUserORM(Base):
@@ -444,6 +452,7 @@ class PMMetricsByUserORM(Base):
     in_progress_count = Column(Integer, default=0)
     done_count = Column(Integer, default=0)
     stale_count = Column(Integer, default=0) # WIP but no update > 3 days
+    permissions = Column(ARRAY(String), default=[])
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 class PMMetricsByProjectORM(Base):
@@ -455,6 +464,7 @@ class PMMetricsByProjectORM(Base):
     risk_score = Column(Float, default=0.0) # 0-100
     health_status = Column(String(20), default="healthy") # healthy, warning, critical
     insight = Column(Text) # Bottleneck/Velocity alerts
+    permissions = Column(ARRAY(String), default=[])
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -527,6 +537,9 @@ async def create_tables():
             "ALTER TABLE users ALTER COLUMN role SET DEFAULT 'standard'"
         ))
         await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS language VARCHAR(10) NOT NULL DEFAULT 'vi'"
+        ))
+        await conn.execute(text(
             "UPDATE users SET role = 'standard' WHERE role IS NULL OR role = ''"
         ))
         await conn.execute(text(
@@ -536,6 +549,18 @@ async def create_tables():
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_documents_workspace_id "
             "ON documents (workspace_id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_documents_source "
+            "ON documents (source)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_documents_project_key "
+            "ON documents ((metadata->>'project_key'))"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_documents_source_id "
+            "ON documents (source_id)"
         ))
         await conn.execute(text(
             "ALTER TABLE entities ADD COLUMN IF NOT EXISTS normalized_name VARCHAR(255)"

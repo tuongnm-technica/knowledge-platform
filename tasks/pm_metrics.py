@@ -34,7 +34,8 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
             CAST(metadata AS JSONB)->>'epic' as epic_json, 
             updated_at, 
             created_at, 
-            CAST(metadata AS JSONB)->>'resolved_date' as resolved_date 
+            CAST(metadata AS JSONB)->>'resolved_date' as resolved_date,
+            permissions
         FROM documents 
         WHERE source = 'jira' 
           AND (
@@ -49,6 +50,13 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
     if not issues:
         log.warning("pm_metrics.aggregation.no_data", project=project_key)
         return
+
+    # Extract unique permissions from all issues
+    all_permissions = set()
+    for i in issues:
+        if i['permissions']:
+            all_permissions.update(i['permissions'])
+    project_perms = list(all_permissions)
 
     # 2. Identify Active Sprint
     active_sprint_id = None
@@ -105,7 +113,8 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
         in_progress_count=len(wip),
         done_count=len(done),
         high_priority_count=len(high_pri),
-        avg_lead_time_days=float(median_lt)
+        avg_lead_time_days=float(median_lt),
+        permissions=project_perms
     )
     await session.execute(text("DELETE FROM pm_metrics_daily WHERE date = :d AND project_key = :p"), {"d": today, "p": project_key})
     session.add(daily)
@@ -131,7 +140,8 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
     for uid, s in user_map.items():
         session.add(PMMetricsByUserORM(
             user_id=uid, display_name=s["name"], project_key=project_key,
-            todo_count=s["todo"], in_progress_count=s["wip"], done_count=s["done"], stale_count=s["stale"]
+            todo_count=s["todo"], in_progress_count=s["wip"], done_count=s["done"], stale_count=s["stale"],
+            permissions=project_perms
         ))
 
     # 4. Project Level (Velocity & Bottlenecks)
@@ -156,7 +166,8 @@ async def aggregate_pm_metrics(session: AsyncSession, project_key: str):
         velocity_delta_pct=0.0, # compare logic simplified for demo
         risk_score=float(risk),
         health_status=status,
-        insight=insight
+        insight=insight,
+        permissions=project_perms
     ))
     await session.commit()
     log.info("pm_metrics.aggregation.done", project=project_key, risk=risk, status=status)
